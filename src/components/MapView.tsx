@@ -127,7 +127,11 @@ export default function MapView({ places, voteCount, photoUrls, onOpen }: {
     return k > pinned.length - k ? 'kansai' : 'kanto'
   })
   const [show, setShow] = useState<'all' | 'restaurant' | 'activity'>('all')
-  const visible = useMemo(() => pinned.filter((p) => show === 'all' || p.kind === show), [pinned, show])
+  // shopping is hidden by default (there are lots of shops); remembered per phone
+  const [shops, setShops] = useState<boolean>(() => { try { return localStorage.getItem('japanfam.mapShops') === '1' } catch { return false } })
+  const toggleShops = () => setShops((v) => { try { localStorage.setItem('japanfam.mapShops', v ? '0' : '1') } catch { /* ignore */ } return !v })
+  const nShops = pinned.filter((p) => p.category === 'shopping').length
+  const visible = useMemo(() => pinned.filter((p) => (show === 'all' || p.kind === show) && (shops || p.category !== 'shopping')), [pinned, show, shops])
 
   // create the map once
   useEffect(() => {
@@ -222,6 +226,11 @@ export default function MapView({ places, voteCount, photoUrls, onOpen }: {
           <button className={chip(show === 'all')} onClick={() => setShow('all')}>Everything</button>
           <button className={chip(show === 'restaurant')} onClick={() => setShow('restaurant')}>🍜 Food</button>
           <button className={chip(show === 'activity')} onClick={() => setShow('activity')}>🎢 Activities</button>
+          {nShops > 0 && show !== 'restaurant' && (
+            <button className={chip(shops)} onClick={toggleShops} title={shops ? 'Hide shopping' : 'Show shopping'}>
+              🛍️ {shops ? '' : `+${nShops}`}
+            </button>
+          )}
         </div>
       </div>
       {unpinned > 0 && (
