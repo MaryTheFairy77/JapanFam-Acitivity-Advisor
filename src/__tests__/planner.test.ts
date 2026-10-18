@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SALAH, buildDayPlans, buildPlans, combos, eveningShopping, interleave } from '../planner'
+import { SALAH, buildDayPlans, buildPlans, combos, eveningShopping, hotelLeg, interleave, varied } from '../planner'
 import { place } from './fixtures'
 
 const tokyo = { lat: 35.668, lng: 139.752 } // ~200 m from Toranomon Hills
@@ -136,5 +136,40 @@ describe('salah rules', () => {
     const eve = eveningShopping({ places: [a1, meal, s1, s2], voteCount: {}, hotel: 'toranomon', unvisited: true }, day)
     expect(eve.map((e) => e.p.id).some((id) => used.includes(id))).toBe(false)
     expect(eve).toHaveLength(1)
+  })
+})
+
+describe('food optional, human travel, light fallback', () => {
+  const a1 = place({ id: 'a1', ...tokyo, price_jpy: 1000 })
+  const a2 = place({ id: 'a2', ...tokyo, price_jpy: 1000 })
+  const meal = place({ id: 'meal', kind: 'restaurant', halal: 'Halal certified', ...tokyo, price_jpy: 1500 })
+  const { nAct: _a, nShop: _s, nMeal: _m, ...base } = opts
+  it('no restaurant → still plans 2 activities (no food stop)', () => {
+    const r = buildDayPlans({ ...base, places: [a1, a2], shape: 'acts' })
+    expect(r.plans[0].stops.map((s) => s.p.id).sort()).toEqual(['a1', 'a2'])
+  })
+  it('plans with a food stop rank above ones without', () => {
+    const r = buildDayPlans({ ...base, places: [a1, a2, meal], shape: 'acts', goal: 'cheap' })
+    expect(r.plans[0].stops.some((s) => s.p.kind === 'restaurant')).toBe(true)
+  })
+  it('family-entered travel time to this hotel beats the distance estimate', () => {
+    const far = place({ id: 'far', lat: 35.9, lng: 139.75, travel_minutes: 40, nearest_hotels: ['toranomon'], auto_fields: [] })
+    expect(hotelLeg('toranomon', far)).toBe(40)
+    expect(hotelLeg('toranomon', { ...far, auto_fields: ['travel'] })).toBeGreaterThan(40)
+    expect(hotelLeg('jw_tokyo', far)).toBeGreaterThan(40) // entered time was for a different hotel
+  })
+  it('falls back to a light 1-activity day when no full day fits', () => {
+    const r = buildDayPlans({ ...base, places: [a1, meal], shape: 'either' })
+    expect(r.light).toBe(true)
+    expect(r.plans[0].light).toBe(true)
+    expect(r.plans[0].stops.map((s) => s.p.id)).toEqual(['a1', 'meal'])
+  })
+})
+
+describe('varied', () => {
+  it('different activities beat restaurant swaps', () => {
+    const mk = (...ids: string[]) => ({ stops: ids.map((id) => ({ p: place({ id, kind: id.startsWith('m') ? 'restaurant' : 'activity' }), travel: 0, arrive: 0, leave: 0, prayers: [] })), cost: 0, minutes: 0, votes: 0, back: 0, asrOut: false })
+    const ranked = [mk('a', 'm1'), mk('a', 'm2'), mk('a', 'm3'), mk('b')]
+    expect(varied(ranked).map((p) => p.stops.map((s) => s.p.id).join('+'))).toEqual(['a+m1', 'b', 'a+m2'])
   })
 })

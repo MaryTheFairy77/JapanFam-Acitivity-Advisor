@@ -12,6 +12,8 @@ export interface Prayer { name: PrayerName; at: number }
 export interface Stop { p: Place; travel: number; arrive: number; leave: number; prayers: Prayer[] }
 export interface Plan {
   stops: Stop[]; cost: number; minutes: number; votes: number; back: number
+  /** 'light' = fallback 1-activity day, shown only when no full day fits */
+  light?: boolean
   /** true = home after Maghrib starts, so Asr was prayed while out; false = Asr + Maghrib back to back at the hotel */
   asrOut: boolean
 }
@@ -68,6 +70,15 @@ export function leg(a: Pt, b: Pt): number {
   return b.travel_minutes ?? a.travel_minutes ?? 30
 }
 
+/**
+ * Hotel ↔ place leg. A family-entered travel time (not ✨ auto) to this hotel wins over the distance estimate
+ * (golden rule: human input wins; the straight-line formula overestimates long trips like Osaka → Kyoto).
+ */
+export function hotelLeg(hotel: HotelId, p: Place): number {
+  const human = p.travel_minutes != null && !(p.auto_fields ?? []).includes('travel') && (p.nearest_hotels ?? []).includes(hotel)
+  return human ? p.travel_minutes! : leg(HOTELS[hotel], p)
+}
+
 /** Alternate activity → meal → activity … (start with a meal if there are more meals). */
 export function interleave(acts: Place[], meals: Place[]): Place[] {
   const a = [...acts], m = [...meals], order: Place[] = []
@@ -84,7 +95,6 @@ export function interleave(acts: Place[], meals: Place[]): Place[] {
  * from the top candidates near the hotel, keep the ones within budget AND time, rank by goal.
  */
 export function buildPlans(o: PlanOptions) {
-  const base = { lat: HOTELS[o.hotel].lat, lng: HOTELS[o.hotel].lng }
   const region = HOTELS[o.hotel].region
   const pool = o.places.filter((p) => regionOf(p) === region && (!o.unvisited || !p.visited))
   const top = (kind: Place['kind'] | 'shopping') => pool
@@ -99,7 +109,7 @@ export function buildPlans(o: PlanOptions) {
   for (const A of combos(acts, o.nAct)) for (const M of combos(meals, o.nMeal)) for (const S of combos(shops, o.nShop)) {
     checked++
     // shopping goes last: it's the flexible stop you can cut short or stretch
-    const plan = simulate([...interleave(A, M), ...S], base, o)
+    const plan = simulate([...interleave(A, M), ...S], o.hotel, o)
     if (plan && plan.cost <= o.budget) valid.push(plan)
   }
   valid.sort(rank(o.goal))
@@ -120,20 +130,20 @@ export function buildPlans(o: PlanOptions) {
  * back to back at the hotel. Otherwise Asr must be prayed out. Returns null if the day misses a prayer
  * or gets home after the back-by time (17:30 at the latest).
  */
-export function simulate(order: Place[], base: Pt, o: Pick<PlanOptions, 'startMin' | 'backBy' | 'voteCount'>): Plan | null {
-  const noAsr = walk(order, base, o, false)
+export function simulate(order: Place[], hotel: HotelId, o: Pick<PlanOptions, 'startMin' | 'backBy' | 'voteCount'>): Plan | null {
+  const noAsr = walk(order, hotel, o, false)
   if (noAsr && noAsr.minutes + o.startMin <= SALAH.maghrib) return noAsr
-  return walk(order, base, o, true)
+  return walk(order, hotel, o, true)
 }
 
-function walk(order: Place[], base: Pt, o: Pick<PlanOptions, 'startMin' | 'backBy' | 'voteCount'>, asrOut: boolean): Plan | null {
+function walk(order: Place[], hotel: HotelId, o: Pick<PlanOptions, 'startMin' | 'backBy' | 'voteCount'>, asrOut: boolean): Plan | null {
   const backBy = Math.min(o.backBy, SALAH.backBy)
-  let t = o.startMin, cost = 0, votes = 0, prev: Pt = base
+  let t = o.startMin, cost = 0, votes = 0, prev: Place | null = null
   const done = new Set<PrayerName>()
   const stops: Stop[] = []
   const windows = asrOut ? [['Dhuhr', SALAH.dhuhr], ['Asr', SALAH.asr]] as const : [['Dhuhr', SALAH.dhuhr]] as const
   for (const p of order) {
-    const tr = leg(prev, p); t += tr
+    const tr = prev ? leg(prev, p) : hotelLeg(hotel, p); t += tr
     const arrive = t
     t += (p.wait_minutes ?? 0) + visitOf(p)
     const prayers: Prayer[] = []
@@ -146,7 +156,7 @@ function walk(order: Place[], base: Pt, o: Pick<PlanOptions, 'startMin' | 'backB
     stops.push({ p, travel: tr, arrive, leave: t, prayers })
     cost += p.price_jpy ?? 0; votes += o.voteCount[p.id] ?? 0; prev = p
   }
-  const back = leg(prev, base); t += back
+  const back = prev ? hotelLeg(hotel, prev) : 0; t += back
   if (t > backBy) return null
   // out for the whole Dhuhr window without a prayer stop → not allowed (home in time = pray at the hotel)
   if (!done.has('Dhuhr') && o.startMin < SALAH.dhuhr.to - SALAH.prayMinutes && t > SALAH.dhuhr.to - SALAH.prayMinutes) return null
@@ -157,11 +167,10 @@ function walk(order: Place[], base: Pt, o: Pick<PlanOptions, 'startMin' | 'backB
 /** Evening (after Maghrib, adults only): best shopping spots near the hotel that aren't already in the day. */
 export function eveningShopping(o: Pick<PlanOptions, 'places' | 'voteCount' | 'hotel' | 'unvisited'>, plan: Plan, n = 2) {
   const used = new Set(plan.stops.map((s) => s.p.id))
-  const base = { lat: HOTELS[o.hotel].lat, lng: HOTELS[o.hotel].lng }
   return o.places
     .filter((p) => p.kind === 'activity' && catOf(p) === 'shopping' && !used.has(p.id)
       && regionOf(p) === HOTELS[o.hotel].region && (!o.unvisited || !p.visited))
-    .map((p) => ({ p, travel: leg(base, p) }))
+    .map((p) => ({ p, travel: hotelLeg(o.hotel, p) }))
     .sort((a, b) => (o.voteCount[b.p.id] ?? 0) - (o.voteCount[a.p.id] ?? 0) || a.travel - b.travel)
     .slice(0, n)
 }
@@ -171,15 +180,41 @@ const rank = (goal: Goal) => (x: Plan, y: Plan) =>
   : goal === 'cheap' ? x.cost - y.cost || y.votes - x.votes
   : x.minutes - y.minutes || y.votes - x.votes
 
-/** 1 food stop + (2 activities | activity + shopping). 'either' runs both shapes and keeps the best 3 overall. */
+/** Keep the ranking, but show plans with different activities before ones that only swap the restaurant. */
+export function varied(ps: Plan[], n = 3): Plan[] {
+  const key = (p: Plan) => p.stops.filter((s) => s.p.kind !== 'restaurant').map((s) => s.p.id).sort().join('|')
+  const seen = new Set<string>(), first: Plan[] = [], rest: Plan[] = []
+  for (const p of ps) (seen.has(key(p)) ? rest : (seen.add(key(p)), first)).push(p)
+  return [...first, ...rest].slice(0, n)
+}
+
+const hasMeal = (p: Plan) => p.stops.some((s) => s.p.kind === 'restaurant')
+
+/**
+ * Day = (2 activities | activity + shopping), ideally with 1 food stop. Food is preferred, not required
+ * (snack at the place / konbini): plans with a meal rank first, no-meal plans fill the gaps.
+ * If nothing fits at all, falls back to a 'light' 1-activity day so the planner never comes back empty for no reason.
+ */
 export function buildDayPlans(o: Omit<PlanOptions, 'nAct' | 'nShop' | 'nMeal'> & { shape: Shape }) {
-  if (o.shape !== 'either') return buildPlans({ ...o, ...SHAPES[o.shape] })
-  const a = buildPlans({ ...o, ...SHAPES.acts }), b = buildPlans({ ...o, ...SHAPES.shop })
-  const plans = [...a.plans, ...b.plans].sort(rank(o.goal)).slice(0, 3)
+  const shapes = o.shape === 'either' ? [SHAPES.acts, SHAPES.shop] : [SHAPES[o.shape]]
+  const run = (list: { nAct: number; nShop: number; nMeal: number }[]) =>
+    list.flatMap((sh) => [sh, { ...sh, nMeal: 0 }]).map((sh) => buildPlans({ ...o, ...sh }))
+  const sort = (ps: Plan[]) => varied(ps.sort((x, y) => Number(hasMeal(y)) - Number(hasMeal(x)) || rank(o.goal)(x, y)))
+  let results = run(shapes)
+  let plans = sort(results.flatMap((r) => r.plans)).slice(0, 3)
+  const short = results.map((r) => r.short).filter(Boolean)[0] ?? ''
+  let light = false
+  if (!plans.length) {
+    const fallback = run([{ nAct: 1, nShop: 0, nMeal: 1 }])
+    plans = sort(fallback.flatMap((r) => r.plans)).slice(0, 3).map((p) => ({ ...p, light: true }))
+    results = [...results, ...fallback]
+    light = plans.length > 0
+  }
   return {
     plans,
-    considered: Math.max(a.considered, b.considered),
-    checked: a.checked + b.checked,
-    short: plans.length ? '' : (a.short && b.short ? b.short : ''),
+    considered: Math.max(...results.map((r) => r.considered)),
+    checked: results.reduce((n, r) => n + r.checked, 0),
+    short,
+    light,
   }
 }

@@ -19,7 +19,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
   const toMin = (v: string) => { const [h, m] = v.split(':').map(Number); return h * 60 + (m || 0) }
   const startMin = toMin(start)
   const backBy = Math.min(toMin(backAt) || SALAH.backBy, SALAH.backBy)
-  const { plans, considered, checked, short } = useMemo(
+  const { plans, considered, checked, short, light } = useMemo(
     () => buildDayPlans({ places, voteCount, hotel, budget, backBy, startMin, shape, halalOnly, unvisited, goal }),
     [places, voteCount, hotel, budget, backBy, startMin, shape, halalOnly, unvisited, goal])
 
@@ -58,7 +58,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
             <input type="time" className={input} value={backAt} max={clock(SALAH.backBy)} onChange={(e) => setBackAt(e.target.value)} />
             <span className="text-[11px] text-stone-400">latest {clock(SALAH.backBy)}</span>
           </label>
-          <label className={`${label} col-span-2`}>🗓 Day shape (always 1 🍜 food stop)
+          <label className={`${label} col-span-2`}>🗓 Day shape (+ a 🍜 food stop when one fits)
             <select className={input} value={shape} onChange={(e) => setShape(e.target.value as Shape)}>
               <option value="either">✨ Whichever's best</option>
               <option value="acts">🍜 + 🎢 🎢 Two activities</option>
@@ -81,8 +81,13 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
       </section>
 
       <p className="text-center text-xs text-stone-500">
-        Checked {checked.toLocaleString()} combos from {considered} places near {HOTELS[hotel].city} · {plans.length ? `top ${plans.length} shown` : 'none fit'}
+        Tried {checked.toLocaleString()} combos from {considered} places near {HOTELS[hotel].city} · {plans.length ? `best ${plans.length} shown` : 'none fit'}
       </p>
+      {light && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          ⚠️ No full day (2 activities, or activity + shopping) fits near {HOTELS[hotel].city} before {clock(backBy)}{short ? ` (${short})` : ''}, so these are <b>light days</b> with one activity. Add more places nearby to get full days.
+        </div>
+      )}
 
       {plans.length === 0 && (
         <div className="rounded-2xl border-2 border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">
@@ -97,7 +102,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
           <div ref={(el) => { refs.current[i] = el }} className="rounded-2xl border border-stone-200 bg-washi p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-torii">Plan {i + 1}{i === 0 ? ' · best' : ''}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-torii">Plan {i + 1}{i === 0 ? ' · best' : ''}{plan.light ? ' · light day' : ''}</p>
                 <h3 className="font-display text-xl">Day from {HOTELS[hotel].short}</h3>
               </div>
               <div className="text-right text-sm">
@@ -105,6 +110,9 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
                 <p className="text-stone-500">{fmtMin(plan.minutes)} · ▲{plan.votes}</p>
               </div>
             </div>
+            {!plan.stops.some((x) => x.p.kind === 'restaurant') && (
+              <p className="mt-2 rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-600">🥤 No food stop fits this one: grab a snack at the place or a konbini.</p>
+            )}
             <ol className="relative mt-4 space-y-3 border-l-2 border-dashed border-torii/40 pl-5">
               <li className="relative text-sm text-stone-600">
                 <span className="absolute -left-[29px] top-0 text-base">🏯</span>
