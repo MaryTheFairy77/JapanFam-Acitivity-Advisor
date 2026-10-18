@@ -61,6 +61,13 @@ export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
       <SoundSettings />
       {me.is_admin && <AddMember onAdded={onSaved} />}
       {me.is_admin && <FillGaps places={places} onDone={onSaved} />}
+      {DEVS.includes(me.name) && (
+        <div className="mt-3 rounded-2xl border border-dashed border-stone-300 p-3">
+          <p className="text-sm font-semibold">🛠 Dev tools</p>
+          <p className="text-xs text-stone-500">Only visible to {DEVS.join(', ')}.</p>
+          <FillGaps places={places} onDone={onSaved} mode="all" />
+        </div>
+      )}
       <Privacy className="mt-5" />
     </Sheet>
   )
@@ -170,13 +177,17 @@ function SoundSettings() {
 }
 
 /** Trip planners only: look up every place that has no pin yet (free OpenStreetMap search, 1 per second). */
-function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
+/** Who sees the dev tools (Maryam built the app). The actions still need the planner code server-side. */
+const DEVS = ['Maryam']
+
+function FillGaps({ places, onDone, mode = 'gaps' }: { places: Place[]; onDone: () => void; mode?: 'gaps' | 'all' }) {
   // places with no pin, or with ✨ generated info that can be refreshed (human-entered info is never touched)
-  const todo = places.filter((p) => p.lat == null || p.lng == null || !p.maps_url || (p.auto_fields ?? []).length > 0)
+  const todo = mode === 'all' ? places
+    : places.filter((p) => p.lat == null || p.lng == null || !p.maps_url || (p.auto_fields ?? []).length > 0)
   const [code, setCode] = useState('')
   const [log, setLog] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
-  if (!todo.length) return null
+  if (!todo.length && mode === 'gaps') return null
 
   async function run() {
     const c = getPlannerCode() ?? code
@@ -205,10 +216,10 @@ function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
   const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii'
   return (
     <div className="mt-3 space-y-2 rounded-2xl bg-[#fdf4c8]/60 p-3">
-      <p className="text-sm font-medium">✨ Fill missing info ({todo.length} place{todo.length === 1 ? '' : 's'})</p>
+      <p className="text-sm font-medium">{mode === 'all' ? '↻ Re-run auto-fill on everything' : '✨ Fill missing info'} ({todo.length} place{todo.length === 1 ? '' : 's'})</p>
       <p className="text-xs text-stone-600">Looks each one up on OpenStreetMap and fills the pin, nearest hotel and travel time (plus website or halal status if listed). Only blank or ✨ generated info is ever changed; anything a person typed is left alone.</p>
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
-      <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Looking up…' : 'Fill missing info'}</button>
+      <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? `Looking up… (${log.length}/${todo.length})` : mode === 'all' ? 'Re-run on all places' : 'Fill missing info'}</button>
       {log.length > 0 && <ul className="space-y-0.5 text-xs text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul>}
     </div>
   )
