@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
-import { HOTELS, HOTEL_IDS, fmtMin, fmtYen, fmtZar, type HotelId, type Place } from '../lib'
-import { buildPlans, type Goal } from '../planner'
+import { HOTELS, HOTEL_IDS, catOf, fmtMin, fmtYen, fmtZar, type HotelId, type Place } from '../lib'
+import { buildDayPlans, type Goal, type Shape } from '../planner'
 
 const clock = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
@@ -10,8 +10,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
   const [budget, setBudget] = useState(15000)
   const [hours, setHours] = useState(11)
   const [start, setStart] = useState('09:00')
-  const [nAct, setNAct] = useState(1)
-  const [nMeal, setNMeal] = useState(2)
+  const [shape, setShape] = useState<Shape>('either')
   const [halalOnly, setHalalOnly] = useState(true)
   const [unvisited, setUnvisited] = useState(true)
   const [goal, setGoal] = useState<Goal>('votes')
@@ -19,8 +18,8 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
 
   const startMin = (() => { const [h, m] = start.split(':').map(Number); return h * 60 + (m || 0) })()
   const { plans, considered, checked, short } = useMemo(
-    () => buildPlans({ places, voteCount, hotel, budget, hours, startMin, nAct, nMeal, halalOnly, unvisited, goal }),
-    [places, voteCount, hotel, budget, hours, startMin, nAct, nMeal, halalOnly, unvisited, goal])
+    () => buildDayPlans({ places, voteCount, hotel, budget, hours, startMin, shape, halalOnly, unvisited, goal }),
+    [places, voteCount, hotel, budget, hours, startMin, shape, halalOnly, unvisited, goal])
 
   async function savePng(i: number) {
     const node = refs.current[i]
@@ -52,11 +51,12 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
           <label className={label}>⏳ Hours out
             <input inputMode="decimal" className={input} value={hours} onChange={(e) => setHours(Number(e.target.value) || 0)} />
           </label>
-          <label className={label}>🎢 Activities
-            <select className={input} value={nAct} onChange={(e) => setNAct(+e.target.value)}>{[0, 1, 2, 3].map((n) => <option key={n}>{n}</option>)}</select>
-          </label>
-          <label className={label}>🍜 Meals
-            <select className={input} value={nMeal} onChange={(e) => setNMeal(+e.target.value)}>{[0, 1, 2, 3].map((n) => <option key={n}>{n}</option>)}</select>
+          <label className={`${label} col-span-2`}>🗓 Day shape (always 1 🍜 food stop)
+            <select className={input} value={shape} onChange={(e) => setShape(e.target.value as Shape)}>
+              <option value="either">✨ Whichever's best</option>
+              <option value="acts">🍜 + 🎢 🎢 Two activities</option>
+              <option value="shop">🍜 + 🎢 🛍 Activity + shopping</option>
+            </select>
           </label>
           <label className={label}>🕘 Leave at
             <input type="time" className={input} value={start} onChange={(e) => setStart(e.target.value)} />
@@ -105,7 +105,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
               </li>
               {plan.stops.map((s) => (
                 <li key={s.p.id} className="relative">
-                  <span className="absolute -left-[29px] top-0.5 text-base">{s.p.kind === 'restaurant' ? '🍜' : '🎢'}</span>
+                  <span className="absolute -left-[29px] top-0.5 text-base">{s.p.kind === 'restaurant' ? '🍜' : catOf(s.p) === 'shopping' ? '🛍' : '🎢'}</span>
                   <p className="text-[11px] text-stone-400">↓ ~{fmtMin(s.travel)} travel</p>
                   <p className="text-sm"><b>{clock(s.arrive)}–{clock(s.leave)}</b> {s.p.name}</p>
                   <p className="text-xs text-stone-500">

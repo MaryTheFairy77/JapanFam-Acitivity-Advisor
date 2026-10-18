@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildPlans, combos, interleave } from '../planner'
+import { buildDayPlans, buildPlans, combos, interleave } from '../planner'
 import { place } from './fixtures'
 
 const tokyo = { lat: 35.668, lng: 139.752 } // ~200 m from Toranomon Hills
 const opts = { voteCount: {} as Record<string, number>, hotel: 'toranomon' as const, budget: 20000, hours: 12, startMin: 540,
-  nAct: 1, nMeal: 1, halalOnly: true, unvisited: true, goal: 'votes' as const }
+  nAct: 1, nShop: 0, nMeal: 1, halalOnly: true, unvisited: true, goal: 'votes' as const }
 
 describe('combos', () => {
   it('n choose k', () => {
@@ -59,5 +59,34 @@ describe('buildPlans', () => {
     const p = buildPlans({ ...opts, places: [act, cheap] }).plans[0]
     const sum = p.stops.reduce((s, x) => s + x.travel + (x.leave - x.arrive), 0) + p.back
     expect(sum).toBe(p.minutes)
+  })
+})
+
+describe('day shapes (1 food + 2 activities | activity + shopping)', () => {
+  const { nAct: _a, nShop: _s, nMeal: _m, ...base } = opts
+  const a1 = place({ id: 'a1', ...tokyo, price_jpy: 2000 })
+  const a2 = place({ id: 'a2', ...tokyo, price_jpy: 3000 })
+  const shop = place({ id: 'shop', category: 'shopping', ...tokyo, price_jpy: 0 })
+  const meal = place({ id: 'meal', kind: 'restaurant', halal: 'Halal certified', ...tokyo, price_jpy: 1500 })
+  const places = [a1, a2, shop, meal]
+
+  it('two activities: activity → food → activity, no shopping', () => {
+    const p = buildDayPlans({ ...base, places, shape: 'acts' }).plans[0]
+    expect(p.stops.map((s) => s.p.kind)).toEqual(['activity', 'restaurant', 'activity'])
+    expect(p.stops.map((s) => s.p.id)).not.toContain('shop')
+  })
+  it('activity + shopping: exactly one meal, shopping last', () => {
+    const p = buildDayPlans({ ...base, places, shape: 'shop' }).plans[0]
+    expect(p.stops).toHaveLength(3)
+    expect(p.stops.filter((s) => s.p.kind === 'restaurant')).toHaveLength(1)
+    expect(p.stops[2].p.id).toBe('shop')
+  })
+  it('either: mixes both shapes and ranks them together', () => {
+    const r = buildDayPlans({ ...base, places, shape: 'either', goal: 'cheap' })
+    expect(r.plans[0].stops.map((s) => s.p.id)).toContain('shop') // free shop makes it cheapest
+    expect(r.plans.some((p) => !p.stops.some((s) => s.p.id === 'shop'))).toBe(true)
+  })
+  it('says when there is no shopping yet', () => {
+    expect(buildDayPlans({ ...base, places: [a1, meal], shape: 'shop' }).short).toMatch(/no shopping/)
   })
 })

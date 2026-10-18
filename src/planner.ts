@@ -1,6 +1,12 @@
-import { HOTELS, estimateTravel, km, regionOf, type HotelId, type Place } from './lib'
+import { HOTELS, catOf, estimateTravel, km, regionOf, type HotelId, type Place } from './lib'
 
 export type Goal = 'votes' | 'cheap' | 'time'
+/** Day shape: always 1 food stop + either 2 activities, or 1 activity + shopping (or let the planner pick). */
+export type Shape = 'acts' | 'shop' | 'either'
+export const SHAPES: Record<Exclude<Shape, 'either'>, { nAct: number; nShop: number; nMeal: number }> = {
+  acts: { nAct: 2, nShop: 0, nMeal: 1 },
+  shop: { nAct: 1, nShop: 1, nMeal: 1 },
+}
 export interface Stop { p: Place; travel: number; arrive: number; leave: number }
 export interface Plan { stops: Stop[]; cost: number; minutes: number; votes: number; back: number }
 export interface PlanOptions {
@@ -11,13 +17,15 @@ export interface PlanOptions {
   hours: number       // total time out
   startMin: number    // minutes after midnight
   nAct: number
+  nShop: number
   nMeal: number
   halalOnly: boolean
   unvisited: boolean
   goal: Goal
 }
 
-export const DEFAULT_VISIT = { restaurant: 60, activity: 120 } as const
+export const DEFAULT_VISIT = { restaurant: 60, activity: 120, shopping: 90 } as const
+const visitOf = (p: Place) => p.visit_minutes ?? (p.kind === 'restaurant' ? DEFAULT_VISIT.restaurant : DEFAULT_VISIT[catOf(p)])
 export const CANDIDATES_PER_KIND = 14
 
 /** All k-sized subsets (n choose k). */
@@ -59,23 +67,24 @@ export function buildPlans(o: PlanOptions) {
   const base = { lat: HOTELS[o.hotel].lat, lng: HOTELS[o.hotel].lng }
   const region = HOTELS[o.hotel].region
   const pool = o.places.filter((p) => regionOf(p) === region && (!o.unvisited || !p.visited))
-  const top = (kind: Place['kind']) => pool
-    .filter((p) => p.kind === kind)
+  const top = (kind: Place['kind'] | 'shopping') => pool
+    .filter((p) => kind === 'restaurant' ? p.kind === 'restaurant' : p.kind === 'activity' && catOf(p) === kind)
     .filter((p) => kind !== 'restaurant' || !o.halalOnly || p.halal === 'Halal certified' || p.halal === 'Muslim friendly')
     .sort((a, b) => (o.voteCount[b.id] ?? 0) - (o.voteCount[a.id] ?? 0) || (a.price_jpy ?? 0) - (b.price_jpy ?? 0))
     .slice(0, CANDIDATES_PER_KIND)
-  const acts = top('activity'), meals = top('restaurant')
+  const acts = top('activity'), meals = top('restaurant'), shops = top('shopping')
 
   const valid: Plan[] = []
   let checked = 0
-  for (const A of combos(acts, o.nAct)) for (const M of combos(meals, o.nMeal)) {
+  for (const A of combos(acts, o.nAct)) for (const M of combos(meals, o.nMeal)) for (const S of combos(shops, o.nShop)) {
     checked++
     let t = o.startMin, cost = 0, votes = 0, prev: Pt = base
     const stops: Stop[] = []
-    for (const p of interleave(A, M)) {
+    // shopping goes last: it's the flexible stop you can cut short or stretch
+    for (const p of [...interleave(A, M), ...S]) {
       const tr = leg(prev, p); t += tr
       const arrive = t
-      t += (p.wait_minutes ?? 0) + (p.visit_minutes ?? DEFAULT_VISIT[p.kind])
+      t += (p.wait_minutes ?? 0) + visitOf(p)
       stops.push({ p, travel: tr, arrive, leave: t })
       cost += p.price_jpy ?? 0; votes += o.voteCount[p.id] ?? 0; prev = p
     }
@@ -83,15 +92,31 @@ export function buildPlans(o: PlanOptions) {
     const minutes = t - o.startMin
     if (cost <= o.budget && minutes <= o.hours * 60) valid.push({ stops, cost, minutes, votes, back })
   }
-  valid.sort((x, y) =>
-    o.goal === 'votes' ? y.votes - x.votes || x.cost - y.cost
-    : o.goal === 'cheap' ? x.cost - y.cost || y.votes - x.votes
-    : x.minutes - y.minutes || y.votes - x.votes)
+  valid.sort(rank(o.goal))
 
   const short = [
     acts.length < o.nAct && (acts.length ? `only ${acts.length} activit${acts.length === 1 ? 'y' : 'ies'}` : 'no activities'),
+    shops.length < o.nShop && (shops.length ? `only ${shops.length} shopping spot${shops.length === 1 ? '' : 's'}` : 'no shopping spots'),
     meals.length < o.nMeal && `${meals.length ? `only ${meals.length}` : 'no'} ${o.halalOnly ? 'halal-friendly ' : ''}restaurant${meals.length === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' and ')
 
-  return { plans: valid.slice(0, 3), considered: acts.length + meals.length, checked, short }
+  return { plans: valid.slice(0, 3), considered: acts.length + meals.length + shops.length, checked, short }
+}
+
+const rank = (goal: Goal) => (x: Plan, y: Plan) =>
+  goal === 'votes' ? y.votes - x.votes || x.cost - y.cost
+  : goal === 'cheap' ? x.cost - y.cost || y.votes - x.votes
+  : x.minutes - y.minutes || y.votes - x.votes
+
+/** 1 food stop + (2 activities | activity + shopping). 'either' runs both shapes and keeps the best 3 overall. */
+export function buildDayPlans(o: Omit<PlanOptions, 'nAct' | 'nShop' | 'nMeal'> & { shape: Shape }) {
+  if (o.shape !== 'either') return buildPlans({ ...o, ...SHAPES[o.shape] })
+  const a = buildPlans({ ...o, ...SHAPES.acts }), b = buildPlans({ ...o, ...SHAPES.shop })
+  const plans = [...a.plans, ...b.plans].sort(rank(o.goal)).slice(0, 3)
+  return {
+    plans,
+    considered: Math.max(a.considered, b.considered),
+    checked: a.checked + b.checked,
+    short: plans.length ? '' : (a.short && b.short ? b.short : ''),
+  }
 }

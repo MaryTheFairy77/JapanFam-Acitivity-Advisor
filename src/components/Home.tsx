@@ -154,6 +154,13 @@ export default function Home({ me, data, onLogout }: {
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`
 
+  // Mount Fuji behind Food / Do / Plan / Compare (decorative, fixed to the bottom of the screen)
+  const fujiBg = (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-0 mx-auto h-[55vh] max-w-2xl opacity-70" aria-hidden>
+      <FujiScene className="h-full w-full" />
+    </div>
+  )
+
   return (
     <div className={`mx-auto max-w-2xl ${tab === 'map' ? '' : 'pb-40'}`}>
       {/* Header */}
@@ -191,16 +198,17 @@ export default function Home({ me, data, onLogout }: {
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
-          <Planner places={effPlaces} voteCount={voteCount} />
+          {fujiBg}
+          <div className="relative z-10"><Planner places={effPlaces} voteCount={voteCount} /></div>
         </Suspense>
       ) : tab === 'stats' ? (
-        <Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} />
+        <>
+          {fujiBg}
+          <div className="relative z-10"><Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} /></div>
+        </>
       ) : (
         <>
-          {/* Mount Fuji behind the lists (decorative, fixed to the bottom of the screen) */}
-          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-0 mx-auto h-[55vh] max-w-2xl opacity-70" aria-hidden>
-            <FujiScene className="h-full w-full" />
-          </div>
+          {fujiBg}
           {/* Do tab: two sub-tabs */}
           {tab === 'activity' && (
             <div className="relative z-10 px-4 pt-3">
