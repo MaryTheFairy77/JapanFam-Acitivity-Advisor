@@ -24,7 +24,7 @@ export default function Privacy({ className = '' }: { className?: string }) {
             <li>No ads, no analytics and no tracking cookies. Your phone only remembers who you picked and its family-code session.</li>
           </ul>
           <p><b>Where it lives:</b> a private Supabase (Postgres) database owned by Maryam, in an Asia-Pacific region. The website is hosted on Vercel.
-            Map tiles come from CARTO/OpenStreetMap and fonts from Google Fonts. "Find pin" sends only the place name you search to OpenStreetMap.</p>
+            Map tiles come from OpenStreetMap and fonts from Google Fonts. "Find pin" sends only the place name you search to OpenStreetMap.</p>
           <p><b>Your choices:</b> use a nickname instead of your name any time (tap your name at the top right). Ask Maryam to remove
             your data or the whole trip database at any time, including after the trip.</p>
         </div>
