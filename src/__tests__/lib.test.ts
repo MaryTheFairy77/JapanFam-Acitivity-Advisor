@@ -169,3 +169,20 @@ describe('generated Google Maps link', () => {
 describe('maps search link strips descriptive brackets', () => {
   it('searches the core name', () => expect(mapsSearchLink('Kama-Asa Shoten (Kappabashi knives)', 35.7, 139.8)).toContain('/search/Kama-Asa%20Shoten/@'))
 })
+
+import { travelFromPin } from '../lib'
+describe('travel estimates come from the pin, never an average', () => {
+  it('uses the closest of the chosen hotels', () => {
+    // Shibuya-ish pin: JW Tokyo is closer than Toranomon here
+    const t = travelFromPin({ lat: 35.6604, lng: 139.6978, nearest_hotels: ['toranomon', 'jw_tokyo'] })!
+    expect(t.hotel).toBe('jw_tokyo')
+    expect(t.minutes).toBe(estimates([]) && Math.round(12 + t.km * 1.3 * 2.2))
+  })
+  it('falls back to all hotels when none chosen', () => expect(travelFromPin({ lat: 34.6676, lng: 135.5045 })!.hotel).toBe('osaka'))
+  it('fills blank travel from the pin, independent of other places', () => {
+    const e = estimates([mk({ travel_minutes: 300 }), mk({ travel_minutes: 400 })])
+    const p = withEstimates(mk({ travel_minutes: null, lat: 35.6708, lng: 139.7661 }), e)
+    expect(p.travel_minutes).toBeLessThan(30) // Ginza → Toranomon is ~1.5 km, not the 350 min "average"
+  })
+  it('no pin, no travel guess', () => expect(withEstimates(mk({ travel_minutes: null, lat: null, lng: null }), estimates([])).travel_minutes).toBeNull())
+})

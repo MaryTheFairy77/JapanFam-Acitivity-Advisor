@@ -44,7 +44,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
     if (!r) return false
     return metric === 'price' || metric === 'value' ? r.price_jpy == null
       : metric === 'wait' ? r.wait_minutes == null
-      : metric === 'travel' ? (r.auto_fields ?? []).includes('travel') : false
+      : metric === 'travel' ? r.travel_minutes == null || (r.auto_fields ?? []).includes('travel') : false
   }
   const ranked = [...ps].sort((a, b) => {
     const va = value(a), vb = value(b)

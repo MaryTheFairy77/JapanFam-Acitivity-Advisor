@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { CATEGORIES, CATEGORY_IDS, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, km, mapsSearchLink, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, mapsSearchLink, travelFromPin, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -69,7 +69,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     const next = { ...s, lat, lng }
     if (!s.nearest_hotels.length || gen.has('nearest_hotels')) { next.nearest_hotels = [near.id]; added.push('nearest_hotels') }
     if ((!s.travel_minutes && !s.travel_text) || gen.has('travel')) {
-      const h = HOTELS[next.nearest_hotels[0]] ?? HOTELS[near.id], t = estimateTravel(km({ lat, lng }, h))
+      const t = travelFromPin({ lat, lng, nearest_hotels: next.nearest_hotels })! // closest (chosen) hotel
       next.travel_text = t.text; next.travel_minutes = String(t.minutes); added.push('travel')
     }
     if ((!s.website_url || gen.has('website_url')) && lk?.website) { next.website_url = lk.website; added.push('website_url') }

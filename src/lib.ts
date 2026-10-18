@@ -316,6 +316,7 @@ export function estimates(places: Place[]): Estimates {
 /** Same place with empty price/wait/visit filled from estimates — for stats, tints and the planner. */
 export const withEstimates = (p: Place, e: Estimates): Place => ({
   ...p,
+  travel_minutes: p.travel_minutes ?? travelFromPin(p)?.minutes ?? null, // distance-based, not averaged
   price_jpy: p.price_jpy ?? e.price[p.kind],
   wait_minutes: p.wait_minutes ?? e.wait[p.kind],
   visit_minutes: p.visit_minutes ?? e.visit[p.kind],
@@ -334,8 +335,8 @@ export function autoFillPlace(p: Place, lk: Lookup): { row: Place; added: AutoFi
   const near = nearestHotel({ lat: row.lat, lng: row.lng })!
   if (!row.nearest_hotels.length || gen('nearest_hotels')) { row.nearest_hotels = [near.id]; added.push('nearest_hotels') }
   if ((row.travel_minutes == null && !row.travel_text) || gen('travel')) {
-    // travel is measured to the place's (possibly human-chosen) hotel
-    const h = HOTELS[row.nearest_hotels[0]] ?? HOTELS[near.id], t = estimateTravel(km({ lat: row.lat!, lng: row.lng! }, h))
+    // distance from the pin to the closest (chosen) hotel, never an average
+    const t = travelFromPin(row)!
     row.travel_minutes = t.minutes; row.travel_text = t.text; added.push('travel')
   }
   if ((!row.website_url || gen('website_url')) && lk.website) { row.website_url = lk.website; added.push('website_url') }
@@ -391,3 +392,15 @@ export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: 
 /** A Google Maps search for this name, centred on the pin: opens the real listing in most cases (free, no API). */
 export const mapsSearchLink = (name: string, lat: number, lng: number) =>
   `https://www.google.com/maps/search/${encodeURIComponent(name.replace(/\s*\(.*?\)\s*/g, ' ').trim())}/@${lat.toFixed(6)},${lng.toFixed(6)},17z`
+
+/**
+ * Travel estimate from a pin: distance to the CLOSEST hotel (of the ones chosen for the place, or of all three),
+ * then the walk/train formula. Never a cross-place average.
+ */
+export function travelFromPin(p: { lat: number | null; lng: number | null; nearest_hotels?: HotelId[] }) {
+  if (p.lat == null || p.lng == null) return null
+  const pool = p.nearest_hotels?.length ? p.nearest_hotels : HOTEL_IDS
+  const best = pool.map((id) => ({ id, km: km({ lat: p.lat!, lng: p.lng! }, HOTELS[id]) })).sort((a, b) => a.km - b.km)[0]
+  const e = estimateTravel(best.km)
+  return { hotel: best.id, km: best.km, minutes: e.minutes, text: e.text }
+}

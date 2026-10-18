@@ -1,6 +1,6 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, Info, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet } from 'lucide-react'
 import Thumb from './Thumb'
-import { CATEGORIES, HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, YELLOW, type Estimates, type Member, type Place } from '../lib'
+import { CATEGORIES, HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type Member, type Place } from '../lib'
 
 type IconT = LucideIcon
 /** 0 = cheapest/closest/shortest in its group, 1 = priciest/furthest/longest; null = not comparable */
@@ -13,6 +13,9 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
 }) {
   const auto = new Set(p.auto_fields ?? [])
   const price = p.price_jpy ?? est.price[p.kind], wait = p.wait_minutes ?? est.wait[p.kind]
+  const pinTravel = travelFromPin(p) // distance from the pin to the closest hotel
+  const travel = p.travel_minutes ?? pinTravel?.minutes ?? null
+  const travelGuess = p.travel_minutes == null ? pinTravel != null : auto.has('travel')
   return (
     <article className={`rounded-2xl border bg-white p-4 shadow-sm ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
       <div className="flex gap-3">
@@ -36,8 +39,8 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
       {/* Key facts — tinted green (cheaper/quicker) → red (pricier/longer) compared with the other places */}
       <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
         <Fact icon={Wallet} label="Price per person" value={fmtYen(price)} sub={p.price_jpy == null ? 'family typical' : auto.has('price') ? 'found online' : fmtZar(price)} r={ranks.price} guess={p.price_jpy == null || auto.has('price')} />
-        <Fact icon={TrainFront} label="Travel from hotel" value={fmtMin(p.travel_minutes)} sub={auto.has('travel') ? 'estimated' : p.travel_text ?? ''} r={ranks.travel} guess={auto.has('travel')} />
-        <Fact icon={Hourglass} label="Wait" value={fmtMin(wait)} sub={p.wait_minutes == null ? 'family typical' : auto.has('wait') ? 'found online' : p.wait_text ?? ''} r={ranks.wait} guess={p.wait_minutes == null || auto.has('wait')} />
+        <Fact icon={TrainFront} label="Travel from closest hotel" value={fmtMin(travel)} sub={travelGuess && pinTravel ? `from pin · ${pinTravel.km.toFixed(1)} km` : p.travel_text ?? ''} r={ranks.travel} guess={travelGuess} />
+        <Fact icon={Hourglass} label="Wait" value={fmtMin(wait)} sub={p.wait_minutes == null ? 'typical wait (avg)' : auto.has('wait') ? 'found online' : p.wait_text ?? ''} r={ranks.wait} guess={p.wait_minutes == null || auto.has('wait')} />
       </dl>
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
