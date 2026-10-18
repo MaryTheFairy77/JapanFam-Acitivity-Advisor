@@ -49,8 +49,7 @@ function bubble(emoji: string, ring: string, size: number, badge?: number, faded
   const el = document.createElement('div')
   outer.appendChild(el)
   Object.assign(el.style, {
-    width: `${size}px`, height: `${size}px`, borderRadius: '9999px', background: generated ? '#fdf4c8' : '#fff',
-    border: generated ? '3px dashed #e0a800' : `3px solid ${ring}`,
+    width: `${size}px`, height: `${size}px`, borderRadius: '9999px', background: '#fff', border: `3px solid ${ring}`,
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${size * 0.5}px`,
     boxShadow: '0 3px 8px rgba(0,0,0,.18)', position: 'relative', cursor: 'pointer',
     opacity: faded ? '0.55' : '1', filter: faded ? 'grayscale(.6)' : 'none',
@@ -59,7 +58,7 @@ function bubble(emoji: string, ring: string, size: number, badge?: number, faded
   if (generated) {
     el.title = 'Location found automatically (✨ not yet confirmed)'
     const g = document.createElement('span')
-    Object.assign(g.style, { position: 'absolute', bottom: '-6px', right: '-6px', fontSize: '11px' })
+    Object.assign(g.style, { position: 'absolute', bottom: '-7px', right: '-7px', fontSize: '12px', lineHeight: '1', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.25))' })
     g.textContent = '✨'
     el.appendChild(g)
   }
