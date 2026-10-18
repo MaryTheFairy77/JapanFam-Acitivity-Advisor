@@ -166,3 +166,6 @@ describe('generated Google Maps link', () => {
     expect(autoFillPlace(mk({ maps_url: 'https://maps.app.goo.gl/mine', lat: null, lng: null }), lk).row.maps_url).toBe('https://maps.app.goo.gl/mine')
   })
 })
+describe('maps search link strips descriptive brackets', () => {
+  it('searches the core name', () => expect(mapsSearchLink('Kama-Asa Shoten (Kappabashi knives)', 35.7, 139.8)).toContain('/search/Kama-Asa%20Shoten/@'))
+})

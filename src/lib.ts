@@ -390,4 +390,4 @@ export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: 
 
 /** A Google Maps search for this name, centred on the pin: opens the real listing in most cases (free, no API). */
 export const mapsSearchLink = (name: string, lat: number, lng: number) =>
-  `https://www.google.com/maps/search/${encodeURIComponent(name.trim())}/@${lat.toFixed(6)},${lng.toFixed(6)},17z`
+  `https://www.google.com/maps/search/${encodeURIComponent(name.replace(/\s*\(.*?\)\s*/g, ' ').trim())}/@${lat.toFixed(6)},${lng.toFixed(6)},17z`
