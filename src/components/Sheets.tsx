@@ -171,7 +171,8 @@ function SoundSettings() {
 
 /** Trip planners only: look up every place that has no pin yet (free OpenStreetMap search, 1 per second). */
 function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
-  const todo = places.filter((p) => p.lat == null || p.lng == null)
+  // places with no pin, or with ✨ generated info that can be refreshed (human-entered info is never touched)
+  const todo = places.filter((p) => p.lat == null || p.lng == null || (p.auto_fields ?? []).length > 0)
   const [code, setCode] = useState('')
   const [log, setLog] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
@@ -202,8 +203,8 @@ function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
   const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii'
   return (
     <div className="mt-3 space-y-2 rounded-2xl bg-[#fdf4c8]/60 p-3">
-      <p className="text-sm font-medium">✨ Fill missing info ({todo.length} place{todo.length === 1 ? '' : 's'} without a pin)</p>
-      <p className="text-xs text-stone-600">Looks each one up on OpenStreetMap and fills the pin, nearest hotel and travel time (plus website or halal status if listed). Filled values show yellow until someone confirms them.</p>
+      <p className="text-sm font-medium">✨ Fill missing info ({todo.length} place{todo.length === 1 ? '' : 's'})</p>
+      <p className="text-xs text-stone-600">Looks each one up on OpenStreetMap and fills the pin, nearest hotel and travel time (plus website or halal status if listed). Only blank or ✨ generated info is ever changed; anything a person typed is left alone.</p>
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
       <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Looking up…' : 'Fill missing info'}</button>
       {log.length > 0 && <ul className="space-y-0.5 text-xs text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul>}

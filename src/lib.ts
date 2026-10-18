@@ -311,16 +311,24 @@ export const withEstimates = (p: Place, e: Estimates): Place => ({
 })
 export const YELLOW = { bg: '#fdf4c8', fg: '#7a5b00' }
 
-/** Fill a saved place's blanks from a look-up (never overwrites). Returns the full updated row + what was auto-filled. */
+/**
+ * Fill a saved place from a look-up. RULE: a field may only be written if it is blank OR was itself generated (✨).
+ * Anything a person typed is never touched. Returns the full updated row + what was (re)filled.
+ */
 export function autoFillPlace(p: Place, lk: Lookup): { row: Place; added: AutoField[] } {
-  const near = nearestHotel(lk)!, est = estimateTravel(near.km)
   const row: Place = { ...p, auto_fields: [...(p.auto_fields ?? [])] }
+  const gen = (f: AutoField) => row.auto_fields.includes(f)
   const added: AutoField[] = []
-  if (row.lat == null || row.lng == null) { row.lat = lk.lat; row.lng = lk.lng; added.push('pin') }
-  if (!row.nearest_hotels.length) { row.nearest_hotels = [near.id]; added.push('nearest_hotels') }
-  if (row.travel_minutes == null && !row.travel_text) { row.travel_minutes = est.minutes; row.travel_text = est.text; added.push('travel') }
-  if (!row.website_url && lk.website) { row.website_url = lk.website; added.push('website_url') }
-  if (row.kind === 'restaurant' && (!row.halal || row.halal === 'Unknown') && lk.halal) { row.halal = lk.halal; added.push('halal') }
+  if (row.lat == null || row.lng == null || gen('pin')) { row.lat = lk.lat; row.lng = lk.lng; added.push('pin') }
+  const near = nearestHotel({ lat: row.lat, lng: row.lng })!
+  if (!row.nearest_hotels.length || gen('nearest_hotels')) { row.nearest_hotels = [near.id]; added.push('nearest_hotels') }
+  if ((row.travel_minutes == null && !row.travel_text) || gen('travel')) {
+    // travel is measured to the place's (possibly human-chosen) hotel
+    const h = HOTELS[row.nearest_hotels[0]] ?? HOTELS[near.id], t = estimateTravel(km({ lat: row.lat!, lng: row.lng! }, h))
+    row.travel_minutes = t.minutes; row.travel_text = t.text; added.push('travel')
+  }
+  if ((!row.website_url || gen('website_url')) && lk.website) { row.website_url = lk.website; added.push('website_url') }
+  if (row.kind === 'restaurant' && (!row.halal || row.halal === 'Unknown' || gen('halal')) && lk.halal) { row.halal = lk.halal; added.push('halal') }
   row.auto_fields = [...new Set([...row.auto_fields, ...added])]
   return { row, added }
 }

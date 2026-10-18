@@ -128,3 +128,27 @@ describe('Google share-link addresses', () => {
     expect(isShortMapsLink('https://www.google.com/maps/place/x/@35,139,15z')).toBe(false)
   })
 })
+
+describe('RULE: auto-fill only writes blank or ✨ generated fields', () => {
+  const lk = { lat: 34.6676, lng: 135.5045, label: 'Namba', website: 'https://new.jp', halal: 'Muslim friendly' }
+  it('refreshes generated (✨) values', () => {
+    const p = mk({ kind: 'restaurant', lat: 35.0, lng: 139.0, nearest_hotels: ['toranomon'], travel_minutes: 99, travel_text: 'old guess',
+      website_url: 'https://old-guess.jp', halal: 'Pork-free', auto_fields: ['pin', 'nearest_hotels', 'travel', 'website_url', 'halal'] })
+    const { row } = autoFillPlace(p, lk)
+    expect(row.lat).toBe(34.6676)
+    expect(row.nearest_hotels).toEqual(['osaka'])
+    expect(row.travel_minutes).toBeLessThan(99)
+    expect(row.website_url).toBe('https://new.jp')
+    expect(row.halal).toBe('Muslim friendly')
+  })
+  it('never touches what a person typed, even when other fields are ✨', () => {
+    const p = mk({ kind: 'restaurant', lat: 35.0, lng: 139.0, nearest_hotels: ['jw_tokyo'], travel_minutes: 12, travel_text: 'my own',
+      website_url: 'https://mine.jp', halal: 'Halal certified', auto_fields: ['travel'] })
+    const { row, added } = autoFillPlace(p, lk)
+    expect([row.lat, row.lng]).toEqual([35.0, 139.0])
+    expect(row.nearest_hotels).toEqual(['jw_tokyo'])
+    expect(row.website_url).toBe('https://mine.jp')
+    expect(row.halal).toBe('Halal certified')
+    expect(added).toEqual(['travel']) // only the ✨ travel was recomputed (to the human-chosen hotel)
+  })
+})

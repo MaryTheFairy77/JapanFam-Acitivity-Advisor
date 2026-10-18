@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, km, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -61,15 +61,18 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
 
   type F = typeof f
   /** Fill blanks from a pin (and look-up tags). Never overwrites what a person typed. */
-  function fillFrom(s: F, lat: number, lng: number, lk: Partial<Lookup> | null, pinIsAuto: boolean): { next: F; added: AutoField[] } {
+  /** RULE: only write a field if it's blank or was itself generated (✨). Never touch what a person typed. */
+  function fillFrom(s: F, lat: number, lng: number, lk: Partial<Lookup> | null, pinIsAuto: boolean, gen: Set<AutoField> = auto): { next: F; added: AutoField[] } {
     const near = nearestHotel({ lat, lng })!
-    const est = estimateTravel(near.km)
     const added: AutoField[] = pinIsAuto ? ['pin'] : []
     const next = { ...s, lat, lng }
-    if (!s.nearest_hotels.length) { next.nearest_hotels = [near.id]; added.push('nearest_hotels') }
-    if (!s.travel_minutes && !s.travel_text) { next.travel_text = est.text; next.travel_minutes = String(est.minutes); added.push('travel') }
-    if (!s.website_url && lk?.website) { next.website_url = lk.website; added.push('website_url') }
-    if (kind === 'restaurant' && (!s.halal || s.halal === 'Unknown') && lk?.halal) { next.halal = lk.halal; added.push('halal') }
+    if (!s.nearest_hotels.length || gen.has('nearest_hotels')) { next.nearest_hotels = [near.id]; added.push('nearest_hotels') }
+    if ((!s.travel_minutes && !s.travel_text) || gen.has('travel')) {
+      const h = HOTELS[next.nearest_hotels[0]] ?? HOTELS[near.id], t = estimateTravel(km({ lat, lng }, h))
+      next.travel_text = t.text; next.travel_minutes = String(t.minutes); added.push('travel')
+    }
+    if ((!s.website_url || gen.has('website_url')) && lk?.website) { next.website_url = lk.website; added.push('website_url') }
+    if (kind === 'restaurant' && (!s.halal || s.halal === 'Unknown' || gen.has('halal')) && lk?.halal) { next.halal = lk.halal; added.push('halal') }
     return { next, added }
   }
   function applyPin(lat: number, lng: number, source: string, lk: Lookup | null, pinIsAuto: boolean) {
@@ -116,15 +119,16 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     setBusy(true); setErr(null)
     // ✨ Free auto-fill on save: if there's no pin yet, look the place up by name (OpenStreetMap)
     let F2 = f, autoNow = new Set(auto)
-    if (F2.lat == null && F2.maps_url.trim()) {
+    const pinGenerated = autoNow.has('pin')
+    if ((F2.lat == null || pinGenerated) && F2.maps_url.trim()) {
       // 1st choice: the person's own Google Maps link
       const r = await resolveMapsLink(F2.maps_url).catch(() => null)
-      if (r) { const x = fillFrom(F2, r.lat, r.lng, null, !r.exact); F2 = x.next; x.added.forEach((a) => autoNow.add(a)); if (r.exact) autoNow.delete('pin') }
+      if (r) { const x = fillFrom(F2, r.lat, r.lng, null, !r.exact, autoNow); F2 = x.next; x.added.forEach((a) => autoNow.add(a)); if (r.exact) autoNow.delete('pin') }
     }
     if (F2.lat == null) {
       try {
         const lk = await lookupPlace(F2.name.trim(), cityHint())
-        if (lk) { const r = fillFrom(F2, lk.lat, lk.lng, lk, true); F2 = r.next; r.added.forEach((x) => autoNow.add(x)) }
+        if (lk) { const r = fillFrom(F2, lk.lat, lk.lng, lk, true, autoNow); F2 = r.next; r.added.forEach((x) => autoNow.add(x)) }
       } catch { /* offline or not found: save anyway */ }
     }
     const fv = F2
