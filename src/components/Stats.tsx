@@ -1,8 +1,16 @@
 import { useMemo, useState } from 'react'
-import { displayName, fmtMin, fmtYen, rankOf, tint, YELLOW, type Kind, type Member, type Place, type Vote } from '../lib'
+import { catOf, displayName, fmtMin, fmtYen, rankOf, tint, YELLOW, type Member, type Place, type Vote } from '../lib'
 import Thumb from './Thumb'
 
 type Metric = 'votes' | 'price' | 'travel' | 'wait' | 'value'
+
+type Board = 'restaurant' | 'activity' | 'shopping'
+const BOARDS: { key: Board; label: string }[] = [
+  { key: 'restaurant', label: '🍜 Food' }, { key: 'activity', label: '🎢 Activities' }, { key: 'shopping', label: '🛍 Shopping' },
+]
+const boardOf = (p: Place): Board => (p.kind === 'restaurant' ? 'restaurant' : catOf(p))
+/** Shops are free to enter, so price/value would be a tie: only votes, travel and wait make sense there. */
+const metricsFor = (b: Board) => (b === 'shopping' ? METRICS.filter((x) => x.key !== 'price' && x.key !== 'value') : METRICS)
 
 const METRICS: { key: Metric; label: string; explain: string; lowIsGood: boolean }[] = [
   { key: 'votes', label: '👍 Votes', explain: 'Most loved first. Each face is one family vote.', lowIsGood: false },
@@ -20,13 +28,14 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
   votes: Vote[]; members: Member[]; voteCount: Record<string, number>
   photoUrls: Record<string, string>; onOpen: (p: Place) => void
 }) {
-  const [kind, setKind] = useState<Kind>('restaurant')
-  const [metric, setMetric] = useState<Metric>('votes')
+  const [kind, setKind] = useState<Board>('restaurant')
+  const [picked, setMetric] = useState<Metric>('votes')
+  const metric: Metric = metricsFor(kind).some((x) => x.key === picked) ? picked : 'votes'
   const [skipVisited, setSkipVisited] = useState(true)
   const rawById = useMemo(() => Object.fromEntries(raw.map((p) => [p.id, p])), [raw])
   const m = METRICS.find((x) => x.key === metric)!
 
-  const all = places.filter((p) => p.kind === kind)
+  const all = places.filter((p) => boardOf(p) === kind)
   const ps = all.filter((p) => !skipVisited || !p.visited)
   const visited = all.filter((p) => p.visited).length
 
@@ -36,7 +45,10 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
       case 'price': return p.price_jpy
       case 'travel': return p.travel_minutes
       case 'wait': return p.wait_minutes
-      case 'value': return p.price_jpy ? (voteCount[p.id] ?? 0) / (p.price_jpy / 1000) : null
+      case 'value':
+        if (p.price_jpy == null) return null
+        if (p.price_jpy === 0) return 1000 + (voteCount[p.id] ?? 0) // free beats anything paid; ties broken by votes
+        return (voteCount[p.id] ?? 0) / (p.price_jpy / 1000)
     }
   }
   const guessed = (p: Place) => {
@@ -56,7 +68,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
   const max = Math.max(1, ...vals)
   const label = (v: number | null) => v == null ? (metric === 'price' || metric === 'value' ? '❓ unknown' : '—')
     : metric === 'price' ? fmtYen(v) : metric === 'travel' || metric === 'wait' ? fmtMin(v)
-    : metric === 'value' ? `${v.toFixed(1)} /¥1k` : String(v)
+    : metric === 'value' ? (v >= 1000 ? `Free · ${v - 1000}👍` : `${v.toFixed(1)} /¥1k`) : String(v)
 
   const tab = (on: boolean) => `rounded-lg py-1.5 ${on ? 'bg-white shadow-sm' : 'text-stone-600'}`
   const chip = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`
@@ -68,14 +80,13 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
         <p className="text-sm text-stone-500">Pick what matters most and everything is ranked for you. Tap a place to open it.</p>
       </div>
 
-      <div className="grid grid-cols-2 rounded-xl bg-stone-200/70 p-1 text-sm font-medium">
-        <button className={tab(kind === 'restaurant')} onClick={() => setKind('restaurant')}>🍜 Food</button>
-        <button className={tab(kind === 'activity')} onClick={() => setKind('activity')}>🎢 Activities</button>
+      <div className="grid grid-cols-3 rounded-xl bg-stone-200/70 p-1 text-sm font-medium">
+        {BOARDS.map((b) => <button key={b.key} data-sound="tab" className={tab(kind === b.key)} onClick={() => setKind(b.key)}>{b.label}</button>)}
       </div>
 
       <div>
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          {METRICS.map((x) => <button key={x.key} data-sound="tab" className={chip(metric === x.key)} onClick={() => setMetric(x.key)}>{x.label}</button>)}
+          {metricsFor(kind).map((x) => <button key={x.key} data-sound="tab" className={chip(metric === x.key)} onClick={() => setMetric(x.key)}>{x.label}</button>)}
         </div>
         <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-xs text-stone-600">{m.explain}</p>
