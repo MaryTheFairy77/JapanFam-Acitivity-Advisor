@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, setPlannerCode, supabase, HOTELS, type Group, type Attendee, type Member, type Place } from '../lib'
+import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, resolveMapsLink, setPlannerCode, supabase, HOTELS, type Group, type Attendee, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
 import { TRACKS, getPrefs, setPrefs, type Track } from '../sound'
 
@@ -183,9 +183,13 @@ function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
     let ok = 0
     for (const p of todo) {
       const hint = p.nearest_hotels.length ? `${HOTELS[p.nearest_hotels[0]].city}, Japan` : undefined
-      const lk = await lookupPlace(p.name, hint).catch(() => null)
+      // prefer the place's own Google Maps link, then search by name
+      const fromLink = p.maps_url ? await resolveMapsLink(p.maps_url).catch(() => null) : null
+      const lk = fromLink ? { ...fromLink, label: 'Google Maps link' } : await lookupPlace(p.name, hint).catch(() => null)
       if (!lk) { setLog((l) => [...l, `❔ ${p.name}: not found`]); await new Promise((r) => setTimeout(r, 1100)); continue }
-      const { row, added } = autoFillPlace(p, lk)
+      const { row, added: a0 } = autoFillPlace(p, lk)
+      let added = a0
+      if (fromLink?.exact) { row.auto_fields = row.auto_fields.filter((f) => f !== 'pin'); added = added.filter((f) => f !== 'pin') }
       const { data, error } = await supabase.rpc('planner_update_place', { place: p.id, data: row, code: c })
       if (error || data !== true) { setPlannerCode(null); setLog((l) => [...l, error?.message.includes('Too many') ? '⛔ Too many wrong codes, wait 15 min' : '⛔ Wrong trip-planner code']); break }
       setPlannerCode(c); ok++

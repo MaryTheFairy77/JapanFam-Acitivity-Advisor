@@ -113,3 +113,18 @@ describe('autoFillPlace', () => {
     expect(added).toEqual(['pin'])
   })
 })
+
+import { addressCandidates, isShortMapsLink } from '../lib'
+describe('Google share-link addresses', () => {
+  it('turns a Japanese chome address into OSM-friendly searches', () => {
+    const c = addressCandidates('Japan, 〒542-0074 Osaka, Chuo Ward, Sennichimae, 1 Chome−5−19 1F Best Halal Ramen Marhaba!')
+    expect(c[0]).toBe('Sennichimae 1-chome, Chuo Ward, Osaka')
+    expect(c[1]).toBe('1-5-19 Sennichimae, Chuo Ward, Osaka')
+    expect(c).toContain('Sennichimae, Chuo Ward, Osaka')
+  })
+  it('handles plain names', () => expect(addressCandidates('Ichiran Shibuya')).toEqual([]))
+  it('detects short links', () => {
+    expect(isShortMapsLink('https://maps.app.goo.gl/daNx7RDedykinFPy8?g_st=ic')).toBe(true)
+    expect(isShortMapsLink('https://www.google.com/maps/place/x/@35,139,15z')).toBe(false)
+  })
+})

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -80,10 +80,16 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     setPinMsg(`📌 Pinned (${source}) · ${near.km.toFixed(1)} km from ${HOTELS[near.id].short}`)
   }
 
-  function onMapsUrl(url: string) {
+  async function onMapsUrl(url: string) {
     set('maps_url', url)
     const c = parseLatLng(url)
-    if (c) applyPin(c.lat, c.lng, 'from your link', null, false)
+    if (c) { applyPin(c.lat, c.lng, 'from your link', null, false); return }
+    if (/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl)\//i.test(url.trim())) {
+      setPinMsg('📍 Reading your Google Maps link…')
+      const r = await resolveMapsLink(url).catch(() => null)
+      if (r) applyPin(r.lat, r.lng, r.exact ? 'from your link' : 'from the address in your link', null, !r.exact)
+      else setPinMsg('Couldn’t read a location from that link. Tap “Find pin by name” instead.')
+    }
   }
 
   const cityHint = () => (f.nearest_hotels.length ? `${HOTELS[f.nearest_hotels[0]].city}, Japan` : undefined)
@@ -110,6 +116,11 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     setBusy(true); setErr(null)
     // ✨ Free auto-fill on save: if there's no pin yet, look the place up by name (OpenStreetMap)
     let F2 = f, autoNow = new Set(auto)
+    if (F2.lat == null && F2.maps_url.trim()) {
+      // 1st choice: the person's own Google Maps link
+      const r = await resolveMapsLink(F2.maps_url).catch(() => null)
+      if (r) { const x = fillFrom(F2, r.lat, r.lng, null, !r.exact); F2 = x.next; x.added.forEach((a) => autoNow.add(a)); if (r.exact) autoNow.delete('pin') }
+    }
     if (F2.lat == null) {
       try {
         const lk = await lookupPlace(F2.name.trim(), cityHint())

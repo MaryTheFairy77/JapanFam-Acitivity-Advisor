@@ -324,3 +324,46 @@ export function autoFillPlace(p: Place, lk: Lookup): { row: Place; added: AutoFi
   row.auto_fields = [...new Set([...row.auto_fields, ...added])]
   return { row, added }
 }
+
+// ── Short Google Maps links (maps.app.goo.gl) ──────────
+export const isShortMapsLink = (u: string) => /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\//i.test(u.trim())
+
+/**
+ * Turn a Google-style Japanese address into search strings OpenStreetMap understands, best first.
+ * "Japan, 〒542-0074 Osaka, Chuo Ward, Sennichimae, 1 Chome−5−19 1F Best Halal Ramen Marhaba!"
+ *   → "Sennichimae 1-chome, Chuo Ward, Osaka", "1-5-19 Sennichimae, Chuo Ward, Osaka", "Sennichimae, Chuo Ward, Osaka", …
+ */
+export function addressCandidates(address: string): string[] {
+  const clean = address.replace(/\+/g, ' ').replace(/^\s*Japan,\s*/i, '').replace(/〒?\s*\d{3}-\d{4}\s*/, '').replace(/[−–—]/g, '-').trim()
+  const parts = clean.split(/\s*,\s*/).filter(Boolean)
+  const out: string[] = []
+  const last = parts[parts.length - 1] ?? ''
+  const ch = last.match(/(\d+)\s*-?\s*chome(?:-(\d+))?(?:-(\d+))?/i)
+  if (ch && parts.length >= 3) {
+    const [city, ward] = parts, district = parts[parts.length - 2]
+    out.push(`${district} ${ch[1]}-chome, ${ward}, ${city}`)
+    if (ch[2]) out.push(`${ch[1]}-${ch[2]}${ch[3] ? '-' + ch[3] : ''} ${district}, ${ward}, ${city}`)
+    out.push(`${district}, ${ward}, ${city}`)
+  }
+  // generic: drop the most specific part one at a time
+  for (let n = parts.length; n >= 2; n--) out.push(parts.slice(0, n).reverse().join(', '))
+  return [...new Set(out)].slice(0, 5)
+}
+
+/** Resolve any Google Maps link to a pin. exact=false means "found from the address" (shown ✨ until confirmed). */
+export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: number; exact: boolean } | null> {
+  const direct = parseLatLng(url)
+  if (direct) return { ...direct, exact: true }
+  if (!/^https?:\/\/([a-z.]*google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl)\//i.test(url.trim())) return null
+  const { data, error } = await supabase.functions.invoke('resolve-maps', { body: { url: url.trim() } })
+  if (error || !data) return null
+  if (typeof data.lat === 'number') return { lat: data.lat, lng: data.lng, exact: true }
+  if (typeof data.address === 'string') {
+    for (const q of addressCandidates(data.address)) {
+      const lk = await lookupPlace(q).catch(() => null)
+      if (lk) return { lat: lk.lat, lng: lk.lng, exact: false }
+      await new Promise((r) => setTimeout(r, 1000)) // OpenStreetMap asks for ≤1 request/second
+    }
+  }
+  return null
+}
