@@ -35,9 +35,9 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
 
       {/* Key facts — tinted green (cheaper/quicker) → red (pricier/longer) compared with the other places */}
       <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <Fact icon={Wallet} label="Price per person" value={fmtYen(price)} sub={p.price_jpy == null ? 'family typical' : fmtZar(price)} r={ranks.price} guess={p.price_jpy == null} />
+        <Fact icon={Wallet} label="Price per person" value={fmtYen(price)} sub={p.price_jpy == null ? 'family typical' : auto.has('price') ? 'found online' : fmtZar(price)} r={ranks.price} guess={p.price_jpy == null || auto.has('price')} />
         <Fact icon={TrainFront} label="Travel from hotel" value={fmtMin(p.travel_minutes)} sub={auto.has('travel') ? 'estimated' : p.travel_text ?? ''} r={ranks.travel} guess={auto.has('travel')} />
-        <Fact icon={Hourglass} label="Wait" value={fmtMin(wait)} sub={p.wait_minutes == null ? 'family typical' : p.wait_text ?? ''} r={ranks.wait} guess={p.wait_minutes == null} />
+        <Fact icon={Hourglass} label="Wait" value={fmtMin(wait)} sub={p.wait_minutes == null ? 'family typical' : auto.has('wait') ? 'found online' : p.wait_text ?? ''} r={ranks.wait} guess={p.wait_minutes == null || auto.has('wait')} />
       </dl>
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">

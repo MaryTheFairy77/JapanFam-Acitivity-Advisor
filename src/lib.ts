@@ -10,7 +10,7 @@ export type Kind = 'restaurant' | 'activity'
 export type HotelId = 'osaka' | 'toranomon' | 'jw_tokyo'
 export type Region = 'kansai' | 'kanto'
 /** Fields filled automatically (shown with a yellow ✨ until a person types over them). */
-export type AutoField = 'pin' | 'nearest_hotels' | 'travel' | 'website_url' | 'halal'
+export type AutoField = 'pin' | 'nearest_hotels' | 'travel' | 'website_url' | 'halal' | 'price' | 'wait'
 
 export type Group = 'adult' | 'teen' | 'kid'
 export interface Member { id: string; name: string; nickname: string | null; emoji: string; grp: Group; is_admin: boolean; created_at: string }
@@ -55,6 +55,7 @@ export interface Place {
   website_url: string | null
   image_url: string | null
   auto_fields: AutoField[]
+  auto_sources: string | null
   lat: number | null
   lng: number | null
   visit_minutes: number | null

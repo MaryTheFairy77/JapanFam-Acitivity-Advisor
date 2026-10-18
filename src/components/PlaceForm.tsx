@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -49,6 +49,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
   const [auto, setAuto] = useState<Set<AutoField>>(new Set(place?.auto_fields ?? []))
   const GROUP: Partial<Record<keyof typeof f, AutoField>> = {
     nearest_hotels: 'nearest_hotels', travel_text: 'travel', travel_minutes: 'travel', website_url: 'website_url', halal: 'halal',
+    price_jpy: 'price', wait_text: 'wait', wait_minutes: 'wait',
   }
   const set = (k: keyof typeof f, v: unknown) => {
     setF((s) => ({ ...s, [k]: v }))
@@ -118,7 +119,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     const fv = F2
     const stillFilled: Record<AutoField, boolean> = {
       pin: fv.lat != null, nearest_hotels: fv.nearest_hotels.length > 0, travel: !!(fv.travel_minutes || fv.travel_text),
-      website_url: !!fv.website_url, halal: !!fv.halal && fv.halal !== 'Unknown',
+      website_url: !!fv.website_url, halal: !!fv.halal && fv.halal !== 'Unknown', price: !!fv.price_jpy, wait: !!(fv.wait_minutes || fv.wait_text),
     }
     autoNow = new Set([...autoNow].filter((x) => stillFilled[x]))
     const row = {
@@ -141,6 +142,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
       visit_minutes: num(fv.visit_minutes),
       image_url: img,
       auto_fields: [...autoNow],
+      auto_sources: autoNow.size ? place?.auto_sources ?? null : null,
     }
     if (needsPlannerCode) {
       const c = getPlannerCode() ?? code
@@ -202,6 +204,17 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
         {!readOnly && !place && (
           <p className="mb-3 rounded-xl bg-[#fdf4c8]/60 p-2.5 text-xs text-amber-800">✨ Just the name is enough. On save we look it up and fill the pin, nearest hotel and travel time (shown yellow until someone confirms).</p>
         )}
+        {place?.auto_sources && auto.size > 0 && (
+          <div className="mb-3 rounded-xl bg-[#fdf4c8]/60 p-2.5 text-xs text-amber-900">
+            <p className="font-medium">✨ Where the yellow info came from</p>
+            <ul className="mt-1 space-y-0.5">
+              {place.auto_sources.split(/\s+/).filter(Boolean).slice(0, 6).map((u, i) => {
+                const href = safeUrl(u)
+                return <li key={i} className="truncate">{href ? <a className="underline" href={href} target="_blank" rel="noreferrer">{href.replace(/^https?:\/\//, '')}</a> : u}</li>
+              })}
+            </ul>
+          </div>
+        )}
         {readOnly && (
           <p className="mb-4 rounded-xl bg-white p-3 text-sm text-stone-600">
             🔒 Only {creator ? `${creator.emoji} ${displayName(creator)}` : 'the person who added this'} or a trip planner ⭐ can change this place.
@@ -226,7 +239,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
               : <span className="text-xs text-emerald-700">✓ on map</span>)}
           </div>
           {pinMsg && <p className="text-xs text-stone-600">{pinMsg}</p>}
-          <label className={label}>Price per person (¥)<input inputMode="numeric" className={input} value={f.price_jpy} onChange={(e) => set('price_jpy', e.target.value)} placeholder="e.g. 2500" /></label>
+          <label className={label}>Price per person (¥)<AutoHint g="price" /><input inputMode="numeric" className={input + yellow('price')} value={f.price_jpy} onChange={(e) => set('price_jpy', e.target.value)} placeholder="e.g. 2500" /></label>
 
           {kind === 'restaurant' && (
             <div className="grid grid-cols-2 gap-3">
@@ -267,11 +280,11 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
             <label className={label}>Minutes<input inputMode="numeric" className={input + yellow('travel')} value={f.travel_minutes} onChange={(e) => set('travel_minutes', e.target.value)} /></label>
           </div>
           <div className="grid grid-cols-[1fr_6rem] gap-3">
-            <label className={label}>Estimated wait
-              <input maxLength={LIMITS.short} className={input} value={f.wait_text} placeholder="e.g. 30–60 min"
+            <label className={label}>Estimated wait<AutoHint g="wait" />
+              <input maxLength={LIMITS.short} className={input + yellow('wait')} value={f.wait_text} placeholder="e.g. 30–60 min"
                 onChange={(e) => { set('wait_text', e.target.value); const m = parseMinutes(e.target.value); if (m != null) set('wait_minutes', String(m)) }} />
             </label>
-            <label className={label}>Minutes<input inputMode="numeric" className={input} value={f.wait_minutes} onChange={(e) => set('wait_minutes', e.target.value)} /></label>
+            <label className={label}>Minutes<input inputMode="numeric" className={input + yellow('wait')} value={f.wait_minutes} onChange={(e) => set('wait_minutes', e.target.value)} /></label>
           </div>
           <label className={label}>Time spent there (min)
             <input inputMode="numeric" className={input} value={f.visit_minutes} onChange={(e) => set('visit_minutes', e.target.value)}
