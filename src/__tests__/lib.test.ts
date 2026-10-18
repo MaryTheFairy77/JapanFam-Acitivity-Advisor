@@ -77,3 +77,39 @@ describe('comparative tints', () => {
     expect(tint(0.5).bg).toBe('rgb(250,247,241)')
   })
 })
+
+import { estimates, withEstimates } from '../lib'
+import { place as mk } from './fixtures'
+describe('estimates for empty fields', () => {
+  it('uses the family median per kind', () => {
+    const e = estimates([mk({ kind: 'restaurant', price_jpy: 1000 }), mk({ kind: 'restaurant', price_jpy: 3000 }), mk({ kind: 'restaurant', price_jpy: 2000 }), mk({ price_jpy: 9000 })])
+    expect(e.price.restaurant).toBe(2000)
+    expect(e.price.activity).toBe(9000)
+  })
+  it('falls back to defaults when nobody entered anything', () => expect(estimates([]).wait.activity).toBe(30))
+  it('never overwrites a real value', () => {
+    const e = estimates([])
+    expect(withEstimates(mk({ price_jpy: 500 }), e).price_jpy).toBe(500)
+    expect(withEstimates(mk({ price_jpy: null }), e).price_jpy).toBe(3000)
+  })
+})
+
+import { autoFillPlace } from '../lib'
+describe('autoFillPlace', () => {
+  const lk = { lat: 35.6708, lng: 139.7661, label: 'Ginza', website: 'https://ok.jp', halal: 'Muslim friendly' }
+  it('fills only blanks and marks them ✨', () => {
+    const { row, added } = autoFillPlace(mk({ kind: 'restaurant', lat: null, lng: null, travel_minutes: null, halal: 'Unknown' }), lk)
+    expect(row.lat).toBe(35.6708)
+    expect(row.nearest_hotels).toEqual(['toranomon'])
+    expect(added).toEqual(['pin', 'nearest_hotels', 'travel', 'website_url', 'halal'])
+    expect(row.auto_fields).toEqual(added)
+  })
+  it('never overwrites what a person entered', () => {
+    const { row, added } = autoFillPlace(mk({ kind: 'restaurant', lat: null, lng: null, travel_minutes: 7, halal: 'Not halal', website_url: 'https://mine.jp', nearest_hotels: ['jw_tokyo'] }), lk)
+    expect(row.travel_minutes).toBe(7)
+    expect(row.halal).toBe('Not halal')
+    expect(row.website_url).toBe('https://mine.jp')
+    expect(row.nearest_hotels).toEqual(['jw_tokyo'])
+    expect(added).toEqual(['pin'])
+  })
+})

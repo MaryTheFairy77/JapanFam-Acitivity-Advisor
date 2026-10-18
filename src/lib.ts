@@ -9,6 +9,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 export type Kind = 'restaurant' | 'activity'
 export type HotelId = 'osaka' | 'toranomon' | 'jw_tokyo'
 export type Region = 'kansai' | 'kanto'
+/** Fields filled automatically (shown with a yellow ✨ until a person types over them). */
+export type AutoField = 'pin' | 'nearest_hotels' | 'travel' | 'website_url' | 'halal'
 
 export type Group = 'adult' | 'teen' | 'kid'
 export interface Member { id: string; name: string; nickname: string | null; emoji: string; grp: Group; is_admin: boolean; created_at: string }
@@ -52,6 +54,7 @@ export interface Place {
   maps_url: string | null
   website_url: string | null
   image_url: string | null
+  auto_fields: AutoField[]
   lat: number | null
   lng: number | null
   visit_minutes: number | null
@@ -255,4 +258,68 @@ export function tint(r: number | null): { bg: string; fg: string } {
   const [a, b, t] = r < 0.5 ? [lo, mid, r / 0.5] : [mid, hi, (r - 0.5) / 0.5]
   const c = a.map((x, i) => lerp(x, b[i], t))
   return { bg: `rgb(${c.join(',')})`, fg: r < 0.34 ? '#1f6b45' : r > 0.66 ? '#9f1d2c' : '#1f1a17' }
+}
+
+export const isKid = (m: Pick<Member, 'grp'>) => m.grp === 'kid'
+
+// ── Free look-up (OpenStreetMap / Nominatim) ───────────
+export interface Lookup { lat: number; lng: number; label: string; website?: string; halal?: string }
+
+/** Find a place in Japan by name. Also picks up the website and halal tags when OpenStreetMap has them. */
+export async function lookupPlace(name: string, cityHint?: string): Promise<Lookup | null> {
+  const tries = cityHint ? [`${name}, ${cityHint}`, name] : [name]
+  for (const q of tries) {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=jp&extratags=1&q=${encodeURIComponent(q)}`)
+    if (!res.ok) continue
+    const [hit] = await res.json()
+    if (!hit) continue
+    const tags: Record<string, string> = hit.extratags ?? {}
+    const web = safeUrl(tags.website ?? tags['contact:website'])
+    const diet = tags['diet:halal']
+    return {
+      lat: +hit.lat, lng: +hit.lon, label: String(hit.display_name ?? '').split(',').slice(0, 2).join(','),
+      website: web, halal: diet === 'only' ? 'Halal certified' : diet === 'yes' ? 'Muslim friendly' : undefined,
+    }
+  }
+  return null
+}
+
+// ── Estimates for empty numbers (never stored; shown yellow) ──
+export interface Estimates { price: Record<Kind, number>; wait: Record<Kind, number>; visit: Record<Kind, number> }
+const median = (xs: number[]) => {
+  if (!xs.length) return null
+  const s = [...xs].sort((a, b) => a - b), m = Math.floor(s.length / 2)
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2)
+}
+/** Family's typical value per kind (median of what people entered), with sensible fallbacks. */
+export function estimates(places: Place[]): Estimates {
+  const by = (kind: Kind, k: 'price_jpy' | 'wait_minutes' | 'visit_minutes') =>
+    median(places.filter((p) => p.kind === kind && p[k] != null).map((p) => p[k] as number))
+  return {
+    price: { restaurant: by('restaurant', 'price_jpy') ?? 2000, activity: by('activity', 'price_jpy') ?? 3000 },
+    wait: { restaurant: by('restaurant', 'wait_minutes') ?? 15, activity: by('activity', 'wait_minutes') ?? 30 },
+    visit: { restaurant: by('restaurant', 'visit_minutes') ?? 60, activity: by('activity', 'visit_minutes') ?? 120 },
+  }
+}
+/** Same place with empty price/wait/visit filled from estimates — for stats, tints and the planner. */
+export const withEstimates = (p: Place, e: Estimates): Place => ({
+  ...p,
+  price_jpy: p.price_jpy ?? e.price[p.kind],
+  wait_minutes: p.wait_minutes ?? e.wait[p.kind],
+  visit_minutes: p.visit_minutes ?? e.visit[p.kind],
+})
+export const YELLOW = { bg: '#fdf4c8', fg: '#7a5b00' }
+
+/** Fill a saved place's blanks from a look-up (never overwrites). Returns the full updated row + what was auto-filled. */
+export function autoFillPlace(p: Place, lk: Lookup): { row: Place; added: AutoField[] } {
+  const near = nearestHotel(lk)!, est = estimateTravel(near.km)
+  const row: Place = { ...p, auto_fields: [...(p.auto_fields ?? [])] }
+  const added: AutoField[] = []
+  if (row.lat == null || row.lng == null) { row.lat = lk.lat; row.lng = lk.lng; added.push('pin') }
+  if (!row.nearest_hotels.length) { row.nearest_hotels = [near.id]; added.push('nearest_hotels') }
+  if (row.travel_minutes == null && !row.travel_text) { row.travel_minutes = est.minutes; row.travel_text = est.text; added.push('travel') }
+  if (!row.website_url && lk.website) { row.website_url = lk.website; added.push('website_url') }
+  if (row.kind === 'restaurant' && (!row.halal || row.halal === 'Unknown') && lk.halal) { row.halal = lk.halal; added.push('halal') }
+  row.auto_fields = [...new Set([...row.auto_fields, ...added])]
+  return { row, added }
 }

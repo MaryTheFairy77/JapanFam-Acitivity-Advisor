@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { EMOJIS, GROUPS, LIMITS, displayName, getPlannerCode, setPlannerCode, supabase, type Group, type Attendee, type Member, type Place } from '../lib'
+import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, setPlannerCode, supabase, HOTELS, type Group, type Attendee, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
 import { getPrefs, setPrefs } from '../sound'
 
@@ -18,8 +18,8 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 /** Edit your nickname + avatar, or switch person. */
-export function ProfileSheet({ me, onClose, onSaved, onSwitch }: {
-  me: Member; onClose: () => void; onSaved: () => void; onSwitch: () => void
+export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
+  me: Member; places: Place[]; onClose: () => void; onSaved: () => void; onSwitch: () => void
 }) {
   const [nickname, setNickname] = useState(me.nickname ?? '')
   const [emoji, setEmoji] = useState(me.emoji)
@@ -60,14 +60,15 @@ export function ProfileSheet({ me, onClose, onSaved, onSwitch }: {
       <button onClick={onSwitch} className="mt-2 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Switch to someone else</button>
       <SoundSettings />
       {me.is_admin && <AddMember onAdded={onSaved} />}
+      {me.is_admin && <FillGaps places={places} onDone={onSaved} />}
       <Privacy className="mt-5" />
     </Sheet>
   )
 }
 
 /** Tick who's going to a place — anyone can tick for anyone (parents for kids). */
-export function GoingSheet({ place, members, attendees, onClose, onToggle }: {
-  place: Place; members: Member[]; attendees: Attendee[]; onClose: () => void; onToggle: (memberId: string) => void
+export function GoingSheet({ place, members, attendees, onlyMemberId, onClose, onToggle }: {
+  place: Place; members: Member[]; attendees: Attendee[]; onlyMemberId?: string; onClose: () => void; onToggle: (memberId: string) => void
 }) {
   const going = new Set(attendees.filter((a) => a.place_id === place.id).map((a) => a.member_id))
   return (
@@ -84,8 +85,8 @@ export function GoingSheet({ place, members, attendees, onClose, onToggle }: {
               {list.map((m) => {
                 const on = going.has(m.id)
                 return (
-                  <button key={m.id} onClick={() => onToggle(m.id)}
-                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm ${on ? 'border-emerald-400 bg-emerald-50' : 'border-stone-200 bg-white'}`}>
+                  <button key={m.id} onClick={() => onToggle(m.id)} disabled={!!onlyMemberId && m.id !== onlyMemberId}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm disabled:opacity-50 ${on ? 'border-emerald-400 bg-emerald-50' : 'border-stone-200 bg-white'}`}>
                     <span className="text-lg">{m.emoji}</span>
                     <span className="flex-1 truncate">{displayName(m)}</span>
                     <span>{on ? '✅' : '⬜'}</span>
@@ -156,6 +157,44 @@ function SoundSettings() {
     <div className="mt-3 rounded-2xl bg-white px-3 py-1">
       {row('clicks', '🔔 Button sounds', 'Soft taps, chimes and bells')}
       {row('ambience', '🎋 Background music', 'Japanese flute, birds and a stream')}
+    </div>
+  )
+}
+
+/** Trip planners only: look up every place that has no pin yet (free OpenStreetMap search, 1 per second). */
+function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
+  const todo = places.filter((p) => p.lat == null || p.lng == null)
+  const [code, setCode] = useState('')
+  const [log, setLog] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  if (!todo.length) return null
+
+  async function run() {
+    const c = getPlannerCode() ?? code
+    setBusy(true); setLog([])
+    let ok = 0
+    for (const p of todo) {
+      const hint = p.nearest_hotels.length ? `${HOTELS[p.nearest_hotels[0]].city}, Japan` : undefined
+      const lk = await lookupPlace(p.name, hint).catch(() => null)
+      if (!lk) { setLog((l) => [...l, `❔ ${p.name}: not found`]); await new Promise((r) => setTimeout(r, 1100)); continue }
+      const { row, added } = autoFillPlace(p, lk)
+      const { data, error } = await supabase.rpc('planner_update_place', { place: p.id, data: row, code: c })
+      if (error || data !== true) { setPlannerCode(null); setLog((l) => [...l, error?.message.includes('Too many') ? '⛔ Too many wrong codes, wait 15 min' : '⛔ Wrong trip-planner code']); break }
+      setPlannerCode(c); ok++
+      setLog((l) => [...l, `✨ ${p.name}: ${added.join(', ')}`])
+      await new Promise((r) => setTimeout(r, 1100)) // be polite to the free OpenStreetMap service
+    }
+    setBusy(false)
+    if (ok) onDone()
+  }
+  const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii'
+  return (
+    <div className="mt-3 space-y-2 rounded-2xl bg-[#fdf4c8]/60 p-3">
+      <p className="text-sm font-medium">✨ Fill missing info ({todo.length} place{todo.length === 1 ? '' : 's'} without a pin)</p>
+      <p className="text-xs text-stone-600">Looks each one up on OpenStreetMap and fills the pin, nearest hotel and travel time (plus website or halal status if listed). Filled values show yellow until someone confirms them.</p>
+      {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
+      <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Looking up…' : 'Fill missing info'}</button>
+      {log.length > 0 && <ul className="space-y-0.5 text-xs text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul>}
     </div>
   )
 }

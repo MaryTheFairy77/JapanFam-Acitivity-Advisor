@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, setPlannerCode, uploadPhoto, displayName, nearestHotel, parseLatLng, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -45,35 +45,54 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     setUploading(false)
   }
   const [code, setCode] = useState('')
-  const set = (k: keyof typeof f, v: unknown) => setF((s) => ({ ...s, [k]: v }))
+  // ✨ fields filled automatically; typing into one makes it "yours" and clears the yellow
+  const [auto, setAuto] = useState<Set<AutoField>>(new Set(place?.auto_fields ?? []))
+  const GROUP: Partial<Record<keyof typeof f, AutoField>> = {
+    nearest_hotels: 'nearest_hotels', travel_text: 'travel', travel_minutes: 'travel', website_url: 'website_url', halal: 'halal',
+  }
+  const set = (k: keyof typeof f, v: unknown) => {
+    setF((s) => ({ ...s, [k]: v }))
+    const g = GROUP[k]
+    if (g) setAuto((a) => { const n = new Set(a); n.delete(g); return n })
+  }
+  const yellow = (g: AutoField) => (auto.has(g) ? ' !bg-[#fdf4c8] !border-amber-300' : '')
+  const AutoHint = ({ g }: { g: AutoField }) => auto.has(g) ? <span className="ml-1 text-[11px] font-normal text-amber-700">✨ auto-filled, type to confirm</span> : null
 
-  /** When we learn coordinates: auto-pick nearest hotel + estimate travel if those are blank. */
-  function applyPin(lat: number, lng: number, source: string) {
+  type F = typeof f
+  /** Fill blanks from a pin (and look-up tags). Never overwrites what a person typed. */
+  function fillFrom(s: F, lat: number, lng: number, lk: Partial<Lookup> | null, pinIsAuto: boolean): { next: F; added: AutoField[] } {
     const near = nearestHotel({ lat, lng })!
     const est = estimateTravel(near.km)
-    setF((s) => ({
-      ...s, lat, lng,
-      nearest_hotels: s.nearest_hotels.length ? s.nearest_hotels : [near.id],
-      travel_text: s.travel_text || est.text,
-      travel_minutes: s.travel_minutes || String(est.minutes),
-    }))
-    setPinMsg(`📌 Pinned (${source}) · ${near.km.toFixed(1)} km from ${HOTELS[near.id].short} · ${est.text}`)
+    const added: AutoField[] = pinIsAuto ? ['pin'] : []
+    const next = { ...s, lat, lng }
+    if (!s.nearest_hotels.length) { next.nearest_hotels = [near.id]; added.push('nearest_hotels') }
+    if (!s.travel_minutes && !s.travel_text) { next.travel_text = est.text; next.travel_minutes = String(est.minutes); added.push('travel') }
+    if (!s.website_url && lk?.website) { next.website_url = lk.website; added.push('website_url') }
+    if (kind === 'restaurant' && (!s.halal || s.halal === 'Unknown') && lk?.halal) { next.halal = lk.halal; added.push('halal') }
+    return { next, added }
+  }
+  function applyPin(lat: number, lng: number, source: string, lk: Lookup | null, pinIsAuto: boolean) {
+    const { next, added } = fillFrom(f, lat, lng, lk, pinIsAuto)
+    setF(next)
+    setAuto((a) => { const n = new Set(a); if (!pinIsAuto) n.delete('pin'); added.forEach((x) => n.add(x)); return n })
+    const near = nearestHotel({ lat, lng })!
+    setPinMsg(`📌 Pinned (${source}) · ${near.km.toFixed(1)} km from ${HOTELS[near.id].short}`)
   }
 
   function onMapsUrl(url: string) {
     set('maps_url', url)
     const c = parseLatLng(url)
-    if (c) applyPin(c.lat, c.lng, 'from link')
+    if (c) applyPin(c.lat, c.lng, 'from your link', null, false)
   }
+
+  const cityHint = () => (f.nearest_hotels.length ? `${HOTELS[f.nearest_hotels[0]].city}, Japan` : undefined)
 
   async function findPin() {
     if (!f.name.trim()) return
     setFinding(true); setPinMsg(null)
     try {
-      const q = encodeURIComponent(f.name.trim())
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=jp&q=${q}`)
-      const [hit] = await res.json()
-      if (hit) applyPin(+hit.lat, +hit.lon, hit.display_name.split(',').slice(0, 2).join(','))
+      const lk = await lookupPlace(f.name.trim(), cityHint())
+      if (lk) applyPin(lk.lat, lk.lng, lk.label, lk, true)
       else setPinMsg('Couldn’t find it by name. Paste the full Google Maps link (open the short link, then copy the URL from the address bar).')
     } catch { setPinMsg('Search failed. Try again in a moment.') }
     setFinding(false)
@@ -88,25 +107,40 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     if (maps === false || web === false || img === false) { setErr('Links must be normal web links (https://…).'); return }
     if (needsPlannerCode && !getPlannerCode() && !code) { setAskCode(true); setErr('Enter the trip-planner code to save changes to someone else’s place.'); return }
     setBusy(true); setErr(null)
+    // ✨ Free auto-fill on save: if there's no pin yet, look the place up by name (OpenStreetMap)
+    let F2 = f, autoNow = new Set(auto)
+    if (F2.lat == null) {
+      try {
+        const lk = await lookupPlace(F2.name.trim(), cityHint())
+        if (lk) { const r = fillFrom(F2, lk.lat, lk.lng, lk, true); F2 = r.next; r.added.forEach((x) => autoNow.add(x)) }
+      } catch { /* offline or not found: save anyway */ }
+    }
+    const fv = F2
+    const stillFilled: Record<AutoField, boolean> = {
+      pin: fv.lat != null, nearest_hotels: fv.nearest_hotels.length > 0, travel: !!(fv.travel_minutes || fv.travel_text),
+      website_url: !!fv.website_url, halal: !!fv.halal && fv.halal !== 'Unknown',
+    }
+    autoNow = new Set([...autoNow].filter((x) => stillFilled[x]))
     const row = {
       kind,
-      name: f.name.trim(),
-      description: f.description.trim() || null,
-      price_jpy: num(f.price_jpy),
-      halal: kind === 'restaurant' ? f.halal || null : null,
-      taste: kind === 'restaurant' ? f.taste || null : null,
-      nearest_hotels: f.nearest_hotels,
-      travel_text: f.travel_text.trim() || null,
-      travel_minutes: num(f.travel_minutes),
-      wait_text: f.wait_text.trim() || null,
-      wait_minutes: num(f.wait_minutes),
-      long_line: f.long_line.trim() || null,
+      name: fv.name.trim(),
+      description: fv.description.trim() || null,
+      price_jpy: num(fv.price_jpy),
+      halal: kind === 'restaurant' ? fv.halal || null : null,
+      taste: kind === 'restaurant' ? fv.taste || null : null,
+      nearest_hotels: fv.nearest_hotels,
+      travel_text: fv.travel_text.trim() || null,
+      travel_minutes: num(fv.travel_minutes),
+      wait_text: fv.wait_text.trim() || null,
+      wait_minutes: num(fv.wait_minutes),
+      long_line: fv.long_line.trim() || null,
       maps_url: maps,
-      website_url: web,
-      lat: f.lat,
-      lng: f.lng,
-      visit_minutes: num(f.visit_minutes),
+      website_url: fv.website_url ? (normalizeUrl(fv.website_url) || null) : null,
+      lat: fv.lat,
+      lng: fv.lng,
+      visit_minutes: num(fv.visit_minutes),
       image_url: img,
+      auto_fields: [...autoNow],
     }
     if (needsPlannerCode) {
       const c = getPlannerCode() ?? code
@@ -165,6 +199,9 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
             </div>
           )}
         </div>
+        {!readOnly && !place && (
+          <p className="mb-3 rounded-xl bg-[#fdf4c8]/60 p-2.5 text-xs text-amber-800">✨ Just the name is enough. On save we look it up and fill the pin, nearest hotel and travel time (shown yellow until someone confirms).</p>
+        )}
         {readOnly && (
           <p className="mb-4 rounded-xl bg-white p-3 text-sm text-stone-600">
             🔒 Only {creator ? `${creator.emoji} ${displayName(creator)}` : 'the person who added this'} or a trip planner ⭐ can change this place.
@@ -176,23 +213,25 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
           <label className={label}>📍 Google Maps link
             <input maxLength={LIMITS.url} inputMode="url" className={input} value={f.maps_url} onChange={(e) => onMapsUrl(e.target.value)} placeholder="https://maps.app.goo.gl/…" />
           </label>
-          <label className={label}>🌐 Website (to find out more)
-            <input maxLength={LIMITS.url} className={input} value={f.website_url} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" inputMode="url" />
+          <label className={label}>🌐 Website (to find out more)<AutoHint g="website_url" />
+            <input maxLength={LIMITS.url} className={input + yellow('website_url')} value={f.website_url} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" inputMode="url" />
           </label>
           <div className="flex items-center gap-2">
             <button type="button" onClick={findPin} disabled={finding || !f.name.trim()}
               className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm disabled:opacity-40">
               {finding ? 'Searching…' : f.lat != null ? '🔄 Re-find pin by name' : '🔎 Find pin by name'}
             </button>
-            {f.lat != null && <span className="text-xs text-emerald-700">✓ on map</span>}
+            {f.lat != null && (auto.has('pin')
+              ? <span className="rounded-md bg-[#fdf4c8] px-1.5 py-0.5 text-xs text-amber-800">✨ pin found automatically</span>
+              : <span className="text-xs text-emerald-700">✓ on map</span>)}
           </div>
           {pinMsg && <p className="text-xs text-stone-600">{pinMsg}</p>}
           <label className={label}>Price per person (¥)<input inputMode="numeric" className={input} value={f.price_jpy} onChange={(e) => set('price_jpy', e.target.value)} placeholder="e.g. 2500" /></label>
 
           {kind === 'restaurant' && (
             <div className="grid grid-cols-2 gap-3">
-              <label className={label}>Halal-ness
-                <select className={input} value={f.halal} onChange={(e) => set('halal', e.target.value)}>
+              <label className={label}>Halal-ness<AutoHint g="halal" />
+                <select className={input + yellow('halal')} value={f.halal} onChange={(e) => set('halal', e.target.value)}>
                   {HALAL_OPTIONS.map((o) => <option key={o}>{o}</option>)}
                 </select>
               </label>
@@ -205,7 +244,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
           )}
 
           <div>
-            <span className={label}>Nearest hotel(s)</span>
+            <span className={label}>Nearest hotel(s)<AutoHint g="nearest_hotels" /></span>
             <div className="mt-1 flex flex-wrap gap-2">
               {HOTEL_IDS.map((h) => {
                 const on = f.nearest_hotels.includes(h)
@@ -221,11 +260,11 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
           </div>
 
           <div className="grid grid-cols-[1fr_6rem] gap-3">
-            <label className={label}>Distance from hotel
-              <input maxLength={LIMITS.short} className={input} value={f.travel_text} placeholder="e.g. 15 min walk"
+            <label className={label}>Distance from hotel<AutoHint g="travel" />
+              <input maxLength={LIMITS.short} className={input + yellow('travel')} value={f.travel_text} placeholder="e.g. 15 min walk"
                 onChange={(e) => { set('travel_text', e.target.value); const m = parseMinutes(e.target.value); if (m != null) set('travel_minutes', String(m)) }} />
             </label>
-            <label className={label}>Minutes<input inputMode="numeric" className={input} value={f.travel_minutes} onChange={(e) => set('travel_minutes', e.target.value)} /></label>
+            <label className={label}>Minutes<input inputMode="numeric" className={input + yellow('travel')} value={f.travel_minutes} onChange={(e) => set('travel_minutes', e.target.value)} /></label>
           </div>
           <div className="grid grid-cols-[1fr_6rem] gap-3">
             <label className={label}>Estimated wait

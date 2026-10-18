@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, claimMember, displayName, downloadCsv, rankOf, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HOTELS, HOTEL_IDS, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
@@ -46,7 +46,8 @@ export default function Home({ me, data, onLogout }: {
   const [music, setMusic] = useState(getPrefs().ambience)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
-  const canEdit = (p: Place) => me.is_admin || (p.created_by != null && p.created_by === me.id)
+  const kidMode = isKid(me)
+  const canEdit = (p: Place) => !kidMode && (me.is_admin || (p.created_by != null && p.created_by === me.id))
   useEffect(() => onPrefs(() => setMusic(getPrefs().ambience)), [])
   const [goingFor, setGoingFor] = useState<Place | null>(null)
 
@@ -65,17 +66,21 @@ export default function Home({ me, data, onLogout }: {
     return c
   }, [votes])
 
+  // empty price/wait/visit → family's typical value (never stored), so stats + planner still work
+  const est = useMemo(() => estimates(places), [places])
+  const effPlaces = useMemo(() => places.map((p) => withEstimates(p, est)), [places, est])
+
   // comparative ranks: each place vs. the others of the same kind (food vs food, activities vs activities)
   const ranks = useMemo(() => {
     const out: Record<string, { price: number | null; travel: number | null; wait: number | null }> = {}
     for (const kind of ['restaurant', 'activity'] as const) {
-      const ps = places.filter((p) => p.kind === kind)
+      const ps = effPlaces.filter((p) => p.kind === kind)
       const vals = (k: 'price_jpy' | 'travel_minutes' | 'wait_minutes') => ps.map((p) => p[k]).filter((v): v is number => v != null)
       const price = vals('price_jpy'), travel = vals('travel_minutes'), wait = vals('wait_minutes')
       for (const p of ps) out[p.id] = { price: rankOf(p.price_jpy, price), travel: rankOf(p.travel_minutes, travel), wait: rankOf(p.wait_minutes, wait) }
     }
     return out
-  }, [places])
+  }, [effPlaces])
 
   const list = useMemo(() => {
     if (tab !== 'restaurant' && tab !== 'activity') return []
@@ -91,13 +96,13 @@ export default function Home({ me, data, onLogout }: {
       .sort((a, b) => {
         switch (sort) {
           case 'votes': return (voteCount[b.id] ?? 0) - (voteCount[a.id] ?? 0)
-          case 'price': return nullsLast(a.price_jpy, b.price_jpy)
+          case 'price': return nullsLast(a.price_jpy ?? est.price[a.kind], b.price_jpy ?? est.price[b.kind])
           case 'travel': return nullsLast(a.travel_minutes, b.travel_minutes)
-          case 'wait': return nullsLast(a.wait_minutes, b.wait_minutes)
+          case 'wait': return nullsLast(a.wait_minutes ?? est.wait[a.kind], b.wait_minutes ?? est.wait[b.kind])
           default: return b.created_at.localeCompare(a.created_at)
         }
       })
-  }, [places, tab, hotel, halalOnly, taste, hideVisited, q, sort, voteCount])
+  }, [places, tab, hotel, halalOnly, taste, hideVisited, q, sort, voteCount, est])
 
   async function toggleVote(p: Place) {
     const mine = votes.some((v) => v.place_id === p.id && v.member_id === me.id)
@@ -110,6 +115,7 @@ export default function Home({ me, data, onLogout }: {
   }
 
   async function toggleVisited(p: Place) {
+    if (kidMode) return
     const visited = !p.visited
     setPlaces(places.map((x) => (x.id === p.id ? { ...x, visited } : x)))
     const { error } = await supabase.rpc('set_visited', { place: p.id, is_visited: visited })
@@ -181,10 +187,10 @@ export default function Home({ me, data, onLogout }: {
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
-          <Planner places={places} voteCount={voteCount} />
+          <Planner places={effPlaces} voteCount={voteCount} />
         </Suspense>
       ) : tab === 'stats' ? (
-        <Stats places={places} votes={votes} members={members} voteCount={voteCount} />
+        <Stats places={effPlaces} votes={votes} members={members} voteCount={voteCount} />
       ) : (
         <>
           {/* Filters */}
@@ -241,24 +247,26 @@ export default function Home({ me, data, onLogout }: {
                 going={goingSummary(p.id, members, attendees)}
                 imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
                 onImIn={() => toggleGoing(me.id, p)} onGoing={() => setGoingFor(p)}
-                canEdit={canEdit(p)} photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }}
+                canEdit={canEdit(p)} photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
                 onVote={() => toggleVote(p)} onVisited={() => toggleVisited(p)} onEdit={() => setEditing(p)} />
             ))}
           </div>
 
+          {!kidMode && (
           <button onClick={() => setEditing('new')}
             className="fixed bottom-20 right-1/2 z-30 mb-[env(safe-area-inset-bottom)] translate-x-1/2 rounded-full bg-torii px-6 py-3.5 font-medium text-white shadow-lg shadow-torii/30 active:scale-95">
             + Add {tab === 'restaurant' ? 'restaurant' : 'activity'}
           </button>
+          )}
         </>
       )}
 
       {profileOpen && (
-        <ProfileSheet me={me} onClose={() => setProfileOpen(false)} onSaved={() => { setProfileOpen(false); refresh() }}
+        <ProfileSheet me={me} places={places} onClose={() => setProfileOpen(false)} onSaved={() => { setProfileOpen(false); refresh() }}
           onSwitch={() => { setProfileOpen(false); onLogout() }} />
       )}
       {goingFor && (
-        <GoingSheet place={goingFor} members={members} attendees={attendees} onClose={() => setGoingFor(null)}
+        <GoingSheet place={goingFor} members={members} attendees={attendees} onlyMemberId={kidMode ? me.id : undefined} onClose={() => setGoingFor(null)}
           onToggle={(id) => toggleGoing(id, goingFor)} />
       )}
       {editing && (
