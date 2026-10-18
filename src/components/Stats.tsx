@@ -1,92 +1,137 @@
-import { useState } from 'react'
-import { displayName, fmtMin, fmtYen, type Kind, type Member, type Place, type Vote } from '../lib'
+import { useMemo, useState } from 'react'
+import { displayName, fmtMin, fmtYen, rankOf, tint, YELLOW, type Kind, type Member, type Place, type Vote } from '../lib'
+import Thumb from './Thumb'
 
-/** Super-basic comparative analytics: leaderboard + "best by metric" picks + progress. */
-export default function Stats({ places, votes, members, voteCount }: {
-  places: Place[]; votes: Vote[]; members: Member[]; voteCount: Record<string, number>
+type Metric = 'votes' | 'price' | 'travel' | 'wait' | 'value'
+
+const METRICS: { key: Metric; label: string; explain: string; lowIsGood: boolean }[] = [
+  { key: 'votes', label: '👍 Votes', explain: 'Most loved first. Each face is one family vote.', lowIsGood: false },
+  { key: 'price', label: '💴 Price', explain: 'Cheapest per person first.', lowIsGood: true },
+  { key: 'travel', label: '🚆 Travel', explain: 'Closest to the nearest hotel first.', lowIsGood: true },
+  { key: 'wait', label: '⏳ Wait', explain: 'Shortest queue first.', lowIsGood: true },
+  { key: 'value', label: '💎 Value', explain: 'Votes per ¥1,000: crowd favourites that don’t cost much.', lowIsGood: false },
+]
+const MEDALS = ['🥇', '🥈', '🥉']
+
+/** Compare: pick what matters → everything ranked by it. */
+export default function Stats({ places, raw, votes, members, voteCount, photoUrls, onOpen }: {
+  places: Place[]          // with estimates filled in
+  raw: Place[]             // as entered (to know what's an estimate)
+  votes: Vote[]; members: Member[]; voteCount: Record<string, number>
+  photoUrls: Record<string, string>; onOpen: (p: Place) => void
 }) {
   const [kind, setKind] = useState<Kind>('restaurant')
-  const ps = places.filter((p) => p.kind === kind)
-  const todo = ps.filter((p) => !p.visited)
-  const visited = ps.length - todo.length
-  const top = [...ps].sort((a, b) => (voteCount[b.id] ?? 0) - (voteCount[a.id] ?? 0)).slice(0, 8)
-  const max = Math.max(1, ...top.map((p) => voteCount[p.id] ?? 0))
+  const [metric, setMetric] = useState<Metric>('votes')
+  const [skipVisited, setSkipVisited] = useState(true)
+  const rawById = useMemo(() => Object.fromEntries(raw.map((p) => [p.id, p])), [raw])
+  const m = METRICS.find((x) => x.key === metric)!
 
-  const best = (key: 'price_jpy' | 'travel_minutes' | 'wait_minutes') =>
-    todo.filter((p) => p[key] != null).sort((a, b) => a[key]! - b[key]!)[0]
+  const all = places.filter((p) => p.kind === kind)
+  const ps = all.filter((p) => !skipVisited || !p.visited)
+  const visited = all.filter((p) => p.visited).length
 
-  // "Value score": votes per ¥1000 — a quick crowd-pleaser-for-the-money metric
-  const value = todo
-    .filter((p) => p.price_jpy && (voteCount[p.id] ?? 0) > 0)
-    .map((p) => ({ p, s: (voteCount[p.id] ?? 0) / (p.price_jpy! / 1000) }))
-    .sort((a, b) => b.s - a.s)[0]
+  const value = (p: Place): number | null => {
+    switch (metric) {
+      case 'votes': return voteCount[p.id] ?? 0
+      case 'price': return p.price_jpy
+      case 'travel': return p.travel_minutes
+      case 'wait': return p.wait_minutes
+      case 'value': return p.price_jpy ? (voteCount[p.id] ?? 0) / (p.price_jpy / 1000) : null
+    }
+  }
+  const guessed = (p: Place) => {
+    const r = rawById[p.id]
+    if (!r) return false
+    return metric === 'price' || metric === 'value' ? r.price_jpy == null
+      : metric === 'wait' ? r.wait_minutes == null
+      : metric === 'travel' ? (r.auto_fields ?? []).includes('travel') : false
+  }
+  const ranked = [...ps].sort((a, b) => {
+    const va = value(a), vb = value(b)
+    if (va == null) return 1
+    if (vb == null) return -1
+    return m.lowIsGood ? va - vb : vb - va
+  })
+  const vals = ranked.map(value).filter((v): v is number => v != null)
+  const max = Math.max(1, ...vals)
+  const label = (v: number | null) => v == null ? '—'
+    : metric === 'price' ? fmtYen(v) : metric === 'travel' || metric === 'wait' ? fmtMin(v)
+    : metric === 'value' ? `${v.toFixed(1)} /¥1k` : String(v)
 
-  const picks: { label: string; p?: Place; v: string }[] = [
-    { label: '¥ Cheapest', p: best('price_jpy'), v: fmtYen(best('price_jpy')?.price_jpy ?? null) },
-    { label: '🚗 Closest', p: best('travel_minutes'), v: fmtMin(best('travel_minutes')?.travel_minutes ?? null) },
-    { label: '⏱ Shortest wait', p: best('wait_minutes'), v: fmtMin(best('wait_minutes')?.wait_minutes ?? null) },
-    { label: '💎 Best value', p: value?.p, v: value ? `${value.s.toFixed(1)} votes / ¥1k` : '—' },
-  ]
+  const tab = (on: boolean) => `rounded-lg py-1.5 ${on ? 'bg-white shadow-sm' : 'text-stone-600'}`
+  const chip = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`
 
   return (
-    <div className="space-y-5 px-4 pt-4">
-      <div className="grid grid-cols-2 rounded-xl bg-stone-200/70 p-1 text-sm font-medium">
-        {(['restaurant', 'activity'] as const).map((k) => (
-          <button key={k} onClick={() => setKind(k)} className={`rounded-lg py-1.5 ${kind === k ? 'bg-white shadow-sm' : 'text-stone-600'}`}>
-            {k === 'restaurant' ? 'Food' : 'Activities'}
-          </button>
-        ))}
+    <div className="space-y-4 px-4 pt-4">
+      <div>
+        <h2 className="font-display text-2xl">Compare</h2>
+        <p className="text-sm text-stone-500">Pick what matters most and everything is ranked for you. Tap a place to open it.</p>
       </div>
+
+      <div className="grid grid-cols-2 rounded-xl bg-stone-200/70 p-1 text-sm font-medium">
+        <button className={tab(kind === 'restaurant')} onClick={() => setKind('restaurant')}>🍜 Food</button>
+        <button className={tab(kind === 'activity')} onClick={() => setKind('activity')}>🎢 Activities</button>
+      </div>
+
+      <div>
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          {METRICS.map((x) => <button key={x.key} data-sound="tab" className={chip(metric === x.key)} onClick={() => setMetric(x.key)}>{x.label}</button>)}
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-stone-600">{m.explain}</p>
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-stone-600">
+            <input type="checkbox" checked={skipVisited} onChange={(e) => setSkipVisited(e.target.checked)} className="h-4 w-4 accent-torii" />Skip been
+          </label>
+        </div>
+      </div>
+
+      <ol className="space-y-2">
+        {ranked.length === 0 && <li className="rounded-2xl border-2 border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">Nothing to compare yet.</li>}
+        {ranked.map((p, i) => {
+          const v = value(p), g = guessed(p)
+          const voters = members.filter((mm) => votes.some((vv) => vv.place_id === p.id && vv.member_id === mm.id))
+          const r = rankOf(v ?? null, vals)
+          const t = g ? YELLOW : tint(m.lowIsGood ? r : r == null ? null : 1 - r)
+          return (
+            <li key={p.id}>
+              <button onClick={() => onOpen(p)} className="flex w-full items-center gap-3 rounded-2xl border border-stone-200 bg-white p-2.5 text-left">
+                <span className="w-6 shrink-0 text-center text-lg">{i < 3 && v ? MEDALS[i] : <span className="text-sm text-stone-400">{i + 1}</span>}</span>
+                <Thumb place={p} photoUrls={photoUrls} className="h-11 w-11 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className={`truncate text-sm font-medium ${p.visited ? 'text-stone-400 line-through' : ''}`}>{p.name}</p>
+                  {metric === 'votes' ? (
+                    // unit histogram: one face per vote
+                    <div className="mt-1 flex min-h-[1.5rem] flex-wrap items-center gap-0.5">
+                      {voters.length ? voters.map((vv) => (
+                        <span key={vv.id} title={displayName(vv)} className="flex h-6 w-6 items-center justify-center rounded-full bg-torii/10 text-sm">{vv.emoji}</span>
+                      )) : <span className="text-xs text-stone-400">No votes yet</span>}
+                    </div>
+                  ) : (
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-stone-100">
+                        <span className="block h-full rounded-full" style={{ width: `${v == null ? 0 : Math.max(6, (v / max) * 100)}%`, background: g ? '#f1d36b' : t.fg, opacity: g ? 0.8 : 0.55 }} />
+                      </span>
+                      <span className="shrink-0 rounded-md px-1.5 text-xs font-semibold" style={{ background: t.bg, color: t.fg }}>
+                        {g && '~'}{label(v)}{g && ' ✨'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {metric === 'votes' && <span className="shrink-0 text-lg font-semibold">{v}</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+      {ranked.some(guessed) && <p className="text-[11px] text-stone-500">✨ yellow = estimate (nobody has entered it yet).</p>}
 
       <section className="rounded-2xl border border-stone-200 bg-white p-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-display text-lg">Progress</h2>
-          <span className="text-sm text-stone-500">{visited} / {ps.length} visited</span>
+          <h3 className="font-display text-lg">Been there</h3>
+          <span className="text-sm text-stone-500">{visited} of {all.length}</span>
         </div>
         <div className="mt-2 h-3 overflow-hidden rounded-full bg-stone-100">
-          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${ps.length ? (visited / ps.length) * 100 : 0}%` }} />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-display text-lg">Quick picks <span className="text-sm font-normal text-stone-500">(not yet visited)</span></h2>
-        <div className="grid grid-cols-2 gap-2">
-          {picks.map((x) => (
-            <div key={x.label} className="rounded-2xl border border-stone-200 bg-white p-3">
-              <p className="text-xs text-stone-500">{x.label}</p>
-              <p className="mt-0.5 truncate font-medium">{x.p?.name ?? '—'}</p>
-              <p className="text-sm text-torii">{x.p ? x.v : ''}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-stone-200 bg-white p-4">
-        <h2 className="mb-3 font-display text-lg">Vote leaderboard</h2>
-        {top.length === 0 && <p className="text-sm text-stone-500">No places yet.</p>}
-        <ol className="space-y-2">
-          {top.map((p) => {
-            const n = voteCount[p.id] ?? 0
-            return (
-              <li key={p.id} className="grid grid-cols-[minmax(0,9rem)_1fr_2rem] items-center gap-2 text-sm">
-                <span className={`truncate ${p.visited ? 'text-stone-400 line-through' : ''}`}>{p.name}</span>
-                <span className="h-3 rounded-full bg-stone-100">
-                  <span className="block h-full rounded-full bg-torii" style={{ width: `${(n / max) * 100}%` }} />
-                </span>
-                <span className="text-right font-semibold">{n}</span>
-              </li>
-            )
-          })}
-        </ol>
-      </section>
-
-      <section className="rounded-2xl border border-stone-200 bg-white p-4">
-        <h2 className="mb-3 font-display text-lg">Who's voted</h2>
-        <div className="flex flex-wrap gap-2">
-          {members.map((m) => {
-            const n = votes.filter((v) => v.member_id === m.id && ps.some((p) => p.id === v.place_id)).length
-            return <span key={m.id} className="rounded-full bg-stone-100 px-3 py-1 text-sm">{m.emoji} {displayName(m)} · <b>{n}</b></span>
-          })}
+          <div className="h-full rounded-full bg-emerald-400" style={{ width: `${all.length ? (visited / all.length) * 100 : 0}%` }} />
         </div>
       </section>
     </div>

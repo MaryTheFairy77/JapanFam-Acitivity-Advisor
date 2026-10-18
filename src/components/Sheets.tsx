@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, setPlannerCode, supabase, HOTELS, type Group, type Attendee, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
-import { getPrefs, setPrefs } from '../sound'
+import { TRACKS, getPrefs, setPrefs, type Track } from '../sound'
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -156,7 +156,15 @@ function SoundSettings() {
   return (
     <div className="mt-3 rounded-2xl bg-white px-3 py-1">
       {row('clicks', '🔔 Button sounds', 'Soft taps, chimes and bells')}
-      {row('ambience', '🎋 Background music', 'Japanese flute, birds and a stream')}
+      {row('ambience', '🎶 Background music', TRACKS[p.track].hint)}
+      <div className="flex gap-1.5 pb-2">
+        {(Object.keys(TRACKS) as Track[]).map((t) => (
+          <button key={t} data-sound="tab" onClick={() => { setPrefs({ track: t, ...(p.ambience ? {} : { ambience: true }) }); setP(getPrefs()) }}
+            className={`flex-1 rounded-xl border px-2 py-2 text-xs ${p.track === t ? 'border-torii bg-torii/10 font-semibold' : 'border-stone-200 bg-white'}`}>
+            {TRACKS[t].label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

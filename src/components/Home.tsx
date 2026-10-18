@@ -190,7 +190,7 @@ export default function Home({ me, data, onLogout }: {
           <Planner places={effPlaces} voteCount={voteCount} />
         </Suspense>
       ) : tab === 'stats' ? (
-        <Stats places={effPlaces} votes={votes} members={members} voteCount={voteCount} />
+        <Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} />
       ) : (
         <>
           {/* Filters */}
