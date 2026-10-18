@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmtMin, fmtYen, type Kind, type Member, type Place, type Vote } from '../lib'
+import { displayName, fmtMin, fmtYen, type Kind, type Member, type Place, type Vote } from '../lib'
 
 /** Super-basic comparative analytics: leaderboard + "best by metric" picks + progress. */
 export default function Stats({ places, votes, members, voteCount }: {
@@ -85,7 +85,7 @@ export default function Stats({ places, votes, members, voteCount }: {
         <div className="flex flex-wrap gap-2">
           {members.map((m) => {
             const n = votes.filter((v) => v.member_id === m.id && ps.some((p) => p.id === v.place_id)).length
-            return <span key={m.id} className="rounded-full bg-stone-100 px-3 py-1 text-sm">{m.emoji} {m.name} · <b>{n}</b></span>
+            return <span key={m.id} className="rounded-full bg-stone-100 px-3 py-1 text-sm">{m.emoji} {displayName(m)} · <b>{n}</b></span>
           })}
         </div>
       </section>

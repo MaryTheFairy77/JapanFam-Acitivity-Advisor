@@ -86,6 +86,7 @@ export default function MapView({ places, voteCount, onOpen }: {
                   ▲ {voteCount[p.id] ?? 0} votes<br />
                   <span style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                     {p.maps_url && <a href={p.maps_url} target="_blank" rel="noreferrer">📍 Maps</a>}
+                    {p.website_url && <a href={p.website_url} target="_blank" rel="noreferrer">🌐 Info</a>}
                     <a href="#" onClick={(e) => { e.preventDefault(); onOpen(p) }}>Details →</a>
                   </span>
                 </div>

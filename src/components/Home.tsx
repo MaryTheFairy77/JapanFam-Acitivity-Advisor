@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HOTELS, HOTEL_IDS, displayName, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import Stats from './Stats'
 import MapView from './MapView'
 import Planner from './Planner'
+import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
+import { WaveBand } from './Art'
 
 type Tab = Kind | 'stats' | 'map' | 'plan'
 
@@ -29,7 +31,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 export default function Home({ me, data, onLogout }: {
   me: Member; data: ReturnType<typeof useData>; onLogout: () => void
 }) {
-  const { members, places, votes, refresh, setPlaces, setVotes } = data
+  const { members, places, votes, attendees, refresh, setPlaces, setVotes, setAttendees } = data
   const [tab, setTab] = useState<Tab>('map')
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
@@ -38,6 +40,17 @@ export default function Home({ me, data, onLogout }: {
   const [hideVisited, setHideVisited] = useState(false)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [goingFor, setGoingFor] = useState<Place | null>(null)
+
+  async function toggleGoing(memberId: string, p: Place) {
+    const on = attendees.some((a) => a.place_id === p.id && a.member_id === memberId)
+    setAttendees(on ? attendees.filter((a) => !(a.place_id === p.id && a.member_id === memberId)) : [...attendees, { member_id: memberId, place_id: p.id }])
+    const { error } = on
+      ? await supabase.from('attendees').delete().match({ member_id: memberId, place_id: p.id })
+      : await supabase.from('attendees').insert({ member_id: memberId, place_id: p.id })
+    if (error) { alert(error.message); refresh() }
+  }
 
   const voteCount = useMemo(() => {
     const c: Record<string, number> = {}
@@ -98,8 +111,11 @@ export default function Home({ me, data, onLogout }: {
       'Wait (min)': p.wait_minutes,
       'Time there (min)': p.visit_minutes,
       'Long line': p.long_line,
+      Website: p.website_url,
+      ...Object.fromEntries(goingSummary(p.id, members, attendees).counts.map((c) => [`Going (${c.g.many})`, c.n])),
+      'Who is going': members.filter((m) => attendees.some((a) => a.place_id === p.id && a.member_id === m.id)).map(displayName),
       Votes: voteCount[p.id] ?? 0,
-      'Voted by': members.filter((m) => votes.some((v) => v.place_id === p.id && v.member_id === m.id)).map((m) => m.name),
+      'Voted by': members.filter((m) => votes.some((v) => v.place_id === p.id && v.member_id === m.id)).map(displayName),
       Visited: p.visited ? 'Yes' : 'No',
       Lat: p.lat,
       Lng: p.lng,
@@ -113,14 +129,15 @@ export default function Home({ me, data, onLogout }: {
   return (
     <div className={`mx-auto max-w-2xl ${tab === 'map' ? '' : 'pb-40'}`}>
       {/* Header */}
-      <header className="sticky top-0 z-[600] border-b border-stone-200 bg-washi/90 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-[600] bg-washi/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">JapanFam <span className="text-torii">●</span></h1>
-          <button onClick={onLogout} className="flex items-center gap-2 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-3 text-sm">
-            <span className="text-lg">{me.emoji}</span>{me.name}<span className="text-stone-400">· switch</span>
+          <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-3 text-sm">
+            <span className="text-lg">{me.emoji}</span>{displayName(me)}{me.is_admin && <span title="Trip planner">⭐</span>}
           </button>
         </div>
       </header>
+      <WaveBand />
 
       {/* Bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
@@ -186,6 +203,9 @@ export default function Home({ me, data, onLogout }: {
                 voters={members.filter((m) => votes.some((v) => v.place_id === p.id && v.member_id === m.id))}
                 addedBy={members.find((m) => m.id === p.created_by)}
                 mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)}
+                going={goingSummary(p.id, members, attendees)}
+                imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
+                onImIn={() => toggleGoing(me.id, p)} onGoing={() => setGoingFor(p)}
                 onVote={() => toggleVote(p)} onVisited={() => toggleVisited(p)} onEdit={() => setEditing(p)} />
             ))}
           </div>
@@ -197,8 +217,16 @@ export default function Home({ me, data, onLogout }: {
         </>
       )}
 
+      {profileOpen && (
+        <ProfileSheet me={me} onClose={() => setProfileOpen(false)} onSaved={() => { setProfileOpen(false); refresh() }}
+          onSwitch={() => { setProfileOpen(false); onLogout() }} />
+      )}
+      {goingFor && (
+        <GoingSheet place={goingFor} members={members} attendees={attendees} onClose={() => setGoingFor(null)}
+          onToggle={(id) => toggleGoing(id, goingFor)} />
+      )}
       {editing && (
-        <PlaceForm me={me} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
+        <PlaceForm me={me} canDelete={me.is_admin} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
           place={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />
       )}

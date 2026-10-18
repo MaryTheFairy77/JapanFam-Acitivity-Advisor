@@ -1,8 +1,9 @@
-import { HOTELS, fmtMin, fmtYen, fmtZar, halalTone, missingFields, type Member, type Place } from '../lib'
+import { HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, type Member, type Place } from '../lib'
 
-export default function PlaceCard({ place: p, rank, voters, addedBy, mine, onVote, onVisited, onEdit }: {
+export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going, imGoing, onVote, onVisited, onEdit, onImIn, onGoing }: {
   place: Place; rank?: number; voters: Member[]; addedBy?: Member; mine: boolean
-  onVote: () => void; onVisited: () => void; onEdit: () => void
+  going: { total: number; text: string }; imGoing: boolean
+  onVote: () => void; onVisited: () => void; onEdit: () => void; onImIn: () => void; onGoing: () => void
 }) {
   return (
     <article className={`rounded-2xl border bg-white p-4 shadow-sm ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
@@ -38,6 +39,16 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, onVot
         ))}
       </div>
       {p.long_line && <p className="mt-2 text-xs text-stone-500"><b>Lines:</b> {p.long_line}</p>}
+      {/* Who's going */}
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-stone-50 p-2">
+        <button onClick={onImIn}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${imGoing ? 'bg-emerald-600 text-white' : 'border border-stone-300 bg-white text-stone-700'}`}>
+          {imGoing ? '✓ I’m in' : 'I’m in'}
+        </button>
+        <button onClick={onGoing} className="min-w-0 flex-1 truncate text-left text-xs text-stone-600">
+          👥 {going.total ? going.text : 'Nobody yet'} <span className="text-torii">· edit</span>
+        </button>
+      </div>
       {missingFields(p).length > 0 && (
         <button onClick={onEdit} className="mt-2 block text-left text-xs text-amber-700">
           ✏️ Needs: {missingFields(p).join(', ')}
@@ -49,18 +60,21 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, onVot
           <input type="checkbox" checked={p.visited} onChange={onVisited} className="h-5 w-5 accent-emerald-600" />
           <span className={p.visited ? 'text-emerald-700' : 'text-stone-600'}>{p.visited ? 'Visited ✓' : 'Visited?'}</span>
         </label>
-        <div className="ml-1 flex -space-x-1" title={voters.map((v) => v.name).join(', ')}>
+        <div className="ml-1 flex -space-x-1" title={voters.map(displayName).join(', ')}>
           {voters.map((v) => <span key={v.id} className="text-base">{v.emoji}</span>)}
         </div>
         <div className="ml-auto flex gap-2">
           <button onClick={onEdit} className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 hover:bg-stone-100">Edit</button>
+          {p.website_url && (
+            <a href={p.website_url} target="_blank" rel="noreferrer" className="whitespace-nowrap rounded-lg border border-stone-300 px-3 py-1.5 text-sm">🌐 Info</a>
+          )}
           {p.maps_url && (
             <a href={p.maps_url} target="_blank" rel="noreferrer"
-              className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white">📍 Maps</a>
+              className="whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white">📍 Maps</a>
           )}
         </div>
       </div>
-      {addedBy && <p className="mt-2 text-[11px] text-stone-400">Added by {addedBy.emoji} {addedBy.name}</p>}
+      {addedBy && <p className="mt-2 text-[11px] text-stone-400">Added by {addedBy.emoji} {displayName(addedBy)}</p>}
     </article>
   )
 }

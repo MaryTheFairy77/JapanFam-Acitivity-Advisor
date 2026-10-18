@@ -21,3 +21,53 @@ body {
 .japan-map .leaflet-tile-pane { filter: saturate(0.75) sepia(0.12) brightness(1.03); }
 .japan-map { background: #f3ede2; font-family: var(--font-sans); }
 .leaflet-popup-content-wrapper { border-radius: 14px; }
+
+/* ── sakura petals ── */
+.petal {
+  position: absolute; top: -20px;
+  background: #f9c0cf; border-radius: 80% 0 80% 0;
+  opacity: .85;
+  animation-name: petal-fall; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+@keyframes petal-fall {
+  0% { transform: translate(0, -20px) rotate(0deg); }
+  50% { transform: translate(30px, 50vh) rotate(180deg); }
+  100% { transform: translate(-10px, 105vh) rotate(360deg); }
+}
+
+/* ── seigaiha wave band ── */
+.wave-band {
+  height: 10px;
+  background-color: #dbeafe;
+  background-image: radial-gradient(circle at 50% 100%, transparent 5px, #fff 5px, #fff 6px, transparent 6px, transparent 8px, #fff 8px, #fff 9px, transparent 9px);
+  background-size: 20px 10px;
+}
+
+/* ── splash screen ── */
+.splash-sun {
+  width: 150px; height: 150px; border-radius: 9999px; background: #c8102e;
+  animation: sun-burst 1.7s cubic-bezier(.7,0,.2,1) forwards;
+}
+@keyframes sun-burst {
+  0%   { transform: scale(0); }
+  22%  { transform: scale(1.12); }
+  30%  { transform: scale(1); }
+  55%  { transform: scale(16); }
+  70%  { transform: scale(16); }
+  100% { transform: scale(1); }
+}
+.splash-ring {
+  position: absolute; inset: 0; border-radius: 9999px; border: 2px solid #c8102e; opacity: 0;
+  animation: ring 2.4s ease-out 1.7s infinite;
+}
+.splash-ring.r2 { animation-delay: 2.5s; }
+@keyframes ring { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.4); opacity: 0; } }
+.fade-up { opacity: 0; animation: fade-up .7s ease-out forwards; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.rise { transform: translateY(100%); animation: rise 1s cubic-bezier(.2,.8,.2,1) 1.5s forwards; }
+@keyframes rise { to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .petal, .splash-ring { display: none; }
+  .splash-sun, .fade-up, .rise { animation-duration: .01s !important; animation-delay: 0s !important; }
+}

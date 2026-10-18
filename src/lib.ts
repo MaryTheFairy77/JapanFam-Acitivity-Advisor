@@ -10,7 +10,30 @@ export type Kind = 'restaurant' | 'activity'
 export type HotelId = 'osaka' | 'toranomon' | 'jw_tokyo'
 export type Region = 'kansai' | 'kanto'
 
-export interface Member { id: string; name: string; emoji: string; created_at: string }
+export type Group = 'adult' | 'teen' | 'kid'
+export interface Member { id: string; name: string; nickname: string | null; emoji: string; grp: Group; is_admin: boolean; created_at: string }
+export interface Attendee { member_id: string; place_id: string }
+export const displayName = (m: Pick<Member, 'name' | 'nickname'>) => m.nickname?.trim() || m.name
+export const GROUPS: { key: Group; label: string; one: string; many: string }[] = [
+  { key: 'adult', label: 'Adults', one: 'adult', many: 'adults' },
+  { key: 'teen', label: 'Teens', one: 'teen', many: 'teens' },
+  { key: 'kid', label: 'Kids', one: 'kid', many: 'kids' },
+]
+export const EMOJIS = ['🌸', '🍣', '🍜', '🍡', '🍵', '🗻', '⛩️', '🎎', '🐼', '🦊', '🐱', '🐰', '🐥', '🐉', '🦖', '🎮', '🌙', '🪷', '🌺', '🎌', '🐟', '🍙', '🧋', '🎏']
+
+/** Make sure this device has an (anonymous) session — needed for the family-code gate. */
+export async function ensureSession() {
+  const { data } = await supabase.auth.getSession()
+  if (data.session) return null
+  const { error } = await supabase.auth.signInAnonymously()
+  return error ? error.message : null
+}
+export async function isFamily() {
+  const { data: s } = await supabase.auth.getSession()
+  if (!s.session) return false
+  const { data, error } = await supabase.rpc('is_family')
+  return !error && data === true
+}
 export interface Vote { member_id: string; place_id: string }
 export interface Place {
   id: string
@@ -27,6 +50,7 @@ export interface Place {
   long_line: string | null
   taste: 'sweet' | 'savory' | 'both' | null
   maps_url: string | null
+  website_url: string | null
   lat: number | null
   lng: number | null
   visit_minutes: number | null
