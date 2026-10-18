@@ -152,3 +152,17 @@ describe('RULE: auto-fill only writes blank or ✨ generated fields', () => {
     expect(added).toEqual(['travel']) // only the ✨ travel was recomputed (to the human-chosen hotel)
   })
 })
+
+import { mapsSearchLink, parseLatLng as pll } from '../lib'
+describe('generated Google Maps link', () => {
+  it('searches the name at the pin, and round-trips the coordinates', () => {
+    const u = mapsSearchLink('Marhaba Osaka', 34.6676075, 135.5044633)
+    expect(u).toBe('https://www.google.com/maps/search/Marhaba%20Osaka/@34.667608,135.504463,17z')
+    expect(pll(u)).toEqual({ lat: 34.667608, lng: 135.504463 })
+  })
+  it('fills a blank link but never replaces a human one', () => {
+    const lk = { lat: 34.6676, lng: 135.5045, label: 'x' }
+    expect(autoFillPlace(mk({ maps_url: null, lat: null, lng: null }), lk).row.maps_url).toContain('google.com/maps/search/')
+    expect(autoFillPlace(mk({ maps_url: 'https://maps.app.goo.gl/mine', lat: null, lng: null }), lk).row.maps_url).toBe('https://maps.app.goo.gl/mine')
+  })
+})

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, km, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, km, mapsSearchLink, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -49,7 +49,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
   const [auto, setAuto] = useState<Set<AutoField>>(new Set(place?.auto_fields ?? []))
   const GROUP: Partial<Record<keyof typeof f, AutoField>> = {
     nearest_hotels: 'nearest_hotels', travel_text: 'travel', travel_minutes: 'travel', website_url: 'website_url', halal: 'halal',
-    price_jpy: 'price', wait_text: 'wait', wait_minutes: 'wait',
+    price_jpy: 'price', wait_text: 'wait', wait_minutes: 'wait', maps_url: 'maps_url',
   }
   const set = (k: keyof typeof f, v: unknown) => {
     setF((s) => ({ ...s, [k]: v }))
@@ -72,6 +72,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
       next.travel_text = t.text; next.travel_minutes = String(t.minutes); added.push('travel')
     }
     if ((!s.website_url || gen.has('website_url')) && lk?.website) { next.website_url = lk.website; added.push('website_url') }
+    if ((!s.maps_url.trim() || gen.has('maps_url')) && s.name.trim()) { next.maps_url = mapsSearchLink(s.name, lat, lng); added.push('maps_url') }
     if (kind === 'restaurant' && (!s.halal || s.halal === 'Unknown' || gen.has('halal')) && lk?.halal) { next.halal = lk.halal; added.push('halal') }
     return { next, added }
   }
@@ -134,7 +135,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     const fv = F2
     const stillFilled: Record<AutoField, boolean> = {
       pin: fv.lat != null, nearest_hotels: fv.nearest_hotels.length > 0, travel: !!(fv.travel_minutes || fv.travel_text),
-      website_url: !!fv.website_url, halal: !!fv.halal && fv.halal !== 'Unknown', price: !!fv.price_jpy, wait: !!(fv.wait_minutes || fv.wait_text),
+      website_url: !!fv.website_url, halal: !!fv.halal && fv.halal !== 'Unknown', price: !!fv.price_jpy, wait: !!(fv.wait_minutes || fv.wait_text), maps_url: !!fv.maps_url,
     }
     autoNow = new Set([...autoNow].filter((x) => stillFilled[x]))
     const row = {
@@ -238,8 +239,8 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
         <fieldset disabled={readOnly} className="space-y-3 disabled:opacity-80">
           <label className={label}>Name *<input autoFocus maxLength={LIMITS.name} className={input} value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
           <label className={label}>Specialty / description<input maxLength={LIMITS.description} className={input} value={f.description} onChange={(e) => set('description', e.target.value)} /></label>
-          <label className={label}>📍 Google Maps link
-            <input maxLength={LIMITS.url} inputMode="url" className={input} value={f.maps_url} onChange={(e) => onMapsUrl(e.target.value)} placeholder="https://maps.app.goo.gl/…" />
+          <label className={label}>📍 Google Maps link<AutoHint g="maps_url" />
+            <input maxLength={LIMITS.url} inputMode="url" className={input + yellow('maps_url')} value={f.maps_url} onChange={(e) => onMapsUrl(e.target.value)} placeholder="https://maps.app.goo.gl/…" />
           </label>
           <label className={label}>🌐 Website (to find out more)<AutoHint g="website_url" />
             <input maxLength={LIMITS.url} className={input + yellow('website_url')} value={f.website_url} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" inputMode="url" />

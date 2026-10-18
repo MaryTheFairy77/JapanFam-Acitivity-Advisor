@@ -10,7 +10,7 @@ export type Kind = 'restaurant' | 'activity'
 export type HotelId = 'osaka' | 'toranomon' | 'jw_tokyo'
 export type Region = 'kansai' | 'kanto'
 /** Fields filled automatically (shown with a yellow ✨ until a person types over them). */
-export type AutoField = 'pin' | 'nearest_hotels' | 'travel' | 'website_url' | 'halal' | 'price' | 'wait'
+export type AutoField = 'pin' | 'nearest_hotels' | 'travel' | 'website_url' | 'halal' | 'price' | 'wait' | 'maps_url'
 
 export type Group = 'adult' | 'teen' | 'kid'
 export interface Member { id: string; name: string; nickname: string | null; emoji: string; grp: Group; is_admin: boolean; created_at: string }
@@ -328,6 +328,7 @@ export function autoFillPlace(p: Place, lk: Lookup): { row: Place; added: AutoFi
     row.travel_minutes = t.minutes; row.travel_text = t.text; added.push('travel')
   }
   if ((!row.website_url || gen('website_url')) && lk.website) { row.website_url = lk.website; added.push('website_url') }
+  if (!row.maps_url || gen('maps_url')) { row.maps_url = mapsSearchLink(row.name, row.lat!, row.lng!); added.push('maps_url') }
   if (row.kind === 'restaurant' && (!row.halal || row.halal === 'Unknown' || gen('halal')) && lk.halal) { row.halal = lk.halal; added.push('halal') }
   row.auto_fields = [...new Set([...row.auto_fields, ...added])]
   return { row, added }
@@ -375,3 +376,7 @@ export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: 
   }
   return null
 }
+
+/** A Google Maps search for this name, centred on the pin: opens the real listing in most cases (free, no API). */
+export const mapsSearchLink = (name: string, lat: number, lng: number) =>
+  `https://www.google.com/maps/search/${encodeURIComponent(name.trim())}/@${lat.toFixed(6)},${lng.toFixed(6)},17z`

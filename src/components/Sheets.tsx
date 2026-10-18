@@ -172,7 +172,7 @@ function SoundSettings() {
 /** Trip planners only: look up every place that has no pin yet (free OpenStreetMap search, 1 per second). */
 function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
   // places with no pin, or with ✨ generated info that can be refreshed (human-entered info is never touched)
-  const todo = places.filter((p) => p.lat == null || p.lng == null || (p.auto_fields ?? []).length > 0)
+  const todo = places.filter((p) => p.lat == null || p.lng == null || !p.maps_url || (p.auto_fields ?? []).length > 0)
   const [code, setCode] = useState('')
   const [log, setLog] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
@@ -186,7 +186,9 @@ function FillGaps({ places, onDone }: { places: Place[]; onDone: () => void }) {
       const hint = p.nearest_hotels.length ? `${HOTELS[p.nearest_hotels[0]].city}, Japan` : undefined
       // prefer the place's own Google Maps link, then search by name
       const fromLink = p.maps_url ? await resolveMapsLink(p.maps_url).catch(() => null) : null
-      const lk = fromLink ? { ...fromLink, label: 'Google Maps link' } : await lookupPlace(p.name, hint).catch(() => null)
+      const lk = fromLink ? { ...fromLink, label: 'Google Maps link' }
+        : (await lookupPlace(p.name, hint).catch(() => null))
+          ?? (p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng, label: 'existing pin' } : null) // still fill blanks around a known pin
       if (!lk) { setLog((l) => [...l, `❔ ${p.name}: not found`]); await new Promise((r) => setTimeout(r, 1100)); continue }
       const { row, added: a0 } = autoFillPlace(p, lk)
       let added = a0

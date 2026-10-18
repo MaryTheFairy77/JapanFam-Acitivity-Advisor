@@ -88,7 +88,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
         <div className="ml-auto flex gap-1.5">
           <IconBtn onClick={onEdit} label={canEdit ? 'Edit' : 'Details'} icon={canEdit ? Pencil : Info} />
           {safeUrl(p.website_url) && <IconLink href={safeUrl(p.website_url)!} label="Website" icon={Globe} />}
-          {safeUrl(p.maps_url) && <IconLink href={safeUrl(p.maps_url)!} label="Open in Google Maps" icon={MapPin} dark />}
+          {safeUrl(p.maps_url) && <IconLink href={safeUrl(p.maps_url)!} label={auto.has('maps_url') ? 'Search Google Maps (link made automatically)' : 'Open in Google Maps'} icon={MapPin} dark={!auto.has('maps_url')} />}
         </div>
       </div>
     </article>
