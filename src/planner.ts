@@ -1,9 +1,9 @@
 import { HOTELS, catOf, estimateTravel, km, regionOf, type HotelId, type Place } from './lib'
 
 export type Goal = 'votes' | 'cheap' | 'time'
-/** Day shape: always 1 food stop + either 2 activities, or 1 activity + shopping (or let the planner pick). */
-export type Shape = 'acts' | 'shop' | 'either'
-export const SHAPES: Record<Exclude<Shape, 'either'>, { nAct: number; nShop: number; nMeal: number }> = {
+/** Day shape: 2 activities, 1 activity + shopping, or a ☀️ full-day activity (+ supper), or let the planner pick. */
+export type Shape = 'acts' | 'shop' | 'full' | 'either'
+export const SHAPES: Record<'acts' | 'shop', { nAct: number; nShop: number; nMeal: number }> = {
   acts: { nAct: 2, nShop: 0, nMeal: 1 },
   shop: { nAct: 1, nShop: 1, nMeal: 1 },
 }
@@ -14,6 +14,9 @@ export interface Plan {
   stops: Stop[]; cost: number; minutes: number; votes: number; back: number
   /** 'light' = fallback 1-activity day, shown only when no full day fits */
   light?: boolean
+  /** ☀️ full-day activity: the only daytime stop; food = supper after Maghrib */
+  fullDay?: boolean
+  supper?: { p: Place; travel: number }
   /** true = home after Maghrib starts, so Asr was prayed while out; false = Asr + Maghrib back to back at the hotel */
   asrOut: boolean
 }
@@ -94,15 +97,22 @@ export function interleave(acts: Place[], meals: Place[]): Place[] {
  * Brute-force "knapsack with two constraints": try every combo of nAct activities × nMeal meals
  * from the top candidates near the hotel, keep the ones within budget AND time, rank by goal.
  */
-export function buildPlans(o: PlanOptions) {
+/** Top candidates near the hotel, by kind. Full-day activities are kept apart (they never share a day). */
+export function candidates(o: Pick<PlanOptions, 'places' | 'hotel' | 'unvisited' | 'halalOnly' | 'voteCount'>) {
   const region = HOTELS[o.hotel].region
   const pool = o.places.filter((p) => regionOf(p) === region && (!o.unvisited || !p.visited))
-  const top = (kind: Place['kind'] | 'shopping') => pool
-    .filter((p) => kind === 'restaurant' ? p.kind === 'restaurant' : p.kind === 'activity' && catOf(p) === kind)
+  const top = (kind: Place['kind'] | 'shopping' | 'full') => pool
+    .filter((p) => kind === 'restaurant' ? p.kind === 'restaurant'
+      : kind === 'full' ? p.kind === 'activity' && catOf(p) === 'activity' && !!p.full_day
+      : p.kind === 'activity' && catOf(p) === kind && !(kind === 'activity' && p.full_day))
     .filter((p) => kind !== 'restaurant' || !o.halalOnly || p.halal === 'Halal certified' || p.halal === 'Muslim friendly')
     .sort((a, b) => (o.voteCount[b.id] ?? 0) - (o.voteCount[a.id] ?? 0) || (a.price_jpy ?? 0) - (b.price_jpy ?? 0))
     .slice(0, CANDIDATES_PER_KIND)
-  const acts = top('activity'), meals = top('restaurant'), shops = top('shopping')
+  return { acts: top('activity'), meals: top('restaurant'), shops: top('shopping'), fulls: top('full') }
+}
+
+export function buildPlans(o: PlanOptions) {
+  const { acts, meals, shops } = candidates(o)
 
   const valid: Plan[] = []
   let checked = 0
@@ -120,7 +130,7 @@ export function buildPlans(o: PlanOptions) {
     meals.length < o.nMeal && `${meals.length ? `only ${meals.length}` : 'no'} ${o.halalOnly ? 'halal-friendly ' : ''}restaurant${meals.length === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' and ')
 
-  return { plans: valid.slice(0, 3), considered: acts.length + meals.length + shops.length, checked, short }
+  return { plans: valid, considered: acts.length + meals.length + shops.length, checked, short }
 }
 
 /**
@@ -188,7 +198,30 @@ export function varied(ps: Plan[], n = 3): Plan[] {
   return [...first, ...rest].slice(0, n)
 }
 
-const hasMeal = (p: Plan) => p.stops.some((s) => s.p.kind === 'restaurant')
+/**
+ * ☀️ Full-day days: the full-day activity alone (with prayers inside it, home by 17:30),
+ * then supper after Maghrib at a halal restaurant near the hotel (supper counts toward budget).
+ */
+export function buildFullDayPlans(o: Omit<PlanOptions, 'nAct' | 'nShop' | 'nMeal'>) {
+  const { fulls, meals } = candidates(o)
+  const valid: Plan[] = []
+  let checked = 0
+  for (const F of fulls) {
+    const day = simulate([F], o.hotel, o)
+    checked += Math.max(1, meals.length)
+    if (!day) continue
+    if (!meals.length) { if (day.cost <= o.budget) valid.push({ ...day, fullDay: true }); continue }
+    for (const M of meals) {
+      const plan: Plan = { ...day, fullDay: true, supper: { p: M, travel: hotelLeg(o.hotel, M) },
+        cost: day.cost + (M.price_jpy ?? 0), votes: day.votes + (o.voteCount[M.id] ?? 0) }
+      if (plan.cost <= o.budget) valid.push(plan)
+    }
+  }
+  valid.sort(rank(o.goal))
+  return { plans: valid, considered: fulls.length + meals.length, checked, short: fulls.length ? '' : 'no ☀️ full-day activities' }
+}
+
+const hasMeal = (p: Plan) => !!p.supper || p.stops.some((s) => s.p.kind === 'restaurant')
 
 /**
  * Day = (2 activities | activity + shopping), ideally with 1 food stop. Food is preferred, not required
@@ -196,20 +229,26 @@ const hasMeal = (p: Plan) => p.stops.some((s) => s.p.kind === 'restaurant')
  * If nothing fits at all, falls back to a 'light' 1-activity day so the planner never comes back empty for no reason.
  */
 export function buildDayPlans(o: Omit<PlanOptions, 'nAct' | 'nShop' | 'nMeal'> & { shape: Shape }) {
-  const shapes = o.shape === 'either' ? [SHAPES.acts, SHAPES.shop] : [SHAPES[o.shape]]
-  const run = (list: { nAct: number; nShop: number; nMeal: number }[]) =>
-    list.flatMap((sh) => [sh, { ...sh, nMeal: 0 }]).map((sh) => buildPlans({ ...o, ...sh }))
-  const sort = (ps: Plan[]) => varied(ps.sort((x, y) => Number(hasMeal(y)) - Number(hasMeal(x)) || rank(o.goal)(x, y)))
-  let results = run(shapes)
-  let plans = sort(results.flatMap((r) => r.plans)).slice(0, 3)
+  const shapes = o.shape === 'either' ? [SHAPES.acts, SHAPES.shop] : o.shape === 'full' ? [] : [SHAPES[o.shape]]
+  const withFull = o.shape === 'either' || o.shape === 'full'
+  const run = (list: { nAct: number; nShop: number; nMeal: number }[], full = false) => [
+    ...list.flatMap((sh) => [sh, { ...sh, nMeal: 0 }]).map((sh) => buildPlans({ ...o, ...sh })),
+    ...(full ? [buildFullDayPlans(o)] : []),
+  ]
+  // full (2-stop / ☀️) days first, then days with food, then the goal; light 1-activity days only fill gaps
+  const sort = (ps: Plan[]) => varied(ps.sort((x, y) =>
+    Number(!!x.light) - Number(!!y.light) || Number(hasMeal(y)) - Number(hasMeal(x)) || rank(o.goal)(x, y)))
+  const lightRun = () => run([{ nAct: 1, nShop: 0, nMeal: 1 }]).map((r) => ({ ...r, plans: r.plans.map((p) => ({ ...p, light: true })) }))
+  let results = run(shapes, withFull)
   const short = results.map((r) => r.short).filter(Boolean)[0] ?? ''
-  let light = false
-  if (!plans.length) {
-    const fallback = run([{ nAct: 1, nShop: 0, nMeal: 1 }])
-    plans = sort(fallback.flatMap((r) => r.plans)).slice(0, 3).map((p) => ({ ...p, light: true }))
-    results = [...results, ...fallback]
-    light = plans.length > 0
+  let pool = results.flatMap((r) => r.plans)
+  if (o.shape === 'either' || !pool.length) {
+    const extra = lightRun()
+    results = [...results, ...extra]
+    pool = [...pool, ...extra.flatMap((r) => r.plans)]
   }
+  const plans = sort(pool).slice(0, 3)
+  const light = plans.length > 0 && plans.every((p) => p.light)
   return {
     plans,
     considered: Math.max(...results.map((r) => r.considered)),

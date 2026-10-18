@@ -48,6 +48,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
         {p.kind === 'restaurant' && <span className={`rounded-full px-2 py-1 ${auto.has('halal') ? 'ring-1 ring-amber-300' : ''} ${halalTone(p.halal)}`} title={auto.has('halal') ? 'From OpenStreetMap, not yet confirmed' : undefined}>☪︎ {p.halal ?? 'Unknown'}{auto.has('halal') && ' ✨'}</span>}
         {p.kind === 'activity' && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{CATEGORIES[catOf(p)].emoji} {CATEGORIES[catOf(p)].label}</span>}
+        {p.kind === 'activity' && p.full_day && <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">☀️ Full day</span>}
         {p.taste && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{p.taste === 'sweet' ? '🍡' : p.taste === 'savory' ? '🧂' : '🍡🧂'}</span>}
         {p.visit_minutes != null && <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-stone-700"><Clock className="h-3 w-3" />{fmtMin(p.visit_minutes)}</span>}
         {p.nearest_hotels.map((h) => (

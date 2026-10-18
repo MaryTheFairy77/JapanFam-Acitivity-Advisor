@@ -63,6 +63,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
               <option value="either">✨ Whichever's best</option>
               <option value="acts">🍜 + 🎢 🎢 Two activities</option>
               <option value="shop">🍜 + 🎢 🛍 Activity + shopping</option>
+              <option value="full">☀️ Full-day activity + supper</option>
             </select>
           </label>
           <label className={label}>🕘 Leave at
@@ -85,7 +86,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
       </p>
       {light && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-          ⚠️ No full day (2 activities, or activity + shopping) fits near {HOTELS[hotel].city} before {clock(backBy)}{short ? ` (${short})` : ''}, so these are <b>light days</b> with one activity. Add more places nearby to get full days.
+          ⚠️ No 2-stop or ☀️ full-day plan fits near {HOTELS[hotel].city} before {clock(backBy)}{short ? ` (${short})` : ''}, so these are <b>light days</b> with one activity. Add more places nearby to get full days.
         </div>
       )}
 
@@ -102,15 +103,15 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
           <div ref={(el) => { refs.current[i] = el }} className="rounded-2xl border border-stone-200 bg-washi p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-torii">Plan {i + 1}{i === 0 ? ' · best' : ''}{plan.light ? ' · light day' : ''}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-torii">Plan {i + 1}{i === 0 ? ' · best' : ''}{plan.fullDay ? ' · ☀️ full day' : ''}{plan.light ? ' · light day' : ''}</p>
                 <h3 className="font-display text-xl">Day from {HOTELS[hotel].short}</h3>
               </div>
               <div className="text-right text-sm">
-                <p className="font-semibold">{fmtYen(plan.cost)}{plan.stops.some((s) => s.p.price_jpy == null) ? ' + ❓' : ''} <span className="font-normal text-stone-500">pp</span></p>
+                <p className="font-semibold">{fmtYen(plan.cost)}{plan.stops.some((s) => s.p.price_jpy == null) || plan.supper?.p.price_jpy === null ? ' + ❓' : ''} <span className="font-normal text-stone-500">pp</span></p>
                 <p className="text-stone-500">{fmtMin(plan.minutes)} · ▲{plan.votes}</p>
               </div>
             </div>
-            {!plan.stops.some((x) => x.p.kind === 'restaurant') && (
+            {!plan.supper && !plan.stops.some((x) => x.p.kind === 'restaurant') && (
               <p className="mt-2 rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-600">🥤 No food stop fits this one: grab a snack at the place or a konbini.</p>
             )}
             <ol className="relative mt-4 space-y-3 border-l-2 border-dashed border-torii/40 pl-5">
@@ -147,6 +148,15 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
               const eve = eveningShopping({ places, voteCount, hotel, unvisited }, plan)
               return (
                 <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+                  {plan.supper && (
+                    <div className="mb-2 border-b border-indigo-200 pb-2">
+                      <p className="text-sm font-semibold text-indigo-900">🌙 After Maghrib · 🍜 supper</p>
+                      <p className="text-xs text-indigo-900">
+                        <b>{plan.supper.p.name}</b> · ~{fmtMin(plan.supper.travel)} from the hotel · {plan.supper.p.price_jpy == null ? '❓ price unknown' : fmtYen(plan.supper.p.price_jpy)}{plan.supper.p.halal ? ` · ${plan.supper.p.halal}` : ''}
+                      </p>
+                      <p className="text-[11px] text-indigo-700/80">Included in the day&apos;s cost. Check it&apos;s open in the evening.</p>
+                    </div>
+                  )}
                   <p className="text-sm font-semibold text-indigo-900">🌙 After Maghrib · adults&apos; shopping (optional)</p>
                   {eve.length ? (
                     <ul className="mt-1 space-y-0.5 text-xs text-indigo-900">
@@ -159,8 +169,8 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
                 </div>
               )
             })()}
-            {plan.stops.some((s) => s.p.price_jpy == null) && (
-              <p className="mt-3 rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-600">❓ {plan.stops.filter((s) => s.p.price_jpy == null).length} stop(s) have no price yet, so the total doesn&apos;t include them.</p>
+            {(plan.stops.some((s) => s.p.price_jpy == null) || plan.supper?.p.price_jpy === null) && (
+              <p className="mt-3 rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-600">❓ {plan.stops.filter((s) => s.p.price_jpy == null).length + (plan.supper?.p.price_jpy === null ? 1 : 0)} stop(s) have no price yet, so the total doesn&apos;t include them.</p>
             )}
             <p className="mt-3 text-[10px] text-stone-400">JapanFam Advisor · travel times are estimates</p>
           </div>

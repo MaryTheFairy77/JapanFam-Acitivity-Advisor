@@ -22,6 +22,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     website_url: place?.website_url ?? '',
     image_url: place?.image_url ?? '',
     category: (place ? catOf(place) : defaultCategory) as string,
+    full_day: place?.full_day ?? false,
     lat: place?.lat ?? null as number | null,
     lng: place?.lng ?? null as number | null,
     visit_minutes: place?.visit_minutes?.toString() ?? '',
@@ -159,6 +160,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
       visit_minutes: num(fv.visit_minutes),
       image_url: img,
       category: kind === 'activity' ? (fv.category || null) : null,
+      full_day: kind === 'activity' && fv.category !== 'shopping' && fv.full_day,
       auto_fields: [...autoNow],
       auto_sources: autoNow.size ? place?.auto_sources ?? null : null,
     }
@@ -285,6 +287,12 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
                   </button>
                 ))}
               </div>
+              {f.category !== 'shopping' && (
+                <label className="mt-2 flex items-start gap-2 text-sm">
+                  <input type="checkbox" disabled={readOnly} checked={f.full_day} onChange={(e) => set('full_day', e.target.checked)} className="mt-0.5 h-4 w-4 accent-torii" />
+                  <span>☀️ Full-day activity <span className="block text-xs text-stone-500">Theme park or day trip: the planner gives it the whole day, with supper after Maghrib.</span></span>
+                </label>
+              )}
             </div>
           )}
           <div>

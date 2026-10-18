@@ -57,6 +57,8 @@ export interface Place {
   auto_fields: AutoField[]
   auto_sources: string | null
   category: Category | null
+  /** ☀️ takes the whole day (theme park / day trip): planner plans it alone, food = supper after Maghrib */
+  full_day: boolean
   lat: number | null
   lng: number | null
   visit_minutes: number | null

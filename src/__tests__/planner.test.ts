@@ -173,3 +173,32 @@ describe('varied', () => {
     expect(varied(ranked).map((p) => p.stops.map((s) => s.p.id).join('+'))).toEqual(['a+m1', 'b', 'a+m2'])
   })
 })
+
+describe('☀️ full-day activities', () => {
+  const { nAct: _a, nShop: _s, nMeal: _m, ...base } = opts
+  const park = place({ id: 'park', ...tokyo, full_day: true, visit_minutes: 360, price_jpy: 9000 })
+  const a1 = place({ id: 'a1', ...tokyo, price_jpy: 1000 })
+  const a2 = place({ id: 'a2', ...tokyo, price_jpy: 1000 })
+  const meal = place({ id: 'meal', kind: 'restaurant', halal: 'Halal certified', ...tokyo, price_jpy: 2000 })
+  it('never paired with other activities', () => {
+    const r = buildDayPlans({ ...base, places: [park, a1, a2, meal], shape: 'acts' })
+    expect(r.plans.flatMap((p) => p.stops.map((s) => s.p.id))).not.toContain('park')
+  })
+  it('planned alone, home by 17:30, supper after Maghrib counted in cost', () => {
+    const p = buildDayPlans({ ...base, places: [park, a1, a2, meal], shape: 'full' }).plans[0]
+    expect(p.fullDay).toBe(true)
+    expect(p.stops.map((s) => s.p.id)).toEqual(['park'])
+    expect(p.supper?.p.id).toBe('meal')
+    expect(p.cost).toBe(11000)
+    expect(540 + p.minutes).toBeLessThanOrEqual(SALAH.backBy)
+    expect(p.stops[0].prayers.map((x) => x.name)).toContain('Dhuhr')
+  })
+  it("'either' mixes full days with normal days", () => {
+    const r = buildDayPlans({ ...base, places: [park, a1, a2, meal], shape: 'either' })
+    expect(r.plans.some((p) => p.fullDay)).toBe(true)
+    expect(r.plans.some((p) => !p.fullDay)).toBe(true)
+  })
+  it('respects budget including supper', () => {
+    expect(buildDayPlans({ ...base, places: [park, meal], shape: 'full', budget: 10000 }).plans.every((p) => !p.fullDay)).toBe(true)
+  })
+})
