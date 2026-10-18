@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SALAH, buildDayPlans, buildPlans, combos, eveningShopping, hotelLeg, interleave, varied } from '../planner'
+import { SALAH, buildDayPlans, buildPlans, combos, eveningShopping, hopLeg, hotelLeg, interleave, varied } from '../planner'
 import { place } from './fixtures'
 
 const tokyo = { lat: 35.668, lng: 139.752 } // ~200 m from Toranomon Hills
@@ -200,5 +200,17 @@ describe('☀️ full-day activities', () => {
   })
   it('respects budget including supper', () => {
     expect(buildDayPlans({ ...base, places: [park, meal], shape: 'full', budget: 10000 }).plans.every((p) => !p.fullDay)).toBe(true)
+  })
+})
+
+describe('hopLeg', () => {
+  it('caps a long hop at place → hotel → place', () => {
+    const kyoto = place({ id: 'k', lat: 34.9947, lng: 135.7847, travel_minutes: 60, nearest_hotels: ['osaka'], auto_fields: [] })
+    const osakaFood = place({ id: 'm', kind: 'restaurant', lat: 34.6676, lng: 135.5045, travel_minutes: 23, nearest_hotels: ['osaka'], auto_fields: [] })
+    expect(hopLeg('osaka', kyoto, osakaFood)).toBe(83)
+  })
+  it('leaves short city hops alone', () => {
+    const a = place({ id: 'a', ...tokyo }), b = place({ id: 'b', lat: 35.67, lng: 139.755 })
+    expect(hopLeg('toranomon', a, b)).toBeLessThan(20)
   })
 })

@@ -82,6 +82,14 @@ export function hotelLeg(hotel: HotelId, p: Place): number {
   return human ? p.travel_minutes! : leg(HOTELS[hotel], p)
 }
 
+/**
+ * Place → place leg, capped at "back via the hotel" (place → hotel → place) using the hotel legs above.
+ * Fixes long hops the distance formula overestimates (e.g. Kyoto → Osaka ≈ 2h20 → 60 + 23 min).
+ */
+export function hopLeg(hotel: HotelId, a: Place, b: Place): number {
+  return Math.min(leg(a, b), hotelLeg(hotel, a) + hotelLeg(hotel, b))
+}
+
 /** Alternate activity → meal → activity … (start with a meal if there are more meals). */
 export function interleave(acts: Place[], meals: Place[]): Place[] {
   const a = [...acts], m = [...meals], order: Place[] = []
@@ -153,7 +161,7 @@ function walk(order: Place[], hotel: HotelId, o: Pick<PlanOptions, 'startMin' | 
   const stops: Stop[] = []
   const windows = asrOut ? [['Dhuhr', SALAH.dhuhr], ['Asr', SALAH.asr]] as const : [['Dhuhr', SALAH.dhuhr]] as const
   for (const p of order) {
-    const tr = prev ? leg(prev, p) : hotelLeg(hotel, p); t += tr
+    const tr = prev ? hopLeg(hotel, prev, p) : hotelLeg(hotel, p); t += tr
     const arrive = t
     t += (p.wait_minutes ?? 0) + visitOf(p)
     const prayers: Prayer[] = []
