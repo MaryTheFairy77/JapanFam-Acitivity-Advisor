@@ -7,14 +7,34 @@ export const SHAPES: Record<Exclude<Shape, 'either'>, { nAct: number; nShop: num
   acts: { nAct: 2, nShop: 0, nMeal: 1 },
   shop: { nAct: 1, nShop: 1, nMeal: 1 },
 }
-export interface Stop { p: Place; travel: number; arrive: number; leave: number }
-export interface Plan { stops: Stop[]; cost: number; minutes: number; votes: number; back: number }
+export type PrayerName = 'Dhuhr' | 'Asr'
+export interface Prayer { name: PrayerName; at: number }
+export interface Stop { p: Place; travel: number; arrive: number; leave: number; prayers: Prayer[] }
+export interface Plan {
+  stops: Stop[]; cost: number; minutes: number; votes: number; back: number
+  /** true = home after Maghrib starts, so Asr was prayed while out; false = Asr + Maghrib back to back at the hotel */
+  asrOut: boolean
+}
+
+/**
+ * Salah rules for a day out (minutes after midnight). Edit here if the times change.
+ * - Home by BACK_BY (17:30) at the latest to make Maghrib.
+ * - Out during Dhuhr (12:00–14:00) → a 15-min prayer stop in that window.
+ * - Home after Maghrib starts (16:30) → also an Asr stop (14:00–16:00); otherwise Asr + Maghrib back to back at the hotel.
+ */
+export const SALAH = {
+  dhuhr: { from: 12 * 60, to: 14 * 60 },
+  asr: { from: 14 * 60, to: 16 * 60 },
+  maghrib: 16 * 60 + 30,
+  backBy: 17 * 60 + 30,
+  prayMinutes: 15,
+} as const
 export interface PlanOptions {
   places: Place[]
   voteCount: Record<string, number>
   hotel: HotelId
   budget: number      // ¥ per person
-  hours: number       // total time out
+  backBy: number      // latest time home (minutes after midnight), default SALAH.backBy
   startMin: number    // minutes after midnight
   nAct: number
   nShop: number
@@ -78,19 +98,9 @@ export function buildPlans(o: PlanOptions) {
   let checked = 0
   for (const A of combos(acts, o.nAct)) for (const M of combos(meals, o.nMeal)) for (const S of combos(shops, o.nShop)) {
     checked++
-    let t = o.startMin, cost = 0, votes = 0, prev: Pt = base
-    const stops: Stop[] = []
     // shopping goes last: it's the flexible stop you can cut short or stretch
-    for (const p of [...interleave(A, M), ...S]) {
-      const tr = leg(prev, p); t += tr
-      const arrive = t
-      t += (p.wait_minutes ?? 0) + visitOf(p)
-      stops.push({ p, travel: tr, arrive, leave: t })
-      cost += p.price_jpy ?? 0; votes += o.voteCount[p.id] ?? 0; prev = p
-    }
-    const back = leg(prev, base); t += back
-    const minutes = t - o.startMin
-    if (cost <= o.budget && minutes <= o.hours * 60) valid.push({ stops, cost, minutes, votes, back })
+    const plan = simulate([...interleave(A, M), ...S], base, o)
+    if (plan && plan.cost <= o.budget) valid.push(plan)
   }
   valid.sort(rank(o.goal))
 
@@ -101,6 +111,59 @@ export function buildPlans(o: PlanOptions) {
   ].filter(Boolean).join(' and ')
 
   return { plans: valid.slice(0, 3), considered: acts.length + meals.length + shops.length, checked, short }
+}
+
+/**
+ * Walk the day in order. A prayer happens at whichever stop you're at when its window opens
+ * (or the first stop you reach inside the window) and adds 15 min there.
+ * Tries the day without an Asr stop first: if you're home by Maghrib (16:30), Asr + Maghrib are prayed
+ * back to back at the hotel. Otherwise Asr must be prayed out. Returns null if the day misses a prayer
+ * or gets home after the back-by time (17:30 at the latest).
+ */
+export function simulate(order: Place[], base: Pt, o: Pick<PlanOptions, 'startMin' | 'backBy' | 'voteCount'>): Plan | null {
+  const noAsr = walk(order, base, o, false)
+  if (noAsr && noAsr.minutes + o.startMin <= SALAH.maghrib) return noAsr
+  return walk(order, base, o, true)
+}
+
+function walk(order: Place[], base: Pt, o: Pick<PlanOptions, 'startMin' | 'backBy' | 'voteCount'>, asrOut: boolean): Plan | null {
+  const backBy = Math.min(o.backBy, SALAH.backBy)
+  let t = o.startMin, cost = 0, votes = 0, prev: Pt = base
+  const done = new Set<PrayerName>()
+  const stops: Stop[] = []
+  const windows = asrOut ? [['Dhuhr', SALAH.dhuhr], ['Asr', SALAH.asr]] as const : [['Dhuhr', SALAH.dhuhr]] as const
+  for (const p of order) {
+    const tr = leg(prev, p); t += tr
+    const arrive = t
+    t += (p.wait_minutes ?? 0) + visitOf(p)
+    const prayers: Prayer[] = []
+    for (const [name, w] of windows) {
+      const at = Math.max(arrive, w.from)
+      if (!done.has(name) && at <= t && at + SALAH.prayMinutes <= w.to) {
+        prayers.push({ name, at }); done.add(name); t += SALAH.prayMinutes
+      }
+    }
+    stops.push({ p, travel: tr, arrive, leave: t, prayers })
+    cost += p.price_jpy ?? 0; votes += o.voteCount[p.id] ?? 0; prev = p
+  }
+  const back = leg(prev, base); t += back
+  if (t > backBy) return null
+  // out for the whole Dhuhr window without a prayer stop → not allowed (home in time = pray at the hotel)
+  if (!done.has('Dhuhr') && o.startMin < SALAH.dhuhr.to - SALAH.prayMinutes && t > SALAH.dhuhr.to - SALAH.prayMinutes) return null
+  if (asrOut && !done.has('Asr')) return null
+  return { stops, cost, minutes: t - o.startMin, votes, back, asrOut }
+}
+
+/** Evening (after Maghrib, adults only): best shopping spots near the hotel that aren't already in the day. */
+export function eveningShopping(o: Pick<PlanOptions, 'places' | 'voteCount' | 'hotel' | 'unvisited'>, plan: Plan, n = 2) {
+  const used = new Set(plan.stops.map((s) => s.p.id))
+  const base = { lat: HOTELS[o.hotel].lat, lng: HOTELS[o.hotel].lng }
+  return o.places
+    .filter((p) => p.kind === 'activity' && catOf(p) === 'shopping' && !used.has(p.id)
+      && regionOf(p) === HOTELS[o.hotel].region && (!o.unvisited || !p.visited))
+    .map((p) => ({ p, travel: leg(base, p) }))
+    .sort((a, b) => (o.voteCount[b.p.id] ?? 0) - (o.voteCount[a.p.id] ?? 0) || a.travel - b.travel)
+    .slice(0, n)
 }
 
 const rank = (goal: Goal) => (x: Plan, y: Plan) =>
