@@ -1,6 +1,6 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, Info, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet } from 'lucide-react'
 import Thumb from './Thumb'
-import { CATEGORIES, HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type Member, type Place } from '../lib'
+import { CATEGORIES, HOTELS, catOf, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type Member, type Place } from '../lib'
 
 type IconT = LucideIcon
 /** 0 = cheapest/closest/shortest in its group, 1 = priciest/furthest/longest; null = not comparable */
@@ -12,7 +12,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
   onVote: () => void; onVisited: () => void; onEdit: () => void; onImIn: () => void; onGoing: () => void
 }) {
   const auto = new Set(p.auto_fields ?? [])
-  const price = p.price_jpy ?? est.price[p.kind], wait = p.wait_minutes ?? est.wait[p.kind]
+  const price = p.price_jpy, wait = p.wait_minutes ?? est.wait[p.kind]
   const pinTravel = travelFromPin(p) // distance from the pin to the closest hotel
   const travel = p.travel_minutes ?? pinTravel?.minutes ?? null
   const travelGuess = p.travel_minutes == null ? pinTravel != null : auto.has('travel')
@@ -38,14 +38,16 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
 
       {/* Key facts — tinted green (cheaper/quicker) → red (pricier/longer) compared with the other places */}
       <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <Fact icon={Wallet} label="Price per person" value={fmtYen(price)} sub={p.price_jpy == null ? 'family typical' : auto.has('price') ? 'found online' : fmtZar(price)} r={ranks.price} guess={p.price_jpy == null || auto.has('price')} />
+        {price == null
+          ? <Unknown icon={Wallet} label="Price per person" sub={canEdit ? 'tap ✏️ to add' : 'not known yet'} onClick={canEdit ? onEdit : undefined} />
+          : <Fact icon={Wallet} label="Price per person" value={fmtYen(price)} sub={auto.has('price') ? 'found online' : price ? fmtZar(price) : 'entry'} r={ranks.price} guess={auto.has('price')} />}
         <Fact icon={TrainFront} label="Travel from closest hotel" value={fmtMin(travel)} sub={travelGuess && pinTravel ? `from pin · ${pinTravel.km.toFixed(1)} km` : p.travel_text ?? ''} r={ranks.travel} guess={travelGuess} />
         <Fact icon={Hourglass} label="Wait" value={fmtMin(wait)} sub={p.wait_minutes == null ? 'typical wait (avg)' : auto.has('wait') ? 'found online' : p.wait_text ?? ''} r={ranks.wait} guess={p.wait_minutes == null || auto.has('wait')} />
       </dl>
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
         {p.kind === 'restaurant' && <span className={`rounded-full px-2 py-1 ${auto.has('halal') ? 'ring-1 ring-amber-300' : ''} ${halalTone(p.halal)}`} title={auto.has('halal') ? 'From OpenStreetMap, not yet confirmed' : undefined}>☪︎ {p.halal ?? 'Unknown'}{auto.has('halal') && ' ✨'}</span>}
-        {p.kind === 'activity' && p.category && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{CATEGORIES[p.category].emoji} {CATEGORIES[p.category].label}</span>}
+        {p.kind === 'activity' && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{CATEGORIES[catOf(p)].emoji} {CATEGORIES[catOf(p)].label}</span>}
         {p.taste && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{p.taste === 'sweet' ? '🍡' : p.taste === 'savory' ? '🧂' : '🍡🧂'}</span>}
         {p.visit_minutes != null && <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-stone-700"><Clock className="h-3 w-3" />{fmtMin(p.visit_minutes)}</span>}
         {p.nearest_hotels.map((h) => (
@@ -106,9 +108,21 @@ function Fact({ icon: Icon, label, value, sub, r, guess }: { icon: IconT; label:
     <div className="relative rounded-xl px-2 py-2 transition-colors" style={{ background: t.bg }} title={guess ? `${label} (estimate, not confirmed)` : label}>
       {guess && <span className="absolute right-1.5 top-1 text-[10px]">✨</span>}
       <dt className="flex justify-center text-stone-500"><Icon className="h-4 w-4" strokeWidth={2} /><span className="sr-only">{label}</span></dt>
-      <dd className="font-semibold" style={{ color: t.fg }}>{guess && value !== '—' ? '~' : ''}{value}</dd>
+      <dd className="font-semibold" style={{ color: t.fg }}>{guess && value !== '—' && value !== 'Free' ? '~' : ''}{value}</dd>
       {sub && <dd className="truncate text-[11px] text-stone-500" title={sub}>{sub}</dd>}
     </div>
+  )
+}
+
+/** Price nobody knows yet: shown honestly (no made-up average), with a nudge to fill it in. */
+function Unknown({ icon: Icon, label, sub, onClick }: { icon: IconT; label: string; sub: string; onClick?: () => void }) {
+  return (
+    <button type="button" onClick={onClick} disabled={!onClick} title={`${label}: not known yet`}
+      className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-2 py-2 text-center">
+      <span className="flex justify-center text-stone-400"><Icon className="h-4 w-4" strokeWidth={2} /><span className="sr-only">{label}</span></span>
+      <span className="block font-semibold text-stone-500">❓</span>
+      <span className="block truncate text-[11px] text-stone-500">{sub}</span>
+    </button>
   )
 }
 

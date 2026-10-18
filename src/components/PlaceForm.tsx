@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { CATEGORIES, CATEGORY_IDS, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, mapsSearchLink, travelFromPin, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, catOf, type Category, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, mapsSearchLink, travelFromPin, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
-export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
+export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, defaultCategory = 'activity', onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
-  kind: Kind; place: Place | null; onClose: () => void; onSaved: () => void
+  kind: Kind; place: Place | null; defaultCategory?: Category; onClose: () => void; onSaved: () => void
 }) {
   const [f, setF] = useState({
     name: place?.name ?? '',
@@ -21,7 +21,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     maps_url: place?.maps_url ?? '',
     website_url: place?.website_url ?? '',
     image_url: place?.image_url ?? '',
-    category: place?.category ?? '',
+    category: (place ? catOf(place) : defaultCategory) as string,
     lat: place?.lat ?? null as number | null,
     lng: place?.lng ?? null as number | null,
     visit_minutes: place?.visit_minutes?.toString() ?? '',
@@ -276,10 +276,10 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
 
           {kind === 'activity' && (
             <div>
-              <span className={label}>What kind of activity?</span>
+              <span className={label}>Activity or shopping?</span>
               <div className="mt-1 flex flex-wrap gap-2">
                 {CATEGORY_IDS.map((c) => (
-                  <button type="button" key={c} onClick={() => set('category', f.category === c ? '' : c)}
+                  <button type="button" key={c} onClick={() => set('category', c)}
                     className={`rounded-full border px-3 py-1.5 text-sm ${f.category === c ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white'}`}>
                     {CATEGORIES[c].emoji} {CATEGORIES[c].label}
                   </button>

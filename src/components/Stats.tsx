@@ -42,7 +42,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
   const guessed = (p: Place) => {
     const r = rawById[p.id]
     if (!r) return false
-    return metric === 'price' || metric === 'value' ? r.price_jpy == null
+    return metric === 'price' || metric === 'value' ? (r.auto_fields ?? []).includes('price')
       : metric === 'wait' ? r.wait_minutes == null
       : metric === 'travel' ? r.travel_minutes == null || (r.auto_fields ?? []).includes('travel') : false
   }
@@ -54,7 +54,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
   })
   const vals = ranked.map(value).filter((v): v is number => v != null)
   const max = Math.max(1, ...vals)
-  const label = (v: number | null) => v == null ? '—'
+  const label = (v: number | null) => v == null ? (metric === 'price' || metric === 'value' ? '❓ unknown' : '—')
     : metric === 'price' ? fmtYen(v) : metric === 'travel' || metric === 'wait' ? fmtMin(v)
     : metric === 'value' ? `${v.toFixed(1)} /¥1k` : String(v)
 
@@ -123,7 +123,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
           )
         })}
       </ol>
-      {ranked.some(guessed) && <p className="text-[11px] text-stone-500">✨ yellow = estimate (nobody has entered it yet).</p>}
+      {ranked.some(guessed) && <p className="text-[11px] text-stone-500">✨ yellow = estimate or found online (no family member has confirmed it yet).</p>}
 
       <section className="rounded-2xl border border-stone-200 bg-white p-4">
         <div className="flex items-baseline justify-between">

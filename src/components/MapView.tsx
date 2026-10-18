@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { CATEGORIES, HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type Place, type Region } from '../lib'
+import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -181,7 +181,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen }: {
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
       popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0,
         isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { popup.remove(); openRef.current(p) }))
-      add(bubble(p.kind === 'restaurant' ? '🍜' : p.category ? CATEGORIES[p.category].emoji : '🎢', p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34,
+      add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34,
         voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
         p.lat!, p.lng!, popup)
     }

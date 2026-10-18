@@ -94,7 +94,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
                 <h3 className="font-display text-xl">Day from {HOTELS[hotel].short}</h3>
               </div>
               <div className="text-right text-sm">
-                <p className="font-semibold">{fmtYen(plan.cost)} <span className="font-normal text-stone-500">pp</span></p>
+                <p className="font-semibold">{fmtYen(plan.cost)}{plan.stops.some((s) => s.p.price_jpy == null) ? ' + ❓' : ''} <span className="font-normal text-stone-500">pp</span></p>
                 <p className="text-stone-500">{fmtMin(plan.minutes)} · ▲{plan.votes}</p>
               </div>
             </div>
@@ -109,7 +109,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
                   <p className="text-[11px] text-stone-400">↓ ~{fmtMin(s.travel)} travel</p>
                   <p className="text-sm"><b>{clock(s.arrive)}–{clock(s.leave)}</b> {s.p.name}</p>
                   <p className="text-xs text-stone-500">
-                    {fmtYen(s.p.price_jpy)}{s.p.wait_minutes ? ` · ~${fmtMin(s.p.wait_minutes)} wait` : ''}{s.p.halal && s.p.kind === 'restaurant' ? ` · ${s.p.halal}` : ''}
+                    {s.p.price_jpy == null ? '❓ price unknown' : fmtYen(s.p.price_jpy)}{s.p.wait_minutes ? ` · ~${fmtMin(s.p.wait_minutes)} wait` : ''}{s.p.halal && s.p.kind === 'restaurant' ? ` · ${s.p.halal}` : ''}
                   </p>
                 </li>
               ))}
@@ -119,6 +119,9 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
                 <b>{clock(startMin + plan.minutes)}</b> Back at the hotel
               </li>
             </ol>
+            {plan.stops.some((s) => s.p.price_jpy == null) && (
+              <p className="mt-3 rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-600">❓ {plan.stops.filter((s) => s.p.price_jpy == null).length} stop(s) have no price yet, so the total doesn&apos;t include them.</p>
+            )}
             <p className="mt-3 text-[10px] text-stone-400">JapanFam Advisor · travel times are estimates</p>
           </div>
           <button onClick={() => savePng(i)} className="mt-2 w-full rounded-xl border border-stone-300 bg-white py-2 text-sm font-medium">⬇ Save plan {i + 1} as image</button>

@@ -95,7 +95,7 @@ export const HALAL_OPTIONS = ['Halal certified', 'Muslim friendly', 'Pork-free',
 // Rough conversion for display only — tweak as the rate moves.
 export const ZAR_PER_JPY = 0.12
 
-export const fmtYen = (n: number | null) => (n == null ? '—' : `¥${n.toLocaleString()}`)
+export const fmtYen = (n: number | null) => (n == null ? '—' : n === 0 ? 'Free' : `¥${n.toLocaleString()}`)
 export const fmtZar = (n: number | null) => (n == null ? '' : `≈ R${Math.round(n * ZAR_PER_JPY).toLocaleString()}`)
 export const fmtMin = (n: number | null) => {
   if (n == null) return '—'
@@ -262,15 +262,15 @@ export function tint(r: number | null): { bg: string; fg: string } {
   return { bg: `rgb(${c.join(',')})`, fg: r < 0.34 ? '#1f6b45' : r > 0.66 ? '#9f1d2c' : '#1f1a17' }
 }
 
-export type Category = 'shopping' | 'food' | 'fun' | 'culture' | 'nature'
-export const CATEGORIES: Record<Category, { emoji: string; label: string }> = {
-  shopping: { emoji: '🛍️', label: 'Shopping' },
-  food: { emoji: '🍡', label: 'Food & treats' },
-  fun: { emoji: '🎢', label: 'Fun' },
-  culture: { emoji: '⛩️', label: 'Culture' },
-  nature: { emoji: '🌿', label: 'Nature' },
+/** Things to do are either 🎢 activities or 🛍 shopping (separate sub-tabs under "Do"). */
+export type Category = 'activity' | 'shopping'
+export const CATEGORIES: Record<Category, { emoji: string; label: string; one: string }> = {
+  activity: { emoji: '🎢', label: 'Activities', one: 'activity' },
+  shopping: { emoji: '🛍️', label: 'Shopping', one: 'shop' },
 }
 export const CATEGORY_IDS = Object.keys(CATEGORIES) as Category[]
+/** Which Do sub-tab a place belongs to (anything not shopping is an activity). */
+export const catOf = (p: Pick<Place, 'category'>): Category => (p.category === 'shopping' ? 'shopping' : 'activity')
 
 export const isKid = (m: Pick<Member, 'grp'>) => m.grp === 'kid'
 
@@ -313,11 +313,13 @@ export function estimates(places: Place[]): Estimates {
     visit: { restaurant: by('restaurant', 'visit_minutes') ?? 60, activity: by('activity', 'visit_minutes') ?? 120 },
   }
 }
-/** Same place with empty price/wait/visit filled from estimates — for stats, tints and the planner. */
+/**
+ * Same place with empty wait/visit filled from estimates — for stats, tints and the planner.
+ * PRICE IS NEVER GUESSED: an unknown price stays null and is shown as "❓ unknown" everywhere.
+ */
 export const withEstimates = (p: Place, e: Estimates): Place => ({
   ...p,
   travel_minutes: p.travel_minutes ?? travelFromPin(p)?.minutes ?? null, // distance-based, not averaged
-  price_jpy: p.price_jpy ?? e.price[p.kind],
   wait_minutes: p.wait_minutes ?? e.wait[p.kind],
   visit_minutes: p.visit_minutes ?? e.visit[p.kind],
 })

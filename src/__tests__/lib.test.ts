@@ -90,7 +90,8 @@ describe('estimates for empty fields', () => {
   it('never overwrites a real value', () => {
     const e = estimates([])
     expect(withEstimates(mk({ price_jpy: 500 }), e).price_jpy).toBe(500)
-    expect(withEstimates(mk({ price_jpy: null }), e).price_jpy).toBe(3000)
+    expect(withEstimates(mk({ price_jpy: null }), e).price_jpy).toBeNull() // price is never guessed
+    expect(withEstimates(mk({ wait_minutes: null }), e).wait_minutes).toBe(30)
   })
 })
 
@@ -185,4 +186,16 @@ describe('travel estimates come from the pin, never an average', () => {
     expect(p.travel_minutes).toBeLessThan(30) // Ginza → Toranomon is ~1.5 km, not the 350 min "average"
   })
   it('no pin, no travel guess', () => expect(withEstimates(mk({ travel_minutes: null, lat: null, lng: null }), estimates([])).travel_minutes).toBeNull())
+})
+
+import { catOf, fmtYen } from '../lib'
+describe('do sub-tabs + prices', () => {
+  it('anything not shopping is an activity', () => {
+    expect(catOf({ category: 'shopping' })).toBe('shopping')
+    expect(catOf({ category: null })).toBe('activity')
+    expect(catOf({ category: 'fun' as never })).toBe('activity')
+  })
+  it('free shows as Free, unknown as a dash', () => {
+    expect(fmtYen(0)).toBe('Free'); expect(fmtYen(null)).toBe('—'); expect(fmtYen(1500)).toBe('¥1,500')
+  })
 })

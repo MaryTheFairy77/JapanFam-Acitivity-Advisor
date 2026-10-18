@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { CATEGORIES, CATEGORY_IDS, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
@@ -7,7 +7,7 @@ import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
 const Planner = lazy(() => import('./Planner'))
 import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
-import { WaveBand } from './Art'
+import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
 import { ArrowUpDown, Download, EyeOff, Music2, Search, VolumeX } from 'lucide-react'
 
@@ -39,7 +39,7 @@ export default function Home({ me, data, onLogout }: {
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [halalOnly, setHalalOnly] = useState(false)
   const [taste, setTaste] = useState<'all' | 'sweet' | 'savory'>('all')
-  const [cat, setCat] = useState<Category | 'all'>('all')
+  const [cat, setCat] = useState<Category>('activity') // Do tab: 🎢 Activities | 🛍 Shopping
   const [hideVisited, setHideVisited] = useState(false)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
@@ -74,8 +74,9 @@ export default function Home({ me, data, onLogout }: {
   // comparative ranks: each place vs. the others of the same kind (food vs food, activities vs activities)
   const ranks = useMemo(() => {
     const out: Record<string, { price: number | null; travel: number | null; wait: number | null }> = {}
-    for (const kind of ['restaurant', 'activity'] as const) {
-      const ps = effPlaces.filter((p) => p.kind === kind)
+    const group = (p: Place) => (p.kind === 'restaurant' ? 'restaurant' : catOf(p))
+    for (const g of ['restaurant', 'activity', 'shopping'] as const) {
+      const ps = effPlaces.filter((p) => group(p) === g)
       const vals = (k: 'price_jpy' | 'travel_minutes' | 'wait_minutes') => ps.map((p) => p[k]).filter((v): v is number => v != null)
       const price = vals('price_jpy'), travel = vals('travel_minutes'), wait = vals('wait_minutes')
       for (const p of ps) out[p.id] = { price: rankOf(p.price_jpy, price), travel: rankOf(p.travel_minutes, travel), wait: rankOf(p.wait_minutes, wait) }
@@ -92,13 +93,13 @@ export default function Home({ me, data, onLogout }: {
       .filter((p) => hotel === 'all' || p.nearest_hotels.includes(hotel))
       .filter((p) => !halalOnly || p.halal === 'Halal certified' || p.halal === 'Muslim friendly')
       .filter((p) => taste === 'all' || p.taste === taste || p.taste === 'both')
-      .filter((p) => p.kind !== 'activity' || cat === 'all' || p.category === cat)
+      .filter((p) => p.kind !== 'activity' || catOf(p) === cat)
       .filter((p) => !hideVisited || !p.visited)
       .filter((p) => !q || `${p.name} ${p.description ?? ''}`.toLowerCase().includes(q.toLowerCase()))
       .sort((a, b) => {
         switch (sort) {
           case 'votes': return (voteCount[b.id] ?? 0) - (voteCount[a.id] ?? 0)
-          case 'price': return nullsLast(a.price_jpy ?? est.price[a.kind], b.price_jpy ?? est.price[b.kind])
+          case 'price': return nullsLast(a.price_jpy, b.price_jpy) // unknown prices go last, never guessed
           case 'travel': return nullsLast(a.travel_minutes, b.travel_minutes)
           case 'wait': return nullsLast(a.wait_minutes ?? est.wait[a.kind], b.wait_minutes ?? est.wait[b.kind])
           default: return b.created_at.localeCompare(a.created_at)
@@ -125,7 +126,7 @@ export default function Home({ me, data, onLogout }: {
   }
 
   function exportCsv() {
-    downloadCsv(`japanfam-${tab}-${new Date().toISOString().slice(0, 10)}.csv`, list.map((p) => ({
+    downloadCsv(`japanfam-${tab === 'activity' ? cat : tab}-${new Date().toISOString().slice(0, 10)}.csv`, list.map((p) => ({
       Name: p.name,
       'Specialty / Description': p.description,
       'Price per person (JPY)': p.price_jpy,
@@ -136,7 +137,7 @@ export default function Home({ me, data, onLogout }: {
       'Estimated wait': p.wait_text,
       'Wait (min)': p.wait_minutes,
       'Time there (min)': p.visit_minutes,
-      ...(p.kind === 'activity' ? { Category: p.category ? CATEGORIES[p.category].label : '' } : {}),
+      ...(p.kind === 'activity' ? { Category: CATEGORIES[catOf(p)].label } : {}),
       'Long line': p.long_line,
       Website: p.website_url,
       ...Object.fromEntries(goingSummary(p.id, members, attendees).counts.map((c) => [`Going (${c.g.many})`, c.n])),
@@ -196,8 +197,28 @@ export default function Home({ me, data, onLogout }: {
         <Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} />
       ) : (
         <>
+          {/* Mount Fuji behind the lists (decorative, fixed to the bottom of the screen) */}
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-0 mx-auto h-[55vh] max-w-2xl opacity-70" aria-hidden>
+            <FujiScene className="h-full w-full" />
+          </div>
+          {/* Do tab: two sub-tabs */}
+          {tab === 'activity' && (
+            <div className="relative z-10 px-4 pt-3">
+              <div className="grid grid-cols-2 gap-1 rounded-2xl border border-stone-200 bg-white p-1" role="tablist">
+                {CATEGORY_IDS.map((c) => {
+                  const n = places.filter((p) => p.kind === 'activity' && catOf(p) === c).length
+                  return (
+                    <button key={c} role="tab" aria-selected={cat === c} data-sound="tab" onClick={() => setCat(c)}
+                      className={`rounded-xl py-2 text-sm font-medium transition ${cat === c ? 'bg-ink text-white shadow' : 'text-stone-600'}`}>
+                      {CATEGORIES[c].emoji} {CATEGORIES[c].label} <span className="opacity-60">{n}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {/* Filters */}
-          <div className="space-y-2 px-4 pt-3">
+          <div className="relative z-10 space-y-2 px-4 pt-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search"
@@ -217,11 +238,6 @@ export default function Home({ me, data, onLogout }: {
                   <button className={chip(taste === 'sweet')} onClick={() => setTaste(taste === 'sweet' ? 'all' : 'sweet')} aria-label="Sweet">🍡</button>
                 </>
               )}
-              {tab === 'activity' && CATEGORY_IDS.map((c) => (
-                <button key={c} className={chip(cat === c)} onClick={() => setCat(cat === c ? 'all' : c)} aria-label={CATEGORIES[c].label} title={CATEGORIES[c].label}>
-                  {CATEGORIES[c].emoji}{cat === c ? ` ${CATEGORIES[c].label}` : ''}
-                </button>
-              ))}
               <button className={chip(hideVisited) + ' inline-flex items-center gap-1'} onClick={() => setHideVisited(!hideVisited)}><EyeOff className="h-3.5 w-3.5" />Been</button>
             </div>
             <div className="flex items-center gap-2 text-sm">
@@ -236,15 +252,15 @@ export default function Home({ me, data, onLogout }: {
             </div>
             <p className="flex items-center gap-1.5 text-[11px] text-stone-500">
               <span className="inline-block h-2.5 w-6 rounded-full" style={{ background: 'linear-gradient(90deg,#e2f4e9,#faf7f1,#fde4e6)' }} />
-              cheaper / quicker → pricier / longer, compared with the other {tab === 'restaurant' ? 'restaurants' : 'activities'}
+              cheaper / quicker → pricier / longer, compared with the other {tab === 'restaurant' ? 'restaurants' : CATEGORIES[cat].label.toLowerCase()}
             </p>
           </div>
 
           {/* List */}
-          <div className="mt-3 space-y-3 px-4">
+          <div className="relative z-10 mt-3 space-y-3 px-4">
             {list.length === 0 && (
               <div className="rounded-2xl border-2 border-dashed border-stone-300 p-8 text-center text-stone-500">
-                Nothing here yet. Tap <b>+ Add</b> to suggest a {tab === 'restaurant' ? 'restaurant' : 'activity'}.
+                Nothing here yet. Tap <b>+ Add</b> to suggest a {tab === 'restaurant' ? 'restaurant' : CATEGORIES[cat].one}.
               </div>
             )}
             {list.map((p, i) => (
@@ -263,7 +279,7 @@ export default function Home({ me, data, onLogout }: {
           {!kidMode && (
           <button onClick={() => setEditing('new')}
             className="fixed bottom-20 right-1/2 z-30 mb-[env(safe-area-inset-bottom)] translate-x-1/2 rounded-full bg-torii px-6 py-3.5 font-medium text-white shadow-lg shadow-torii/30 active:scale-95">
-            + Add {tab === 'restaurant' ? 'restaurant' : 'activity'}
+            + Add {tab === 'restaurant' ? 'restaurant' : CATEGORIES[cat].one}
           </button>
           )}
         </>
@@ -280,7 +296,7 @@ export default function Home({ me, data, onLogout }: {
       {editing && (
         <PlaceForm me={me} canDelete={me.is_admin} photoUrls={photoUrls}
           canEdit={editing === 'new' || canEdit(editing)} creator={editing === 'new' ? undefined : members.find((m) => m.id === editing.created_by)} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
-          place={editing === 'new' ? null : editing}
+          place={editing === 'new' ? null : editing} defaultCategory={cat}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />
       )}
     </div>
