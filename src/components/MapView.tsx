@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, regionOf, type Place, type Region } from '../lib'
+import { HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, regionOf, safeUrl, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -85,8 +85,8 @@ export default function MapView({ places, voteCount, onOpen }: {
                   {h && <span style={{ color: '#57534e' }}>{h.km.toFixed(1)} km from {HOTELS[h.id].short}<br /></span>}
                   ▲ {voteCount[p.id] ?? 0} votes<br />
                   <span style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                    {p.maps_url && <a href={p.maps_url} target="_blank" rel="noreferrer">📍 Maps</a>}
-                    {p.website_url && <a href={p.website_url} target="_blank" rel="noreferrer">🌐 Info</a>}
+                    {safeUrl(p.maps_url) && <a href={safeUrl(p.maps_url)} target="_blank" rel="noreferrer">📍 Maps</a>}
+                    {safeUrl(p.website_url) && <a href={safeUrl(p.website_url)} target="_blank" rel="noreferrer">🌐 Info</a>}
                     <a href="#" onClick={(e) => { e.preventDefault(); onOpen(p) }}>Details →</a>
                   </span>
                 </div>

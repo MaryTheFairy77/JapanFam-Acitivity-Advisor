@@ -1,4 +1,4 @@
-import { HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, type Member, type Place } from '../lib'
+import { HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, type Member, type Place } from '../lib'
 
 export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going, imGoing, onVote, onVisited, onEdit, onImIn, onGoing }: {
   place: Place; rank?: number; voters: Member[]; addedBy?: Member; mine: boolean
@@ -65,11 +65,11 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
         </div>
         <div className="ml-auto flex gap-2">
           <button onClick={onEdit} className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 hover:bg-stone-100">Edit</button>
-          {p.website_url && (
-            <a href={p.website_url} target="_blank" rel="noreferrer" className="whitespace-nowrap rounded-lg border border-stone-300 px-3 py-1.5 text-sm">🌐 Info</a>
+          {safeUrl(p.website_url) && (
+            <a href={safeUrl(p.website_url)} target="_blank" rel="noreferrer" className="whitespace-nowrap rounded-lg border border-stone-300 px-3 py-1.5 text-sm">🌐 Info</a>
           )}
-          {p.maps_url && (
-            <a href={p.maps_url} target="_blank" rel="noreferrer"
+          {safeUrl(p.maps_url) && (
+            <a href={safeUrl(p.maps_url)} target="_blank" rel="noreferrer"
               className="whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white">📍 Maps</a>
           )}
         </div>

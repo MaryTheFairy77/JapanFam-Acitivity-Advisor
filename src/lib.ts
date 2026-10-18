@@ -188,3 +188,24 @@ export function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   a.click()
   URL.revokeObjectURL(a.href)
 }
+
+/** Only allow plain web links in hrefs (blocks javascript:/data: links). */
+export const safeUrl = (u: string | null | undefined) => (u && /^https?:\/\//i.test(u.trim()) ? u.trim() : undefined)
+
+/** Tidy a typed link: add https:// if missing. Returns null for empty, false if it isn't a usable web link. */
+export function normalizeUrl(u: string): string | null | false {
+  const t = u.trim()
+  if (!t) return null
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t}`
+  try {
+    const url = new URL(withScheme)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : false
+  } catch { return false }
+}
+
+/** Trip-planner code, kept in memory only for this session (never saved on the phone). */
+let plannerCode: string | null = null
+export const getPlannerCode = () => plannerCode
+export const setPlannerCode = (c: string | null) => { plannerCode = c }
+
+export const LIMITS = { name: 120, description: 500, short: 200, longLine: 300, url: 2000, nickname: 20 } as const

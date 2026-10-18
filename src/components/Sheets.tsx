@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { EMOJIS, GROUPS, displayName, supabase, type Attendee, type Member, type Place } from '../lib'
+import { EMOJIS, GROUPS, LIMITS, displayName, getPlannerCode, setPlannerCode, supabase, type Group, type Attendee, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -42,7 +42,7 @@ export function ProfileSheet({ me, onClose, onSaved, onSwitch }: {
         </div>
       </div>
       <label className="mt-4 block text-sm font-medium text-stone-700">Nickname
-        <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={me.name} maxLength={20}
+        <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={me.name} maxLength={LIMITS.nickname}
           className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii" />
       </label>
       <p className="mt-4 text-sm font-medium text-stone-700">Avatar</p>
@@ -57,6 +57,7 @@ export function ProfileSheet({ me, onClose, onSaved, onSwitch }: {
         {busy ? 'Saving…' : 'Save'}
       </button>
       <button onClick={onSwitch} className="mt-2 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Switch to someone else</button>
+      {me.is_admin && <AddMember onAdded={onSaved} />}
       <Privacy className="mt-5" />
     </Sheet>
   )
@@ -104,4 +105,38 @@ export function goingSummary(placeId: string, members: Member[], attendees: Atte
   const total = counts.reduce((s, c) => s + c.n, 0)
   const text = counts.filter((c) => c.n).map((c) => `${c.n} ${c.n === 1 ? c.g.one : c.g.many}`).join(' · ')
   return { total, text, counts }
+}
+
+/** Trip planners only: add a family member (checked server-side with the planner code). */
+function AddMember({ onAdded }: { onAdded: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [grp, setGrp] = useState<Group>('adult')
+  const [code, setCode] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  if (!open) return <button onClick={() => setOpen(true)} className="mt-2 w-full rounded-full border border-dashed border-stone-300 py-3 text-sm text-stone-600">⭐ Add a family member</button>
+
+  async function add() {
+    const c = getPlannerCode() ?? code
+    setBusy(true); setMsg(null)
+    const { data, error } = await supabase.rpc('planner_add_member', { member_name: name, member_grp: grp, member_emoji: '🙂', code: c })
+    setBusy(false)
+    if (error) setMsg(/duplicate|unique/i.test(error.message) ? 'That name already exists.' : /Too many/.test(error.message) ? 'Too many wrong codes. Wait 15 minutes.' : error.message)
+    else if (!data) { setPlannerCode(null); setMsg('Wrong trip-planner code.') }
+    else { setPlannerCode(c); setName(''); setMsg('Added ✓'); onAdded() }
+  }
+  const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii'
+  return (
+    <div className="mt-3 space-y-2 rounded-2xl bg-white p-3">
+      <p className="text-sm font-medium">⭐ Add a family member</p>
+      <input className={input} placeholder="First name" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
+      <select className={input} value={grp} onChange={(e) => setGrp(e.target.value as Group)}>
+        {GROUPS.map((g) => <option key={g.key} value={g.key}>{g.label.slice(0, -1)}</option>)}
+      </select>
+      {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
+      {msg && <p className="text-sm text-torii">{msg}</p>}
+      <button onClick={add} disabled={busy || !name.trim()} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Adding…' : 'Add'}</button>
+    </div>
+  )
 }

@@ -1,0 +1,60 @@
+import { describe, expect, it } from 'vitest'
+import { HOTELS, estimateTravel, km, missingFields, nearestHotel, normalizeUrl, parseLatLng, parseMinutes, regionOf, safeUrl } from '../lib'
+import { place } from './fixtures'
+
+describe('parseMinutes', () => {
+  it.each([
+    ['1 hr 42 min drive', 102], ['45 min drive', 45], ['~60-90min', 75], ['10–30 min', 20],
+    ['2 hours', 120], ['1.5h', 90], ['Prebooked', null], ['', null],
+  ])('%s → %s', (s, want) => expect(parseMinutes(s)).toBe(want))
+})
+
+describe('parseLatLng', () => {
+  it('prefers the exact pin (!3d!4d) over the camera (@)', () => {
+    const u = 'https://www.google.com/maps/place/X/@35.44,138.47,10z/data=!3m5!8m2!3d35.5248227!4d138.7299428!16s'
+    expect(parseLatLng(u)).toEqual({ lat: 35.5248227, lng: 138.7299428 })
+  })
+  it('falls back to @lat,lng', () => expect(parseLatLng('https://maps.google.com/@34.7,135.5,15z')).toEqual({ lat: 34.7, lng: 135.5 }))
+  it('reads ?q=lat,lng', () => expect(parseLatLng('https://maps.google.com/?q=34.1,135.2')).toEqual({ lat: 34.1, lng: 135.2 }))
+  it('returns null for short links', () => expect(parseLatLng('https://maps.app.goo.gl/abc')).toBeNull())
+})
+
+describe('distance + nearest hotel', () => {
+  it('Osaka → Tokyo is ~400 km', () => expect(km(HOTELS.osaka, HOTELS.toranomon)).toBeGreaterThan(390))
+  it('Art Aquarium (Ginza) is nearest Toranomon Hills', () => expect(nearestHotel({ lat: 35.6708, lng: 139.7661 })?.id).toBe('toranomon'))
+  it('Super Nintendo World is nearest Osaka', () => expect(nearestHotel({ lat: 34.668, lng: 135.43 })?.id).toBe('osaka'))
+  it('no coords → null', () => expect(nearestHotel({ lat: null, lng: null })).toBeNull())
+  it('short hop is a walk, long hop is train', () => {
+    expect(estimateTravel(0.5).text).toMatch(/walk/)
+    expect(estimateTravel(10).text).toMatch(/train/)
+    expect(estimateTravel(10).minutes).toBeGreaterThan(estimateTravel(5).minutes)
+  })
+  it('regions by longitude', () => {
+    expect(regionOf({ lng: 135.5 })).toBe('kansai')
+    expect(regionOf({ lng: 139.7 })).toBe('kanto')
+    expect(regionOf({ lng: null, nearest_hotels: ['osaka'] })).toBe('kansai')
+    expect(regionOf({ lng: null, nearest_hotels: [] })).toBeNull()
+  })
+})
+
+describe('link safety', () => {
+  it('blocks javascript: and data: links', () => {
+    expect(safeUrl('javascript:alert(1)')).toBeUndefined()
+    expect(safeUrl(' JaVaScRiPt:alert(1)')).toBeUndefined()
+    expect(safeUrl('data:text/html,hi')).toBeUndefined()
+    expect(safeUrl('https://ok.jp')).toBe('https://ok.jp')
+  })
+  it('normalizeUrl adds https and rejects other schemes', () => {
+    expect(normalizeUrl('example.jp/x')).toBe('https://example.jp/x')
+    expect(normalizeUrl('  ')).toBeNull()
+    expect(normalizeUrl('javascript:alert(1)')).toBe(false)
+    expect(normalizeUrl('ftp://x.jp')).toBe(false)
+  })
+})
+
+describe('missingFields', () => {
+  it('flags restaurant-only gaps', () => {
+    expect(missingFields(place({ kind: 'restaurant' }))).toEqual(expect.arrayContaining(['halal status', 'sweet/savoury']))
+  })
+  it('a complete activity needs nothing', () => expect(missingFields(place())).toEqual([]))
+})

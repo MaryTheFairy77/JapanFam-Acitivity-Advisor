@@ -1,31 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
-import { HOTELS, HOTEL_IDS, estimateTravel, fmtMin, fmtYen, fmtZar, km, regionOf, type HotelId, type Place } from '../lib'
-
-type Goal = 'votes' | 'cheap' | 'time'
-interface Stop { p: Place; travel: number; arrive: number; leave: number }
-interface Plan { stops: Stop[]; cost: number; minutes: number; votes: number; back: number }
-
-const DEFAULT_VISIT = { restaurant: 60, activity: 120 }
-const CANDIDATES_PER_KIND = 14
-
-function combos<T>(arr: T[], k: number): T[][] {
-  if (k === 0) return [[]]
-  const out: T[][] = []
-  const rec = (start: number, cur: T[]) => {
-    if (cur.length === k) { out.push(cur.slice()); return }
-    for (let i = start; i < arr.length; i++) { cur.push(arr[i]); rec(i + 1, cur); cur.pop() }
-  }
-  rec(0, [])
-  return out
-}
-
-type Pt = { lat: number | null; lng: number | null; travel_minutes?: number | null }
-function leg(a: Pt, b: Pt): number {
-  if (a.lat != null && a.lng != null && b.lat != null && b.lng != null)
-    return estimateTravel(km({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng })).minutes
-  return b.travel_minutes ?? a.travel_minutes ?? 30
-}
+import { HOTELS, HOTEL_IDS, fmtMin, fmtYen, fmtZar, type HotelId, type Place } from '../lib'
+import { buildPlans, type Goal } from '../planner'
 
 const clock = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
@@ -42,52 +18,9 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
   const refs = useRef<(HTMLDivElement | null)[]>([])
 
   const startMin = (() => { const [h, m] = start.split(':').map(Number); return h * 60 + (m || 0) })()
-  const base = { lat: HOTELS[hotel].lat, lng: HOTELS[hotel].lng }
-
-  const { plans, considered, checked, short } = useMemo(() => {
-    const region = HOTELS[hotel].region
-    const pool = places.filter((p) => regionOf(p) === region && (!unvisited || !p.visited))
-    const top = (kind: Place['kind']) => pool
-      .filter((p) => p.kind === kind)
-      .filter((p) => kind !== 'restaurant' || !halalOnly || p.halal === 'Halal certified' || p.halal === 'Muslim friendly')
-      .sort((a, b) => (voteCount[b.id] ?? 0) - (voteCount[a.id] ?? 0) || (a.price_jpy ?? 0) - (b.price_jpy ?? 0))
-      .slice(0, CANDIDATES_PER_KIND)
-    const acts = top('activity'), meals = top('restaurant')
-    const actSets = combos(acts, nAct), mealSets = combos(meals, nMeal)
-    const valid: Plan[] = []
-    let checked = 0
-    for (const A of actSets) for (const M of mealSets) {
-      checked++
-      // order: alternate activity → meal → activity → meal … (meal first if there are more meals)
-      const a = [...A], m = [...M], order: Place[] = []
-      let mealTurn = m.length > a.length
-      while (a.length || m.length) {
-        const next = (mealTurn && m.length) || !a.length ? m.shift()! : a.shift()!
-        order.push(next); mealTurn = !mealTurn
-      }
-      let t = startMin, cost = 0, votes = 0, prev: Pt = base
-      const stops: Stop[] = []
-      for (const p of order) {
-        const tr = leg(prev, p); t += tr
-        const arrive = t
-        t += (p.wait_minutes ?? 0) + (p.visit_minutes ?? DEFAULT_VISIT[p.kind])
-        stops.push({ p, travel: tr, arrive, leave: t })
-        cost += p.price_jpy ?? 0; votes += voteCount[p.id] ?? 0; prev = p
-      }
-      const back = leg(prev, base); t += back
-      const minutes = t - startMin
-      if (cost <= budget && minutes <= hours * 60) valid.push({ stops, cost, minutes, votes, back })
-    }
-    valid.sort((x, y) =>
-      goal === 'votes' ? y.votes - x.votes || x.cost - y.cost
-      : goal === 'cheap' ? x.cost - y.cost || y.votes - x.votes
-      : x.minutes - y.minutes || y.votes - x.votes)
-    const short = [
-      acts.length < nAct && `only ${acts.length} activit${acts.length === 1 ? 'y' : 'ies'}`,
-      meals.length < nMeal && `only ${meals.length} ${halalOnly ? 'halal-friendly ' : ''}restaurant${meals.length === 1 ? '' : 's'}`,
-    ].filter(Boolean).join(' and ')
-    return { plans: valid.slice(0, 3), considered: acts.length + meals.length, checked, short }
-  }, [places, voteCount, hotel, budget, hours, startMin, nAct, nMeal, halalOnly, unvisited, goal, base.lat, base.lng])
+  const { plans, considered, checked, short } = useMemo(
+    () => buildPlans({ places, voteCount, hotel, budget, hours, startMin, nAct, nMeal, halalOnly, unvisited, goal }),
+    [places, voteCount, hotel, budget, hours, startMin, nAct, nMeal, halalOnly, unvisited, goal])
 
   async function savePng(i: number) {
     const node = refs.current[i]

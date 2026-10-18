@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, estimateTravel, nearestHotel, parseLatLng, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, setPlannerCode, nearestHotel, parseLatLng, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; kind: Kind; place: Place | null; onClose: () => void; onSaved: () => void
@@ -26,6 +26,8 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
   const [finding, setFinding] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [pinMsg, setPinMsg] = useState<string | null>(null)
+  const [askCode, setAskCode] = useState(false)
+  const [code, setCode] = useState('')
   const set = (k: keyof typeof f, v: unknown) => setF((s) => ({ ...s, [k]: v }))
 
   /** When we learn coordinates: auto-pick nearest hotel + estimate travel if those are blank. */
@@ -64,6 +66,8 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
   async function save(e: React.FormEvent) {
     e.preventDefault()
     if (!f.name.trim()) return
+    const maps = normalizeUrl(f.maps_url), web = normalizeUrl(f.website_url)
+    if (maps === false || web === false) { setErr('Links must be normal web links (https://…).'); return }
     setBusy(true); setErr(null)
     const row = {
       kind,
@@ -78,8 +82,8 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
       wait_text: f.wait_text.trim() || null,
       wait_minutes: num(f.wait_minutes),
       long_line: f.long_line.trim() || null,
-      maps_url: f.maps_url.trim() || null,
-      website_url: f.website_url.trim() || null,
+      maps_url: maps,
+      website_url: web,
       lat: f.lat,
       lng: f.lng,
       visit_minutes: num(f.visit_minutes),
@@ -88,20 +92,27 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
       ? await supabase.from('places').update(row).eq('id', place.id)
       : await supabase.from('places').insert({ ...row, created_by: me.id })
     setBusy(false)
-    if (error) setErr(error.message); else onSaved()
+    if (error) setErr(friendly(error.message)); else onSaved()
   }
 
   async function remove() {
-    if (!place || !confirm(`Delete "${place.name}" for everyone?`)) return
-    const { error } = await supabase.from('places').delete().eq('id', place.id)
-    if (error) setErr(error.message); else onSaved()
+    if (!place) return
+    const c = getPlannerCode() ?? (askCode ? code : null)
+    if (!c) { setAskCode(true); return }
+    if (!confirm(`Delete "${place.name}" for everyone?`)) return
+    setBusy(true); setErr(null)
+    const { data, error } = await supabase.rpc('planner_delete_place', { place: place.id, code: c })
+    setBusy(false)
+    if (error) setErr(friendly(error.message))
+    else if (data !== true) { setPlannerCode(null); setErr('Wrong trip-planner code.') }
+    else { setPlannerCode(c); onSaved() }
   }
 
   const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii'
   const label = 'block text-sm font-medium text-stone-700'
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[800] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()}
         className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi p-5 sm:rounded-3xl">
         <div className="mb-4 flex items-center justify-between">
@@ -110,13 +121,13 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
         </div>
 
         <div className="space-y-3">
-          <label className={label}>Name *<input autoFocus className={input} value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
-          <label className={label}>Specialty / description<input className={input} value={f.description} onChange={(e) => set('description', e.target.value)} /></label>
+          <label className={label}>Name *<input autoFocus maxLength={LIMITS.name} className={input} value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
+          <label className={label}>Specialty / description<input maxLength={LIMITS.description} className={input} value={f.description} onChange={(e) => set('description', e.target.value)} /></label>
           <label className={label}>📍 Google Maps link
-            <input className={input} value={f.maps_url} onChange={(e) => onMapsUrl(e.target.value)} placeholder="https://maps.app.goo.gl/…" />
+            <input maxLength={LIMITS.url} inputMode="url" className={input} value={f.maps_url} onChange={(e) => onMapsUrl(e.target.value)} placeholder="https://maps.app.goo.gl/…" />
           </label>
           <label className={label}>🌐 Website (to find out more)
-            <input className={input} value={f.website_url} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" inputMode="url" />
+            <input maxLength={LIMITS.url} className={input} value={f.website_url} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" inputMode="url" />
           </label>
           <div className="flex items-center gap-2">
             <button type="button" onClick={findPin} disabled={finding || !f.name.trim()}
@@ -161,14 +172,14 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
 
           <div className="grid grid-cols-[1fr_6rem] gap-3">
             <label className={label}>Distance from hotel
-              <input className={input} value={f.travel_text} placeholder="e.g. 15 min walk"
+              <input maxLength={LIMITS.short} className={input} value={f.travel_text} placeholder="e.g. 15 min walk"
                 onChange={(e) => { set('travel_text', e.target.value); const m = parseMinutes(e.target.value); if (m != null) set('travel_minutes', String(m)) }} />
             </label>
             <label className={label}>Minutes<input inputMode="numeric" className={input} value={f.travel_minutes} onChange={(e) => set('travel_minutes', e.target.value)} /></label>
           </div>
           <div className="grid grid-cols-[1fr_6rem] gap-3">
             <label className={label}>Estimated wait
-              <input className={input} value={f.wait_text} placeholder="e.g. 30–60 min"
+              <input maxLength={LIMITS.short} className={input} value={f.wait_text} placeholder="e.g. 30–60 min"
                 onChange={(e) => { set('wait_text', e.target.value); const m = parseMinutes(e.target.value); if (m != null) set('wait_minutes', String(m)) }} />
             </label>
             <label className={label}>Minutes<input inputMode="numeric" className={input} value={f.wait_minutes} onChange={(e) => set('wait_minutes', e.target.value)} /></label>
@@ -177,9 +188,14 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
             <input inputMode="numeric" className={input} value={f.visit_minutes} onChange={(e) => set('visit_minutes', e.target.value)}
               placeholder={kind === 'restaurant' ? 'default 60' : 'default 120'} />
           </label>
-          <label className={label}>Long line? / notes<input className={input} value={f.long_line} onChange={(e) => set('long_line', e.target.value)} placeholder="e.g. Yes – go before 11am" /></label>
+          <label className={label}>Long line? / notes<input maxLength={LIMITS.longLine} className={input} value={f.long_line} onChange={(e) => set('long_line', e.target.value)} placeholder="e.g. Yes – go before 11am" /></label>
         </div>
 
+        {askCode && !getPlannerCode() && (
+          <label className="mt-4 block rounded-xl bg-white p-3 text-sm font-medium text-stone-700">⭐ Trip-planner code (needed to delete)
+            <input type="password" autoFocus value={code} onChange={(e) => setCode(e.target.value)} className={input} />
+          </label>
+        )}
         {err && <p className="mt-3 text-sm text-torii">{err}</p>}
         <div className="mt-5 flex gap-2">
           {place && canDelete && <button type="button" onClick={remove} className="rounded-xl px-4 py-3 text-sm text-torii hover:bg-torii/10">Delete</button>}
@@ -190,4 +206,15 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
       </form>
     </div>
   )
+}
+
+/** Turn database errors into plain English. */
+function friendly(msg: string) {
+  if (/places_urls/.test(msg)) return 'Links must be normal web links (https://…).'
+  if (/price_range/.test(msg)) return 'Price looks wrong. Use a yen amount between 0 and 10,000,000.'
+  if (/minutes_range/.test(msg)) return 'Minutes must be between 0 and 1440 (24h).'
+  if (/_len/.test(msg)) return 'One of the fields is too long.'
+  if (/Too many wrong tries/.test(msg)) return 'Too many wrong codes. Wait 15 minutes.'
+  if (/permission denied|row-level security/i.test(msg)) return 'Not allowed. Re-open the app and enter the family code.'
+  return msg
 }
