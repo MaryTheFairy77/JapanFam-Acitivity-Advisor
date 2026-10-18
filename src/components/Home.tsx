@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, claimMember, displayName, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HOTELS, HOTEL_IDS, claimMember, displayName, downloadCsv, rankOf, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
@@ -9,6 +9,7 @@ const Planner = lazy(() => import('./Planner'))
 import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
 import { WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
+import { ArrowUpDown, Download, EyeOff, Music2, Search, VolumeX } from 'lucide-react'
 
 type Tab = Kind | 'stats' | 'map' | 'plan'
 
@@ -63,6 +64,18 @@ export default function Home({ me, data, onLogout }: {
     votes.forEach((v) => { c[v.place_id] = (c[v.place_id] ?? 0) + 1 })
     return c
   }, [votes])
+
+  // comparative ranks: each place vs. the others of the same kind (food vs food, activities vs activities)
+  const ranks = useMemo(() => {
+    const out: Record<string, { price: number | null; travel: number | null; wait: number | null }> = {}
+    for (const kind of ['restaurant', 'activity'] as const) {
+      const ps = places.filter((p) => p.kind === kind)
+      const vals = (k: 'price_jpy' | 'travel_minutes' | 'wait_minutes') => ps.map((p) => p[k]).filter((v): v is number => v != null)
+      const price = vals('price_jpy'), travel = vals('travel_minutes'), wait = vals('wait_minutes')
+      for (const p of ps) out[p.id] = { price: rankOf(p.price_jpy, price), travel: rankOf(p.travel_minutes, travel), wait: rankOf(p.wait_minutes, wait) }
+    }
+    return out
+  }, [places])
 
   const list = useMemo(() => {
     if (tab !== 'restaurant' && tab !== 'activity') return []
@@ -140,7 +153,7 @@ export default function Home({ me, data, onLogout }: {
           <div className="flex items-center gap-2">
           <button data-sound="none" onClick={() => setPrefs({ ambience: !music })} aria-label={music ? 'Turn off background music' : 'Turn on background music'}
             className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg ${music ? 'border-torii bg-torii/10' : 'border-stone-300 bg-white grayscale'}`}>
-            {music ? '🎵' : '🔇'}
+            {music ? <Music2 className="h-4 w-4 text-torii" /> : <VolumeX className="h-4 w-4 text-stone-500" />}
           </button>
           <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-3 text-sm">
             <span className="text-lg">{me.emoji}</span>{displayName(me)}{me.is_admin && <span title="Trip planner">⭐</span>}
@@ -176,8 +189,11 @@ export default function Home({ me, data, onLogout }: {
         <>
           {/* Filters */}
           <div className="space-y-2 px-4 pt-3">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…"
-              className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-torii" />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search"
+                className="w-full rounded-xl border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-torii" />
+            </div>
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
               <button className={chip(hotel === 'all')} onClick={() => setHotel('all')}>All hotels</button>
               {HOTEL_IDS.map((h) => (
@@ -187,23 +203,27 @@ export default function Home({ me, data, onLogout }: {
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
               {tab === 'restaurant' && (
                 <>
-                  <button className={chip(halalOnly)} onClick={() => setHalalOnly(!halalOnly)}>☪️ Halal / Muslim-friendly</button>
-                  <button className={chip(taste === 'savory')} onClick={() => setTaste(taste === 'savory' ? 'all' : 'savory')}>🧂 Savoury</button>
-                  <button className={chip(taste === 'sweet')} onClick={() => setTaste(taste === 'sweet' ? 'all' : 'sweet')}>🍡 Sweet</button>
+                  <button className={chip(halalOnly)} onClick={() => setHalalOnly(!halalOnly)}>☪︎ Halal</button>
+                  <button className={chip(taste === 'savory')} onClick={() => setTaste(taste === 'savory' ? 'all' : 'savory')} aria-label="Savoury">🧂</button>
+                  <button className={chip(taste === 'sweet')} onClick={() => setTaste(taste === 'sweet' ? 'all' : 'sweet')} aria-label="Sweet">🍡</button>
                 </>
               )}
-              <button className={chip(hideVisited)} onClick={() => setHideVisited(!hideVisited)}>Hide visited</button>
+              <button className={chip(hideVisited) + ' inline-flex items-center gap-1'} onClick={() => setHideVisited(!hideVisited)}><EyeOff className="h-3.5 w-3.5" />Been</button>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-stone-500">Sort</span>
+              <ArrowUpDown className="h-4 w-4 text-stone-500" aria-label="Sort" />
               <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}
                 className="rounded-lg border border-stone-300 bg-white px-2 py-1.5">
                 {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
-              <span className="ml-auto text-stone-500">{list.length} place{list.length === 1 ? '' : 's'}</span>
-              <button onClick={exportCsv} disabled={!list.length}
-                className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-stone-700 disabled:opacity-40">⬇ CSV</button>
+              <span className="ml-auto text-stone-500">{list.length}</span>
+              <button onClick={exportCsv} disabled={!list.length} aria-label="Download CSV" title="Download CSV"
+                className="inline-flex items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-stone-700 disabled:opacity-40"><Download className="h-4 w-4" />CSV</button>
             </div>
+            <p className="flex items-center gap-1.5 text-[11px] text-stone-500">
+              <span className="inline-block h-2.5 w-6 rounded-full" style={{ background: 'linear-gradient(90deg,#e2f4e9,#faf7f1,#fde4e6)' }} />
+              cheaper / quicker → pricier / longer, compared with the other {tab === 'restaurant' ? 'restaurants' : 'activities'}
+            </p>
           </div>
 
           {/* List */}
@@ -221,7 +241,7 @@ export default function Home({ me, data, onLogout }: {
                 going={goingSummary(p.id, members, attendees)}
                 imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
                 onImIn={() => toggleGoing(me.id, p)} onGoing={() => setGoingFor(p)}
-                canEdit={canEdit(p)} photoUrls={photoUrls}
+                canEdit={canEdit(p)} photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }}
                 onVote={() => toggleVote(p)} onVisited={() => toggleVisited(p)} onEdit={() => setEditing(p)} />
             ))}
           </div>

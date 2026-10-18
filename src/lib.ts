@@ -238,3 +238,21 @@ export async function uploadPhoto(file: File): Promise<string> {
 export async function claimMember(id: string) {
   await supabase.rpc('claim_member', { member: id })
 }
+
+// ── Comparative tints ──────────────────────────────────
+/** Where `v` sits among `all` (0 = cheapest/shortest, 1 = priciest/longest), or null if not comparable. */
+export function rankOf(v: number | null | undefined, all: number[]): number | null {
+  if (v == null || all.length < 2) return null
+  const below = all.filter((x) => x < v).length, equal = all.filter((x) => x === v).length
+  return (below + (equal - 1) / 2) / (all.length - 1)
+}
+
+/** Soft pastel wash: green (low) → neutral cream (middle) → pink-red (high). Only a tint, to stay on theme. */
+export function tint(r: number | null): { bg: string; fg: string } {
+  if (r == null) return { bg: '#faf8f5', fg: '#1f1a17' }
+  const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t)
+  const lo = [226, 244, 233], mid = [250, 247, 241], hi = [253, 228, 230] // #e2f4e9 · #faf7f1 · #fde4e6
+  const [a, b, t] = r < 0.5 ? [lo, mid, r / 0.5] : [mid, hi, (r - 0.5) / 0.5]
+  const c = a.map((x, i) => lerp(x, b[i], t))
+  return { bg: `rgb(${c.join(',')})`, fg: r < 0.34 ? '#1f6b45' : r > 0.66 ? '#9f1d2c' : '#1f1a17' }
+}

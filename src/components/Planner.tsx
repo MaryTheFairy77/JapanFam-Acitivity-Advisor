@@ -31,37 +31,37 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
     } catch (e) { alert('Could not make the image: ' + (e as Error).message) }
   }
 
-  const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 outline-none focus:border-torii'
-  const label = 'block text-xs font-medium text-stone-600'
+  const input = 'mt-1 block w-full min-w-0 max-w-full appearance-none rounded-xl border border-stone-300 bg-white px-3 py-2 text-base outline-none focus:border-torii'
+  const label = 'block min-w-0 text-xs font-medium text-stone-600'
 
   return (
     <div className="space-y-4 px-4 pt-4">
       <section className="rounded-2xl border border-stone-200 bg-white p-4">
         <h2 className="font-display text-lg">Plan a day</h2>
         <p className="text-sm text-stone-500">Finds every combo that fits your budget & time, best first.</p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <label className={`${label} col-span-2`}>Home base
+        <div className="mt-3 grid grid-cols-2 gap-3 [&>*]:min-w-0">
+          <label className={`${label} col-span-2`}>🏯 Home base
             <select className={input} value={hotel} onChange={(e) => setHotel(e.target.value as HotelId)}>
               {HOTEL_IDS.map((h) => <option key={h} value={h}>{HOTELS[h].name}</option>)}
             </select>
           </label>
-          <label className={label}>Budget / person (¥)
+          <label className={label}>💴 Budget / person (¥)
             <input inputMode="numeric" className={input} value={budget} onChange={(e) => setBudget(Number(e.target.value.replace(/\D/g, '')) || 0)} />
             <span className="text-[11px] text-stone-400">{fmtZar(budget)}</span>
           </label>
-          <label className={label}>Hours out
+          <label className={label}>⏳ Hours out
             <input inputMode="decimal" className={input} value={hours} onChange={(e) => setHours(Number(e.target.value) || 0)} />
           </label>
-          <label className={label}>Activities
+          <label className={label}>🎢 Activities
             <select className={input} value={nAct} onChange={(e) => setNAct(+e.target.value)}>{[0, 1, 2, 3].map((n) => <option key={n}>{n}</option>)}</select>
           </label>
-          <label className={label}>Meals
+          <label className={label}>🍜 Meals
             <select className={input} value={nMeal} onChange={(e) => setNMeal(+e.target.value)}>{[0, 1, 2, 3].map((n) => <option key={n}>{n}</option>)}</select>
           </label>
-          <label className={label}>Leave hotel at
+          <label className={label}>🕘 Leave at
             <input type="time" className={input} value={start} onChange={(e) => setStart(e.target.value)} />
           </label>
-          <label className={label}>Best by
+          <label className={label}>🏆 Best by
             <select className={input} value={goal} onChange={(e) => setGoal(e.target.value as Goal)}>
               <option value="votes">👍 Most votes</option><option value="cheap">¥ Cheapest</option><option value="time">⏱ Least time</option>
             </select>
@@ -80,7 +80,7 @@ export default function Planner({ places, voteCount }: { places: Place[]; voteCo
       {plans.length === 0 && (
         <div className="rounded-2xl border-2 border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">
           {short
-            ? <>There {short.startsWith('only 1 ') ? 'is' : 'are'} {short} near {HOTELS[hotel].city} so far. Lower the number of stops or add more places.</>
+            ? <>There {/^only 1 |^no [^,]*restaurants?$|^no activities$/.test(short) && !short.includes(' and ') && short.startsWith('only 1 ') ? 'is' : 'are'} {short} near {HOTELS[hotel].city} so far. Lower the number of stops or add more places.</>
             : <>No combo fits. Try a bigger budget, more hours or fewer stops.</>}
         </div>
       )}

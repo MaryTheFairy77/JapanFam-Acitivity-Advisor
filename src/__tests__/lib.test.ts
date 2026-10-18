@@ -58,3 +58,22 @@ describe('missingFields', () => {
   })
   it('a complete activity needs nothing', () => expect(missingFields(place())).toEqual([]))
 })
+
+import { rankOf, tint } from '../lib'
+describe('comparative tints', () => {
+  it('ranks within the group', () => {
+    expect(rankOf(100, [100, 200, 300])).toBe(0)
+    expect(rankOf(300, [100, 200, 300])).toBe(1)
+    expect(rankOf(200, [100, 200, 300])).toBe(0.5)
+  })
+  it('ties share the middle rank', () => expect(rankOf(5, [5, 5])).toBe(0.5))
+  it('not comparable → null', () => {
+    expect(rankOf(null, [1, 2])).toBeNull()
+    expect(rankOf(1, [1])).toBeNull()
+  })
+  it('cheap is green-ish, pricey is red-ish, middle is neutral', () => {
+    expect(tint(0).fg).toBe('#1f6b45')
+    expect(tint(1).fg).toBe('#9f1d2c')
+    expect(tint(0.5).bg).toBe('rgb(250,247,241)')
+  })
+})

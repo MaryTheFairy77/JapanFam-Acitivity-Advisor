@@ -89,8 +89,8 @@ export function buildPlans(o: PlanOptions) {
     : x.minutes - y.minutes || y.votes - x.votes)
 
   const short = [
-    acts.length < o.nAct && `only ${acts.length} activit${acts.length === 1 ? 'y' : 'ies'}`,
-    meals.length < o.nMeal && `only ${meals.length} ${o.halalOnly ? 'halal-friendly ' : ''}restaurant${meals.length === 1 ? '' : 's'}`,
+    acts.length < o.nAct && (acts.length ? `only ${acts.length} activit${acts.length === 1 ? 'y' : 'ies'}` : 'no activities'),
+    meals.length < o.nMeal && `${meals.length ? `only ${meals.length}` : 'no'} ${o.halalOnly ? 'halal-friendly ' : ''}restaurant${meals.length === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' and ')
 
   return { plans: valid.slice(0, 3), considered: acts.length + meals.length, checked, short }

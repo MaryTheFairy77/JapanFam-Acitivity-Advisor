@@ -44,7 +44,7 @@ describe('buildPlans', () => {
     expect(ids).not.toContain('nh')
   })
   it('only uses places in the hotel region', () => {
-    expect(buildPlans({ ...opts, places: [osaka, cheap] }).short).toMatch(/only 0 activities/)
+    expect(buildPlans({ ...opts, places: [osaka, cheap] }).short).toMatch(/no activities/)
   })
   it('skips visited when asked', () => {
     expect(buildPlans({ ...opts, places: [{ ...act, visited: true }, cheap] }).plans).toHaveLength(0)
