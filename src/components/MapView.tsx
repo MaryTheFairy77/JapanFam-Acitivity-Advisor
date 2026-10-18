@@ -42,9 +42,12 @@ export function pastelize(style: StyleSpecification): StyleSpecification {
 
 const ll = (lat: number, lng: number): [number, number] => [lng, lat]
 
-/** Round emoji bubble used for pins (DOM element, no innerHTML with user data). */
+/** Round emoji bubble used for pins (DOM element, no innerHTML with user data).
+ *  The OUTER element is handed to MapLibre, which positions it absolutely — so never style its `position`. */
 function bubble(emoji: string, ring: string, size: number, badge?: number, faded?: boolean) {
+  const outer = document.createElement('div')
   const el = document.createElement('div')
+  outer.appendChild(el)
   Object.assign(el.style, {
     width: `${size}px`, height: `${size}px`, borderRadius: '9999px', background: '#fff', border: `3px solid ${ring}`,
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${size * 0.5}px`,
@@ -62,7 +65,7 @@ function bubble(emoji: string, ring: string, size: number, badge?: number, faded
     b.textContent = String(badge)
     el.appendChild(b)
   }
-  return el
+  return outer
 }
 
 /** Build popup content with textContent only (place names are user input). */
@@ -124,6 +127,9 @@ export default function MapView({ places, voteCount, onOpen }: {
       })
       // compact ⓘ credit (OpenStreetMap licence requires visible credit; full list is in T&Cs → References)
       m.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+      // start collapsed as a small ⓘ (MapLibre opens it on first load)
+      const collapse = () => box.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show')
+      m.once('idle', collapse); setTimeout(collapse, 50)
       m.on('load', () => {
         m.addSource('strings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
         m.addLayer({ id: 'strings', type: 'line', source: 'strings',
