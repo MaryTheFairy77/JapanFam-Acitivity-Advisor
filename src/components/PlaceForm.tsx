@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, setPlannerCode, nearestHotel, parseLatLng, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { useRef, useState } from 'react'
+import Thumb from './Thumb'
+import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, getPlannerCode, normalizeUrl, setPlannerCode, uploadPhoto, displayName, nearestHotel, parseLatLng, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
-export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved }: {
-  me: Member; canDelete: boolean; kind: Kind; place: Place | null; onClose: () => void; onSaved: () => void
+export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
+  me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
+  kind: Kind; place: Place | null; onClose: () => void; onSaved: () => void
 }) {
   const [f, setF] = useState({
     name: place?.name ?? '',
@@ -18,6 +20,7 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
     long_line: place?.long_line ?? '',
     maps_url: place?.maps_url ?? '',
     website_url: place?.website_url ?? '',
+    image_url: place?.image_url ?? '',
     lat: place?.lat ?? null as number | null,
     lng: place?.lng ?? null as number | null,
     visit_minutes: place?.visit_minutes?.toString() ?? '',
@@ -27,6 +30,20 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
   const [err, setErr] = useState<string | null>(null)
   const [pinMsg, setPinMsg] = useState<string | null>(null)
   const [askCode, setAskCode] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const readOnly = !!place && !canEdit
+  const isMine = !!place && place.created_by === me.id
+  // planners editing someone else's place go through the planner code
+  const needsPlannerCode = !!place && !isMine && me.is_admin
+
+  async function onPickPhoto(file?: File) {
+    if (!file) return
+    setUploading(true); setErr(null)
+    try { set('image_url', await uploadPhoto(file)) }
+    catch (e) { setErr('Couldn’t upload that photo: ' + (e as Error).message) }
+    setUploading(false)
+  }
   const [code, setCode] = useState('')
   const set = (k: keyof typeof f, v: unknown) => setF((s) => ({ ...s, [k]: v }))
 
@@ -65,9 +82,11 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    if (!f.name.trim()) return
+    if (!f.name.trim() || readOnly) return
     const maps = normalizeUrl(f.maps_url), web = normalizeUrl(f.website_url)
-    if (maps === false || web === false) { setErr('Links must be normal web links (https://…).'); return }
+    const img = f.image_url.startsWith('storage:') ? f.image_url : normalizeUrl(f.image_url)
+    if (maps === false || web === false || img === false) { setErr('Links must be normal web links (https://…).'); return }
+    if (needsPlannerCode && !getPlannerCode() && !code) { setAskCode(true); setErr('Enter the trip-planner code to save changes to someone else’s place.'); return }
     setBusy(true); setErr(null)
     const row = {
       kind,
@@ -87,12 +106,22 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
       lat: f.lat,
       lng: f.lng,
       visit_minutes: num(f.visit_minutes),
+      image_url: img,
+    }
+    if (needsPlannerCode) {
+      const c = getPlannerCode() ?? code
+      const { data, error } = await supabase.rpc('planner_update_place', { place: place!.id, data: row, code: c })
+      setBusy(false)
+      if (error) setErr(friendly(error.message))
+      else if (data !== true) { setPlannerCode(null); setErr('Wrong trip-planner code.') }
+      else { setPlannerCode(c); onSaved() }
+      return
     }
     const { error } = place
-      ? await supabase.from('places').update(row).eq('id', place.id)
+      ? await supabase.from('places').update(row).eq('id', place.id).select('id').single()
       : await supabase.from('places').insert({ ...row, created_by: me.id })
     setBusy(false)
-    if (error) setErr(friendly(error.message)); else onSaved()
+    if (error) setErr(/0 rows|PGRST116/.test(error.message + error.code) ? 'Only the person who added this (or a trip planner) can change it.' : friendly(error.message)); else onSaved()
   }
 
   async function remove() {
@@ -116,11 +145,32 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
       <form onSubmit={save} onClick={(e) => e.stopPropagation()}
         className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi p-5 sm:rounded-3xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-2xl">{place ? 'Edit' : 'Add'} {kind === 'restaurant' ? 'restaurant' : 'activity'}</h2>
+          <h2 className="font-display text-2xl">{readOnly ? '' : place ? 'Edit ' : 'Add '}{kind === 'restaurant' ? (readOnly ? 'Restaurant' : 'restaurant') : (readOnly ? 'Activity' : 'activity')}</h2>
           <button type="button" onClick={onClose} className="text-2xl text-stone-400">×</button>
         </div>
 
-        <div className="space-y-3">
+        {/* Photo */}
+        <div className="mb-4 flex items-center gap-3">
+          <Thumb place={{ id: place?.id ?? 'new', kind, image_url: f.image_url || null }} photoUrls={photoUrls} className="h-24 w-24 shrink-0" />
+          {!readOnly && (
+            <div className="min-w-0 flex-1 space-y-2">
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPickPhoto(e.target.files?.[0])} />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+                  className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm disabled:opacity-50">{uploading ? 'Uploading…' : '📷 Add photo'}</button>
+                {f.image_url && <button type="button" onClick={() => set('image_url', '')} className="rounded-xl px-3 py-2 text-sm text-stone-500">Remove</button>}
+              </div>
+              <input maxLength={LIMITS.url} inputMode="url" placeholder="…or paste an image link" className={input + ' text-sm'}
+                value={f.image_url.startsWith('storage:') ? '' : f.image_url} onChange={(e) => set('image_url', e.target.value)} />
+            </div>
+          )}
+        </div>
+        {readOnly && (
+          <p className="mb-4 rounded-xl bg-white p-3 text-sm text-stone-600">
+            🔒 Only {creator ? `${creator.emoji} ${displayName(creator)}` : 'the person who added this'} or a trip planner ⭐ can change this place.
+          </p>
+        )}
+        <fieldset disabled={readOnly} className="space-y-3 disabled:opacity-80">
           <label className={label}>Name *<input autoFocus maxLength={LIMITS.name} className={input} value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
           <label className={label}>Specialty / description<input maxLength={LIMITS.description} className={input} value={f.description} onChange={(e) => set('description', e.target.value)} /></label>
           <label className={label}>📍 Google Maps link
@@ -189,8 +239,7 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
               placeholder={kind === 'restaurant' ? 'default 60' : 'default 120'} />
           </label>
           <label className={label}>Long line? / notes<input maxLength={LIMITS.longLine} className={input} value={f.long_line} onChange={(e) => set('long_line', e.target.value)} placeholder="e.g. Yes – go before 11am" /></label>
-        </div>
-
+        </fieldset>
         {askCode && !getPlannerCode() && (
           <label className="mt-4 block rounded-xl bg-white p-3 text-sm font-medium text-stone-700">⭐ Trip-planner code (needed to delete)
             <input type="password" autoFocus value={code} onChange={(e) => setCode(e.target.value)} className={input} />
@@ -199,9 +248,9 @@ export default function PlaceForm({ me, canDelete, kind, place, onClose, onSaved
         {err && <p className="mt-3 text-sm text-torii">{err}</p>}
         <div className="mt-5 flex gap-2">
           {place && canDelete && <button type="button" onClick={remove} className="rounded-xl px-4 py-3 text-sm text-torii hover:bg-torii/10">Delete</button>}
-          <button disabled={busy || !f.name.trim()} className="ml-auto flex-1 rounded-xl bg-torii py-3 font-medium text-white disabled:opacity-40 sm:flex-none sm:px-8">
+          {!readOnly && <button disabled={busy || uploading || !f.name.trim()} className="ml-auto flex-1 rounded-xl bg-torii py-3 font-medium text-white disabled:opacity-40 sm:flex-none sm:px-8">
             {busy ? 'Saving…' : 'Save'}
-          </button>
+          </button>}
         </div>
       </form>
     </div>

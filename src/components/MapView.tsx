@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, regionOf, safeUrl, type Place, type Region } from '../lib'
+import { HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -69,9 +69,16 @@ function bubble(emoji: string, ring: string, size: number, badge?: number, faded
 }
 
 /** Build popup content with textContent only (place names are user input). */
-function popupFor(p: Place, votes: number, onOpen: () => void) {
+function popupFor(p: Place, votes: number, photo: string | undefined, onOpen: () => void) {
   const root = document.createElement('div')
   root.style.minWidth = '170px'
+  if (photo) {
+    const img = document.createElement('img')
+    img.src = photo; img.alt = ''; img.referrerPolicy = 'no-referrer'
+    Object.assign(img.style, { width: '100%', height: '96px', objectFit: 'cover', borderRadius: '10px', marginBottom: '6px', display: 'block' })
+    img.onerror = () => img.remove()
+    root.appendChild(img)
+  }
   const line = (text: string, style: Partial<CSSStyleDeclaration> = {}) => {
     const d = document.createElement('div'); d.textContent = text; Object.assign(d.style, style); root.appendChild(d)
   }
@@ -95,8 +102,8 @@ function popupFor(p: Place, votes: number, onOpen: () => void) {
   return root
 }
 
-export default function MapView({ places, voteCount, onOpen }: {
-  places: Place[]; voteCount: Record<string, number>; onOpen: (p: Place) => void
+export default function MapView({ places, voteCount, photoUrls, onOpen }: {
+  places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
@@ -161,7 +168,8 @@ export default function MapView({ places, voteCount, onOpen }: {
 
     for (const p of visible) {
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
-      popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0, () => { popup.remove(); openRef.current(p) }))
+      popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0,
+        isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { popup.remove(); openRef.current(p) }))
       add(bubble(p.kind === 'restaurant' ? '🍜' : '🎢', p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34, voteCount[p.id], p.visited),
         p.lat!, p.lng!, popup)
     }
@@ -182,7 +190,7 @@ export default function MapView({ places, voteCount, onOpen }: {
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
-  }, [visible, voteCount, ready])
+  }, [visible, voteCount, photoUrls, ready])
 
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`

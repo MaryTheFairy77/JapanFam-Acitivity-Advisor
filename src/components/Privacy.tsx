@@ -10,7 +10,7 @@ export default function Privacy({ className = '' }: { className?: string }) {
         <div className="mt-2 space-y-2 rounded-xl bg-white/70 p-3 text-stone-600">
           <p><b>What we store:</b> your first name (or a nickname you choose), an emoji avatar, whether you're an adult, teen or kid,
             your votes, which places you're going to, and places the family adds. <b>Never</b> stored: surnames, phone numbers, emails,
-            passwords, photos, or your location.</p>
+            passwords, photos of people (please only add photos of places/food), or your location.</p>
           <p><b>Who can see it:</b> only phones that entered the family code. This is enforced inside the database itself
             (row-level security). Without the code the database returns nothing, even to someone who has the link.
             Everyone in the family can see everything in the app, so please don't add passport numbers, bookings or other sensitive info.</p>
@@ -18,7 +18,8 @@ export default function Privacy({ className = '' }: { className?: string }) {
           <ul className="list-disc space-y-1 pl-4">
             <li>The family code and the trip-planner code are stored only as one-way hashes (bcrypt), never in plain text.</li>
             <li>After 5 wrong codes a phone is locked out for 15 minutes, and each wrong try is slowed down.</li>
-            <li>Only trip planners (with their own code) can delete places or add people. Everyone else can only change nicknames and avatars, and add, edit, vote on and tick places.</li>
+            <li>Each phone is linked to the person who picked their name. You can change only your own nickname/avatar and edit only places you added; trip planners (with their own code) can edit or delete any place and add people. Anyone in the family can add places, vote, tick "visited" and mark who's going.</li>
+            <li>Photos are stored in a private folder in the same database and are shown through short-lived private links (12 hours), never public URLs. Photos are shrunk before upload, which also removes hidden camera/location data.</li>
             <li>The database rejects unsafe links and oversized or invalid entries.</li>
             <li>All traffic is encrypted (HTTPS), and the database provider encrypts stored data.</li>
             <li>No ads, no analytics and no tracking cookies. Your phone only remembers who you picked and its family-code session.</li>
@@ -33,7 +34,8 @@ export default function Privacy({ className = '' }: { className?: string }) {
             <li>Map tiles: <a className="underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> © <a className="underline" href="https://openmaptiles.org" target="_blank" rel="noreferrer">OpenMapTiles</a>, rendered with <a className="underline" href="https://maplibre.org" target="_blank" rel="noreferrer">MapLibre</a>; pastel colours are our own</li>
             <li>Place search: <a className="underline" href="https://nominatim.org" target="_blank" rel="noreferrer">Nominatim</a> (OpenStreetMap)</li>
             <li>Fonts: Fraunces and Inter via Google Fonts (SIL Open Font License)</li>
-            <li>Illustrations, sounds and music: made for this app (sounds are generated live in your browser)</li>
+            <li>Illustrations, placeholder art, sounds and music: original, made for this app (sounds are generated live in your browser)</li>
+            <li>Place photos: taken or linked by family members</li>
             <li>Built with React, Vite, Tailwind CSS and Supabase; hosted on Vercel</li>
           </ul>
         </div>
