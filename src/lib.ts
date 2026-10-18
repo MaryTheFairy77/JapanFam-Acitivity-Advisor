@@ -51,6 +51,7 @@ export interface Place {
   taste: 'sweet' | 'savory' | 'both' | null
   maps_url: string | null
   website_url: string | null
+  image_url: string | null
   lat: number | null
   lng: number | null
   visit_minutes: number | null
@@ -209,3 +210,31 @@ export const getPlannerCode = () => plannerCode
 export const setPlannerCode = (c: string | null) => { plannerCode = c }
 
 export const LIMITS = { name: 120, description: 500, short: 200, longLine: 300, url: 2000, nickname: 20 } as const
+
+// ── Photos ─────────────────────────────────────────────
+export const PHOTO_BUCKET = 'place-photos'
+export const isStoragePhoto = (u: string | null | undefined): u is string => !!u && u.startsWith('storage:')
+
+/** Shrink a phone photo to ≤1280px JPEG (keeps uploads small and strips EXIF/location data). */
+export async function compressImage(file: File, max = 1280): Promise<Blob> {
+  const bmp = await createImageBitmap(file)
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale)
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('Could not read that photo'))), 'image/jpeg', 0.82))
+}
+
+/** Upload → returns the value to store in places.image_url ("storage:<path>"). */
+export async function uploadPhoto(file: File): Promise<string> {
+  const blob = await compressImage(file)
+  if (blob.size > 3 * 1024 * 1024) throw new Error('Photo is too big, even after shrinking')
+  const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`
+  const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false })
+  if (error) throw error
+  return `storage:${path}`
+}
+
+export async function claimMember(id: string) {
+  await supabase.rpc('claim_member', { member: id })
+}

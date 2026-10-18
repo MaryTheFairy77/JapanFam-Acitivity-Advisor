@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, displayName, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HOTELS, HOTEL_IDS, claimMember, displayName, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
@@ -32,7 +32,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 export default function Home({ me, data, onLogout }: {
   me: Member; data: ReturnType<typeof useData>; onLogout: () => void
 }) {
-  const { members, places, votes, attendees, refresh, setPlaces, setVotes, setAttendees } = data
+  const { members, places, votes, attendees, photoUrls, refresh, setPlaces, setVotes, setAttendees } = data
   const [tab, setTab] = useState<Tab>('map')
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
@@ -43,6 +43,9 @@ export default function Home({ me, data, onLogout }: {
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
+  // link this phone to the person who picked their name (used for 'only the creator can edit')
+  useEffect(() => { claimMember(me.id) }, [me.id])
+  const canEdit = (p: Place) => me.is_admin || (p.created_by != null && p.created_by === me.id)
   useEffect(() => onPrefs(() => setMusic(getPrefs().ambience)), [])
   const [goingFor, setGoingFor] = useState<Place | null>(null)
 
@@ -96,8 +99,7 @@ export default function Home({ me, data, onLogout }: {
   async function toggleVisited(p: Place) {
     const visited = !p.visited
     setPlaces(places.map((x) => (x.id === p.id ? { ...x, visited } : x)))
-    const { error } = await supabase.from('places')
-      .update({ visited, visited_at: visited ? new Date().toISOString() : null }).eq('id', p.id)
+    const { error } = await supabase.rpc('set_visited', { place: p.id, is_visited: visited })
     if (error) { alert(error.message); refresh() }
   }
 
@@ -162,7 +164,7 @@ export default function Home({ me, data, onLogout }: {
 
       {tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-8rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView places={places} voteCount={voteCount} onOpen={setEditing} />
+          <MapView places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} />
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
@@ -219,6 +221,7 @@ export default function Home({ me, data, onLogout }: {
                 going={goingSummary(p.id, members, attendees)}
                 imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
                 onImIn={() => toggleGoing(me.id, p)} onGoing={() => setGoingFor(p)}
+                canEdit={canEdit(p)} photoUrls={photoUrls}
                 onVote={() => toggleVote(p)} onVisited={() => toggleVisited(p)} onEdit={() => setEditing(p)} />
             ))}
           </div>
@@ -239,7 +242,8 @@ export default function Home({ me, data, onLogout }: {
           onToggle={(id) => toggleGoing(id, goingFor)} />
       )}
       {editing && (
-        <PlaceForm me={me} canDelete={me.is_admin} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
+        <PlaceForm me={me} canDelete={me.is_admin} photoUrls={photoUrls}
+          canEdit={editing === 'new' || canEdit(editing)} creator={editing === 'new' ? undefined : members.find((m) => m.id === editing.created_by)} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
           place={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />
       )}

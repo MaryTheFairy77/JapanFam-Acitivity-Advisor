@@ -1,13 +1,15 @@
+import Thumb from './Thumb'
 import { HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, type Member, type Place } from '../lib'
 
-export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going, imGoing, onVote, onVisited, onEdit, onImIn, onGoing }: {
-  place: Place; rank?: number; voters: Member[]; addedBy?: Member; mine: boolean
+export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going, imGoing, canEdit, photoUrls, onVote, onVisited, onEdit, onImIn, onGoing }: {
+  place: Place; rank?: number; voters: Member[]; addedBy?: Member; mine: boolean; canEdit: boolean; photoUrls: Record<string, string>
   going: { total: number; text: string }; imGoing: boolean
   onVote: () => void; onVisited: () => void; onEdit: () => void; onImIn: () => void; onGoing: () => void
 }) {
   return (
     <article className={`rounded-2xl border bg-white p-4 shadow-sm ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
       <div className="flex gap-3">
+        <Thumb place={p} photoUrls={photoUrls} className={`h-20 w-20 shrink-0 ${p.visited ? 'opacity-70' : ''}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             {rank != null && rank <= 3 && voters.length > 0 && (
@@ -49,7 +51,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
           👥 {going.total ? going.text : 'Nobody yet'} <span className="text-torii">· edit</span>
         </button>
       </div>
-      {missingFields(p).length > 0 && (
+      {canEdit && missingFields(p).length > 0 && (
         <button onClick={onEdit} className="mt-2 block text-left text-xs text-amber-700">
           ✏️ Needs: {missingFields(p).join(', ')}
         </button>
@@ -64,7 +66,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
           {voters.map((v) => <span key={v.id} className="text-base">{v.emoji}</span>)}
         </div>
         <div className="ml-auto flex gap-2">
-          <button onClick={onEdit} className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 hover:bg-stone-100">Edit</button>
+          <button onClick={onEdit} className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 hover:bg-stone-100">{canEdit ? 'Edit' : 'Details'}</button>
           {safeUrl(p.website_url) && (
             <a href={safeUrl(p.website_url)} target="_blank" rel="noreferrer" className="whitespace-nowrap rounded-lg border border-stone-300 px-3 py-1.5 text-sm">🌐 Info</a>
           )}

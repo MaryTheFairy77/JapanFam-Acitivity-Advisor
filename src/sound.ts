@@ -35,7 +35,7 @@ function ac() {
     reverb.buffer = ir
     const wet = ctx.createGain(); wet.gain.value = 0.35; reverb.connect(wet).connect(master)
   }
-  if (ctx.state === 'suspended') ctx.resume()
+  if (ctx.state !== 'running') ctx.resume().catch(() => {}) // 'suspended' or iOS 'interrupted'
   return ctx
 }
 
@@ -92,7 +92,7 @@ export function installClickSounds() {
   document.addEventListener('pointerdown', handler, { passive: true })
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return
-    if (document.hidden) ctx.suspend(); else if (prefs.ambience) ctx.resume()
+    if (document.hidden) ctx.suspend().catch(() => {}); else if (prefs.ambience) ctx.resume().catch(() => {})
   })
 }
 
@@ -161,12 +161,30 @@ export function startAmbience() {
     const sg = c.createGain(); sg.gain.value = 0.035
     const lfo = c.createOscillator(), la = c.createGain(); lfo.frequency.value = 0.07; la.gain.value = 0.015; lfo.connect(la).connect(sg.gain); lfo.start()
     stream.connect(lp).connect(sg).connect(ambBus); stream.start()
-    const loop = () => { const len = phrase(); ambienceTimer = window.setTimeout(loop, (len + 3 + Math.random() * 5) * 1000) }
+    // never let one bad note kill the loop: always schedule the next phrase
+    const loop = () => {
+      let len = 6
+      try { if (ambBus) len = phrase() } catch { /* skip this phrase */ }
+      ambienceTimer = window.setTimeout(loop, (Math.max(2, len) + 3 + Math.random() * 5) * 1000)
+    }
     ambienceTimer = window.setTimeout(loop, 600)
+    startWatchdog()
   } catch { /* audio unavailable */ }
 }
 
+/** Every 4s: if music should be playing but the phone paused the audio engine, wake it back up. */
+let watchdog: number | null = null
+function startWatchdog() {
+  if (watchdog) return
+  watchdog = window.setInterval(() => {
+    if (!prefs.ambience || document.hidden) return
+    if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {})
+    if (!ambienceTimer || !ambBus) { ambienceTimer = null; startAmbience() }
+  }, 4000)
+}
+
 export function stopAmbience() {
+  if (watchdog) { clearInterval(watchdog); watchdog = null }
   if (ambienceTimer) { clearTimeout(ambienceTimer); ambienceTimer = null }
   if (ctx && ambBus) {
     const bus = ambBus, s = stream, now = ctx.currentTime
