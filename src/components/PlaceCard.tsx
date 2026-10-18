@@ -84,7 +84,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
               title={`Added by ${displayName(addedBy)}. They (or a trip planner) can edit it.`}>
               <span className="text-base leading-none">{addedBy.emoji}</span><Pencil className="h-3 w-3 shrink-0" /><span className="truncate">{displayName(addedBy)}</span>
             </span>
-          : <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500" title="From the original list. Trip planners can edit it.">⭐<Pencil className="h-3 w-3" /></span>}
+          : null}
         <div className="ml-auto flex gap-1.5">
           <IconBtn onClick={onEdit} label={canEdit ? 'Edit' : 'Details'} icon={canEdit ? Pencil : Info} />
           {safeUrl(p.website_url) && <IconLink href={safeUrl(p.website_url)!} label="Website" icon={Globe} />}
