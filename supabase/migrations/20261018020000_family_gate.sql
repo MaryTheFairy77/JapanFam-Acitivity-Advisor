@@ -41,9 +41,9 @@ alter table public.family_secret enable row level security;  -- no policies = no
 alter table public.family_access enable row level security;
 revoke all on public.family_secret, public.family_access from anon, authenticated;
 
--- ⬇⬇⬇ CHANGE 'sakura-2026' TO YOUR FAMILY CODE (only the hash is stored) ⬇⬇⬇
-insert into public.family_secret (id, code_hash) values (1, extensions.crypt('sakura-2026', extensions.gen_salt('bf')))
-on conflict (id) do update set code_hash = excluded.code_hash;
+-- ⬇⬇⬇ Set your real family code here when running (only the hash is stored). Re-running never overwrites an existing code. ⬇⬇⬇
+insert into public.family_secret (id, code_hash) values (1, extensions.crypt('CHANGE-ME-family-code', extensions.gen_salt('bf')))
+on conflict (id) do nothing;  -- never overwrite a real code on re-run
 
 create or replace function public.join_family(code text) returns boolean
 language plpgsql security definer set search_path = public, extensions as $$

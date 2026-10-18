@@ -44,7 +44,7 @@ revoke all on public.admin_secret from anon, authenticated;
 
 -- ⬇⬇⬇ CHANGE 'planner-change-me' TO YOUR TRIP-PLANNER CODE ⬇⬇⬇
 insert into public.admin_secret (id, code_hash) values (1, extensions.crypt('planner-change-me', extensions.gen_salt('bf')))
-on conflict (id) do update set code_hash = excluded.code_hash;
+on conflict (id) do nothing;  -- never overwrite a real code on re-run
 
 -- ───────────── 5. Lockout after repeated wrong codes ─────────────
 create table if not exists public.code_attempts (

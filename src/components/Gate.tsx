@@ -31,7 +31,7 @@ export default function Gate({ onUnlocked }: { onUnlocked: () => void }) {
         <h1 className="mt-4 font-display text-4xl">Family code</h1>
         <p className="mt-2 text-stone-600">Enter the code from the family WhatsApp group. You only need to do this once per phone.</p>
         <form onSubmit={submit} className="mt-6">
-          <input autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. sakura-…" autoCapitalize="none" autoCorrect="off"
+          <input autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="Family code" autoCapitalize="none" autoCorrect="off"
             className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3.5 text-lg outline-none focus:border-torii" />
           {err && <p className="mt-2 text-sm text-torii">{err}</p>}
           <button disabled={busy || !code.trim()} className="mt-4 w-full rounded-full bg-torii py-3.5 font-semibold text-white disabled:opacity-40">
