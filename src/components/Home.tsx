@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
@@ -39,6 +39,7 @@ export default function Home({ me, data, onLogout }: {
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [halalOnly, setHalalOnly] = useState(false)
   const [taste, setTaste] = useState<'all' | 'sweet' | 'savory'>('all')
+  const [cat, setCat] = useState<Category | 'all'>('all')
   const [hideVisited, setHideVisited] = useState(false)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
@@ -91,6 +92,7 @@ export default function Home({ me, data, onLogout }: {
       .filter((p) => hotel === 'all' || p.nearest_hotels.includes(hotel))
       .filter((p) => !halalOnly || p.halal === 'Halal certified' || p.halal === 'Muslim friendly')
       .filter((p) => taste === 'all' || p.taste === taste || p.taste === 'both')
+      .filter((p) => p.kind !== 'activity' || cat === 'all' || p.category === cat)
       .filter((p) => !hideVisited || !p.visited)
       .filter((p) => !q || `${p.name} ${p.description ?? ''}`.toLowerCase().includes(q.toLowerCase()))
       .sort((a, b) => {
@@ -102,7 +104,7 @@ export default function Home({ me, data, onLogout }: {
           default: return b.created_at.localeCompare(a.created_at)
         }
       })
-  }, [places, tab, hotel, halalOnly, taste, hideVisited, q, sort, voteCount, est])
+  }, [places, tab, hotel, halalOnly, taste, cat, hideVisited, q, sort, voteCount, est])
 
   async function toggleVote(p: Place) {
     const mine = votes.some((v) => v.place_id === p.id && v.member_id === me.id)
@@ -134,6 +136,7 @@ export default function Home({ me, data, onLogout }: {
       'Estimated wait': p.wait_text,
       'Wait (min)': p.wait_minutes,
       'Time there (min)': p.visit_minutes,
+      ...(p.kind === 'activity' ? { Category: p.category ? CATEGORIES[p.category].label : '' } : {}),
       'Long line': p.long_line,
       Website: p.website_url,
       ...Object.fromEntries(goingSummary(p.id, members, attendees).counts.map((c) => [`Going (${c.g.many})`, c.n])),
@@ -214,6 +217,11 @@ export default function Home({ me, data, onLogout }: {
                   <button className={chip(taste === 'sweet')} onClick={() => setTaste(taste === 'sweet' ? 'all' : 'sweet')} aria-label="Sweet">🍡</button>
                 </>
               )}
+              {tab === 'activity' && CATEGORY_IDS.map((c) => (
+                <button key={c} className={chip(cat === c)} onClick={() => setCat(cat === c ? 'all' : c)} aria-label={CATEGORIES[c].label} title={CATEGORIES[c].label}>
+                  {CATEGORIES[c].emoji}{cat === c ? ` ${CATEGORIES[c].label}` : ''}
+                </button>
+              ))}
               <button className={chip(hideVisited) + ' inline-flex items-center gap-1'} onClick={() => setHideVisited(!hideVisited)}><EyeOff className="h-3.5 w-3.5" />Been</button>
             </div>
             <div className="flex items-center gap-2 text-sm">

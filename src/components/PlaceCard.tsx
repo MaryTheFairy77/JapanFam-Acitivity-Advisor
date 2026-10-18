@@ -1,6 +1,6 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, Info, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet } from 'lucide-react'
 import Thumb from './Thumb'
-import { HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, YELLOW, type Estimates, type Member, type Place } from '../lib'
+import { CATEGORIES, HOTELS, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, YELLOW, type Estimates, type Member, type Place } from '../lib'
 
 type IconT = LucideIcon
 /** 0 = cheapest/closest/shortest in its group, 1 = priciest/furthest/longest; null = not comparable */
@@ -42,6 +42,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
         {p.kind === 'restaurant' && <span className={`rounded-full px-2 py-1 ${auto.has('halal') ? 'ring-1 ring-amber-300' : ''} ${halalTone(p.halal)}`} title={auto.has('halal') ? 'From OpenStreetMap, not yet confirmed' : undefined}>☪︎ {p.halal ?? 'Unknown'}{auto.has('halal') && ' ✨'}</span>}
+        {p.kind === 'activity' && p.category && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{CATEGORIES[p.category].emoji} {CATEGORIES[p.category].label}</span>}
         {p.taste && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{p.taste === 'sweet' ? '🍡' : p.taste === 'savory' ? '🧂' : '🍡🧂'}</span>}
         {p.visit_minutes != null && <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-stone-700"><Clock className="h-3 w-3" />{fmtMin(p.visit_minutes)}</span>}
         {p.nearest_hotels.map((h) => (

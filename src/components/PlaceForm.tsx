@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, km, mapsSearchLink, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, estimateTravel, km, mapsSearchLink, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, onClose, onSaved }: {
   me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -21,6 +21,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     maps_url: place?.maps_url ?? '',
     website_url: place?.website_url ?? '',
     image_url: place?.image_url ?? '',
+    category: place?.category ?? '',
     lat: place?.lat ?? null as number | null,
     lng: place?.lng ?? null as number | null,
     visit_minutes: place?.visit_minutes?.toString() ?? '',
@@ -157,6 +158,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
       lng: fv.lng,
       visit_minutes: num(fv.visit_minutes),
       image_url: img,
+      category: kind === 'activity' ? (fv.category || null) : null,
       auto_fields: [...autoNow],
       auto_sources: autoNow.size ? place?.auto_sources ?? null : null,
     }
@@ -272,6 +274,19 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
             </div>
           )}
 
+          {kind === 'activity' && (
+            <div>
+              <span className={label}>What kind of activity?</span>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {CATEGORY_IDS.map((c) => (
+                  <button type="button" key={c} onClick={() => set('category', f.category === c ? '' : c)}
+                    className={`rounded-full border px-3 py-1.5 text-sm ${f.category === c ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white'}`}>
+                    {CATEGORIES[c].emoji} {CATEGORIES[c].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <span className={label}>Nearest hotel(s)<AutoHint g="nearest_hotels" /></span>
             <div className="mt-1 flex flex-wrap gap-2">

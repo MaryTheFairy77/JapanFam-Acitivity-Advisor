@@ -56,6 +56,7 @@ export interface Place {
   image_url: string | null
   auto_fields: AutoField[]
   auto_sources: string | null
+  category: Category | null
   lat: number | null
   lng: number | null
   visit_minutes: number | null
@@ -260,6 +261,16 @@ export function tint(r: number | null): { bg: string; fg: string } {
   const c = a.map((x, i) => lerp(x, b[i], t))
   return { bg: `rgb(${c.join(',')})`, fg: r < 0.34 ? '#1f6b45' : r > 0.66 ? '#9f1d2c' : '#1f1a17' }
 }
+
+export type Category = 'shopping' | 'food' | 'fun' | 'culture' | 'nature'
+export const CATEGORIES: Record<Category, { emoji: string; label: string }> = {
+  shopping: { emoji: '🛍️', label: 'Shopping' },
+  food: { emoji: '🍡', label: 'Food & treats' },
+  fun: { emoji: '🎢', label: 'Fun' },
+  culture: { emoji: '⛩️', label: 'Culture' },
+  nature: { emoji: '🌿', label: 'Nature' },
+}
+export const CATEGORY_IDS = Object.keys(CATEGORIES) as Category[]
 
 export const isKid = (m: Pick<Member, 'grp'>) => m.grp === 'kid'
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type Place, type Region } from '../lib'
+import { CATEGORIES, HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -44,17 +44,25 @@ const ll = (lat: number, lng: number): [number, number] => [lng, lat]
 
 /** Round emoji bubble used for pins (DOM element, no innerHTML with user data).
  *  The OUTER element is handed to MapLibre, which positions it absolutely — so never style its `position`. */
-function bubble(emoji: string, ring: string, size: number, badge?: number, faded?: boolean) {
+function bubble(emoji: string, ring: string, size: number, badge?: number, faded?: boolean, generated?: boolean) {
   const outer = document.createElement('div')
   const el = document.createElement('div')
   outer.appendChild(el)
   Object.assign(el.style, {
-    width: `${size}px`, height: `${size}px`, borderRadius: '9999px', background: '#fff', border: `3px solid ${ring}`,
+    width: `${size}px`, height: `${size}px`, borderRadius: '9999px', background: generated ? '#fdf4c8' : '#fff',
+    border: generated ? '3px dashed #e0a800' : `3px solid ${ring}`,
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${size * 0.5}px`,
     boxShadow: '0 3px 8px rgba(0,0,0,.18)', position: 'relative', cursor: 'pointer',
     opacity: faded ? '0.55' : '1', filter: faded ? 'grayscale(.6)' : 'none',
   })
   el.textContent = emoji
+  if (generated) {
+    el.title = 'Location found automatically (✨ not yet confirmed)'
+    const g = document.createElement('span')
+    Object.assign(g.style, { position: 'absolute', bottom: '-6px', right: '-6px', fontSize: '11px' })
+    g.textContent = '✨'
+    el.appendChild(g)
+  }
   if (badge) {
     const b = document.createElement('span')
     Object.assign(b.style, {
@@ -170,7 +178,8 @@ export default function MapView({ places, voteCount, photoUrls, onOpen }: {
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
       popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0,
         isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { popup.remove(); openRef.current(p) }))
-      add(bubble(p.kind === 'restaurant' ? '🍜' : '🎢', p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34, voteCount[p.id], p.visited),
+      add(bubble(p.kind === 'restaurant' ? '🍜' : p.category ? CATEGORIES[p.category].emoji : '🎢', p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34,
+        voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
         p.lat!, p.lng!, popup)
     }
     for (const id of HOTEL_IDS) {
