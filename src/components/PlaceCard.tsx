@@ -1,0 +1,71 @@
+import { HOTELS, fmtMin, fmtYen, fmtZar, halalTone, type Member, type Place } from '../lib'
+
+export default function PlaceCard({ place: p, rank, voters, addedBy, mine, onVote, onVisited, onEdit }: {
+  place: Place; rank?: number; voters: Member[]; addedBy?: Member; mine: boolean
+  onVote: () => void; onVisited: () => void; onEdit: () => void
+}) {
+  return (
+    <article className={`rounded-2xl border bg-white p-4 shadow-sm ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
+      <div className="flex gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            {rank != null && rank <= 3 && voters.length > 0 && (
+              <span className="text-xs font-semibold text-torii">#{rank}</span>
+            )}
+            <h3 className={`font-display text-lg leading-snug ${p.visited ? 'text-stone-500' : ''}`}>{p.name}</h3>
+          </div>
+          {p.description && <p className="mt-0.5 text-sm text-stone-600">{p.description}</p>}
+        </div>
+        {/* Upvote */}
+        <button onClick={onVote} aria-pressed={mine}
+          className={`flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition active:scale-90 ${mine ? 'border-torii bg-torii text-white' : 'border-stone-300 text-stone-700'}`}>
+          <span className="text-base leading-none">▲</span>{voters.length}
+        </button>
+      </div>
+
+      {/* Key facts */}
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <Fact label="Per person" value={fmtYen(p.price_jpy)} sub={fmtZar(p.price_jpy)} />
+        <Fact label="Travel" value={fmtMin(p.travel_minutes)} sub={p.travel_text ?? ''} />
+        <Fact label="Wait" value={fmtMin(p.wait_minutes)} sub={p.wait_text ?? ''} />
+      </dl>
+
+      <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+        {p.kind === 'restaurant' && <span className={`rounded-full px-2 py-1 ${halalTone(p.halal)}`}>{p.halal ?? 'Halal: unknown'}</span>}
+        {p.taste && <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{p.taste === 'sweet' ? '🍡 Sweet' : p.taste === 'savory' ? '🧂 Savoury' : '🍡🧂 Both'}</span>}
+        {p.nearest_hotels.map((h) => (
+          <a key={h} href={HOTELS[h].maps} target="_blank" rel="noreferrer" className="rounded-full bg-sky-50 px-2 py-1 text-sky-800">🏨 {HOTELS[h].short}</a>
+        ))}
+      </div>
+      {p.long_line && <p className="mt-2 text-xs text-stone-500"><b>Lines:</b> {p.long_line}</p>}
+
+      <div className="mt-3 flex items-center gap-2 border-t border-stone-100 pt-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" checked={p.visited} onChange={onVisited} className="h-5 w-5 accent-emerald-600" />
+          <span className={p.visited ? 'text-emerald-700' : 'text-stone-600'}>{p.visited ? 'Visited ✓' : 'Visited?'}</span>
+        </label>
+        <div className="ml-1 flex -space-x-1" title={voters.map((v) => v.name).join(', ')}>
+          {voters.map((v) => <span key={v.id} className="text-base">{v.emoji}</span>)}
+        </div>
+        <div className="ml-auto flex gap-2">
+          <button onClick={onEdit} className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 hover:bg-stone-100">Edit</button>
+          {p.maps_url && (
+            <a href={p.maps_url} target="_blank" rel="noreferrer"
+              className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white">📍 Maps</a>
+          )}
+        </div>
+      </div>
+      {addedBy && <p className="mt-2 text-[11px] text-stone-400">Added by {addedBy.emoji} {addedBy.name}</p>}
+    </article>
+  )
+}
+
+function Fact({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-xl bg-stone-50 px-2 py-2">
+      <dt className="text-[10px] uppercase tracking-wide text-stone-500">{label}</dt>
+      <dd className="font-semibold">{value}</dd>
+      {sub && <dd className="truncate text-[11px] text-stone-500" title={sub}>{sub}</dd>}
+    </div>
+  )
+}
