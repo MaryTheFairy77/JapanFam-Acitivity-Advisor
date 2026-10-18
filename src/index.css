@@ -16,3 +16,8 @@ body {
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
+
+/* washi-tinted map tiles */
+.japan-map .leaflet-tile-pane { filter: saturate(0.75) sepia(0.12) brightness(1.03); }
+.japan-map { background: #f3ede2; font-family: var(--font-sans); }
+.leaflet-popup-content-wrapper { border-radius: 14px; }

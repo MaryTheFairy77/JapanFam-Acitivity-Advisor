@@ -1,4 +1,4 @@
-import { HOTELS, fmtMin, fmtYen, fmtZar, halalTone, type Member, type Place } from '../lib'
+import { HOTELS, fmtMin, fmtYen, fmtZar, halalTone, missingFields, type Member, type Place } from '../lib'
 
 export default function PlaceCard({ place: p, rank, voters, addedBy, mine, onVote, onVisited, onEdit }: {
   place: Place; rank?: number; voters: Member[]; addedBy?: Member; mine: boolean
@@ -38,6 +38,11 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, onVot
         ))}
       </div>
       {p.long_line && <p className="mt-2 text-xs text-stone-500"><b>Lines:</b> {p.long_line}</p>}
+      {missingFields(p).length > 0 && (
+        <button onClick={onEdit} className="mt-2 block text-left text-xs text-amber-700">
+          ✏️ Needs: {missingFields(p).join(', ')}
+        </button>
+      )}
 
       <div className="mt-3 flex items-center gap-2 border-t border-stone-100 pt-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm">

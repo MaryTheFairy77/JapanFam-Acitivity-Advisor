@@ -1,11 +1,21 @@
 import { useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { HOTELS, HOTEL_IDS, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import Stats from './Stats'
+import MapView from './MapView'
+import Planner from './Planner'
 
-type Tab = Kind | 'stats'
+type Tab = Kind | 'stats' | 'map' | 'plan'
+
+const TABS: { key: Tab; icon: string; label: string }[] = [
+  { key: 'map', icon: '🗾', label: 'Map' },
+  { key: 'restaurant', icon: '🍜', label: 'Food' },
+  { key: 'activity', icon: '🎢', label: 'Do' },
+  { key: 'plan', icon: '🗓️', label: 'Plan' },
+  { key: 'stats', icon: '📊', label: 'Compare' },
+]
 type SortKey = 'votes' | 'price' | 'travel' | 'wait' | 'newest'
 
 const SORTS: { key: SortKey; label: string }[] = [
@@ -20,7 +30,7 @@ export default function Home({ me, data, onLogout }: {
   me: Member; data: ReturnType<typeof useData>; onLogout: () => void
 }) {
   const { members, places, votes, refresh, setPlaces, setVotes } = data
-  const [tab, setTab] = useState<Tab>('restaurant')
+  const [tab, setTab] = useState<Tab>('map')
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [halalOnly, setHalalOnly] = useState(false)
@@ -36,7 +46,7 @@ export default function Home({ me, data, onLogout }: {
   }, [votes])
 
   const list = useMemo(() => {
-    if (tab === 'stats') return []
+    if (tab !== 'restaurant' && tab !== 'activity') return []
     const nullsLast = (a: number | null, b: number | null) =>
       a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : a - b
     return places
@@ -75,27 +85,60 @@ export default function Home({ me, data, onLogout }: {
     if (error) { alert(error.message); refresh() }
   }
 
+  function exportCsv() {
+    downloadCsv(`japanfam-${tab}-${new Date().toISOString().slice(0, 10)}.csv`, list.map((p) => ({
+      Name: p.name,
+      'Specialty / Description': p.description,
+      'Price per person (JPY)': p.price_jpy,
+      ...(p.kind === 'restaurant' ? { 'Halal-ness': p.halal, 'Sweet / Savory': p.taste } : {}),
+      'Nearest Hotel': p.nearest_hotels.map((h) => HOTELS[h].name),
+      'Distance from Nearest Hotel': p.travel_text,
+      'Travel (min)': p.travel_minutes,
+      'Estimated wait': p.wait_text,
+      'Wait (min)': p.wait_minutes,
+      'Time there (min)': p.visit_minutes,
+      'Long line': p.long_line,
+      Votes: voteCount[p.id] ?? 0,
+      'Voted by': members.filter((m) => votes.some((v) => v.place_id === p.id && v.member_id === m.id)).map((m) => m.name),
+      Visited: p.visited ? 'Yes' : 'No',
+      Lat: p.lat,
+      Lng: p.lng,
+      Pin: p.maps_url,
+    })))
+  }
+
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`
 
   return (
-    <div className="mx-auto max-w-2xl pb-28">
+    <div className={`mx-auto max-w-2xl ${tab === 'map' ? '' : 'pb-40'}`}>
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-stone-200 bg-washi/90 px-4 pb-2 pt-4 backdrop-blur">
+      <header className="sticky top-0 z-[600] border-b border-stone-200 bg-washi/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">JapanFam <span className="text-torii">●</span></h1>
           <button onClick={onLogout} className="flex items-center gap-2 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-3 text-sm">
             <span className="text-lg">{me.emoji}</span>{me.name}<span className="text-stone-400">· switch</span>
           </button>
         </div>
-        <nav className="mt-3 grid grid-cols-3 rounded-xl bg-stone-200/70 p-1 text-sm font-medium">
-          {([['restaurant', '🍜 Food'], ['activity', '🎢 Activities'], ['stats', '📊 Compare']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} className={`rounded-lg py-2 ${tab === k ? 'bg-white shadow-sm' : 'text-stone-600'}`}>{l}</button>
-          ))}
-        </nav>
       </header>
 
-      {tab === 'stats' ? (
+      {/* Bottom tab bar */}
+      <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <div className="mx-auto grid max-w-2xl grid-cols-5">
+          {TABS.map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${tab === t.key ? 'text-torii' : 'text-stone-500'}`}>
+              <span className={`text-xl transition ${tab === t.key ? 'scale-110' : 'grayscale-[60%]'}`}>{t.icon}</span>{t.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {tab === 'map' ? (
+        <MapView places={places} voteCount={voteCount} onOpen={(p) => setEditing(p)} />
+      ) : tab === 'plan' ? (
+        <Planner places={places} voteCount={voteCount} />
+      ) : tab === 'stats' ? (
         <Stats places={places} votes={votes} members={members} voteCount={voteCount} />
       ) : (
         <>
@@ -126,6 +169,8 @@ export default function Home({ me, data, onLogout }: {
                 {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
               <span className="ml-auto text-stone-500">{list.length} place{list.length === 1 ? '' : 's'}</span>
+              <button onClick={exportCsv} disabled={!list.length}
+                className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-stone-700 disabled:opacity-40">⬇ CSV</button>
             </div>
           </div>
 
@@ -146,14 +191,14 @@ export default function Home({ me, data, onLogout }: {
           </div>
 
           <button onClick={() => setEditing('new')}
-            className="fixed bottom-6 right-1/2 z-30 translate-x-1/2 rounded-full bg-torii px-6 py-3.5 font-medium text-white shadow-lg shadow-torii/30 active:scale-95">
+            className="fixed bottom-20 right-1/2 z-30 mb-[env(safe-area-inset-bottom)] translate-x-1/2 rounded-full bg-torii px-6 py-3.5 font-medium text-white shadow-lg shadow-torii/30 active:scale-95">
             + Add {tab === 'restaurant' ? 'restaurant' : 'activity'}
           </button>
         </>
       )}
 
       {editing && (
-        <PlaceForm me={me} kind={editing === 'new' ? (tab === 'stats' ? 'restaurant' : tab) : editing.kind}
+        <PlaceForm me={me} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
           place={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />
       )}
