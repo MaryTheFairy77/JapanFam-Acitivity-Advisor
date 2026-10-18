@@ -18,7 +18,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
           {p.description && <p className="mt-0.5 text-sm text-stone-600">{p.description}</p>}
         </div>
         {/* Upvote */}
-        <button onClick={onVote} aria-pressed={mine}
+        <button onClick={onVote} aria-pressed={mine} data-sound={mine ? 'unvote' : 'vote'}
           className={`flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition active:scale-90 ${mine ? 'border-torii bg-torii text-white' : 'border-stone-300 text-stone-700'}`}>
           <span className="text-base leading-none">▲</span>{voters.length}
         </button>
@@ -41,7 +41,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
       {p.long_line && <p className="mt-2 text-xs text-stone-500"><b>Lines:</b> {p.long_line}</p>}
       {/* Who's going */}
       <div className="mt-3 flex items-center gap-2 rounded-xl bg-stone-50 p-2">
-        <button onClick={onImIn}
+        <button onClick={onImIn} data-sound="pop"
           className={`rounded-lg px-3 py-1.5 text-sm font-medium ${imGoing ? 'bg-emerald-600 text-white' : 'border border-stone-300 bg-white text-stone-700'}`}>
           {imGoing ? '✓ I’m in' : 'I’m in'}
         </button>
@@ -57,7 +57,7 @@ export default function PlaceCard({ place: p, rank, voters, addedBy, mine, going
 
       <div className="mt-3 flex items-center gap-2 border-t border-stone-100 pt-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" checked={p.visited} onChange={onVisited} className="h-5 w-5 accent-emerald-600" />
+          <input type="checkbox" checked={p.visited} onChange={onVisited} data-sound={p.visited ? 'tap' : 'bell'} className="h-5 w-5 accent-emerald-600" />
           <span className={p.visited ? 'text-emerald-700' : 'text-stone-600'}>{p.visited ? 'Visited ✓' : 'Visited?'}</span>
         </label>
         <div className="ml-1 flex -space-x-1" title={voters.map(displayName).join(', ')}>

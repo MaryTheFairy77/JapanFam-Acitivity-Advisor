@@ -16,7 +16,7 @@ export default function App() {
     try { return localStorage.getItem(KEY) } catch { return null }
   })
 
-  useEffect(() => { isFamily().then(setUnlocked) }, [])
+  useEffect(() => { isFamily().then(setUnlocked); import('./components/MapView') /* preload during splash */ }, [])
   useEffect(() => {
     try { memberId ? localStorage.setItem(KEY, memberId) : localStorage.removeItem(KEY) } catch { /* ignore */ }
   }, [memberId])

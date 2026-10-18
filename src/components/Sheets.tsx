@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { EMOJIS, GROUPS, LIMITS, displayName, getPlannerCode, setPlannerCode, supabase, type Group, type Attendee, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
+import { getPrefs, setPrefs } from '../sound'
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -57,6 +58,7 @@ export function ProfileSheet({ me, onClose, onSaved, onSwitch }: {
         {busy ? 'Saving…' : 'Save'}
       </button>
       <button onClick={onSwitch} className="mt-2 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Switch to someone else</button>
+      <SoundSettings />
       {me.is_admin && <AddMember onAdded={onSaved} />}
       <Privacy className="mt-5" />
     </Sheet>
@@ -137,6 +139,23 @@ function AddMember({ onAdded }: { onAdded: () => void }) {
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
       {msg && <p className="text-sm text-torii">{msg}</p>}
       <button onClick={add} disabled={busy || !name.trim()} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Adding…' : 'Add'}</button>
+    </div>
+  )
+}
+
+function SoundSettings() {
+  const [p, setP] = useState(getPrefs())
+  const toggle = (k: 'clicks' | 'ambience') => { setPrefs({ [k]: !p[k] }); setP(getPrefs()) }
+  const row = (k: 'clicks' | 'ambience', label: string, hint: string) => (
+    <label className="flex items-center justify-between gap-3 py-2">
+      <span><span className="block text-sm font-medium">{label}</span><span className="block text-xs text-stone-500">{hint}</span></span>
+      <input type="checkbox" data-sound="none" checked={p[k]} onChange={() => toggle(k)} className="h-5 w-5 accent-torii" />
+    </label>
+  )
+  return (
+    <div className="mt-3 rounded-2xl bg-white px-3 py-1">
+      {row('clicks', '🔔 Button sounds', 'Soft taps, chimes and bells')}
+      {row('ambience', '🎋 Background music', 'Japanese flute, birds and a stream')}
     </div>
   )
 }

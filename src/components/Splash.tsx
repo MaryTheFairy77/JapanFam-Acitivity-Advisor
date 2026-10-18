@@ -19,7 +19,7 @@ export default function Splash({ cta, onGo }: { cta: string; onGo: () => void })
       <FujiScene className="rise pointer-events-none absolute inset-x-0 bottom-0 h-[34vh] w-full" />
 
       <div className="fade-up absolute inset-x-0 bottom-0 z-10 px-6 pb-[max(2rem,env(safe-area-inset-bottom))]" style={{ animationDelay: '2.2s' }}>
-        <button onClick={onGo}
+        <button onClick={onGo} data-sound="success"
           className="mx-auto block w-full max-w-sm rounded-full bg-torii py-4 text-lg font-semibold text-white shadow-xl shadow-torii/30 transition active:scale-95">
           {cta}
         </button>

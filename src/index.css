@@ -17,10 +17,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* washi-tinted map tiles */
-.japan-map .leaflet-tile-pane { filter: saturate(0.6) sepia(0.15) brightness(1.05) contrast(0.95); }
-.japan-map { background: #f3ede2; font-family: var(--font-sans); }
-.leaflet-popup-content-wrapper { border-radius: 14px; }
+/* map */
+.japan-map { background: #fbf3e6; font-family: var(--font-sans); }
+.maplibregl-popup-content { border-radius: 14px; padding: 10px 12px; font: 13px/1.45 var(--font-sans); box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+.maplibregl-ctrl-attrib.maplibregl-compact { background: rgba(255,255,255,.85); }
 
 /* ── sakura petals ── */
 .petal {

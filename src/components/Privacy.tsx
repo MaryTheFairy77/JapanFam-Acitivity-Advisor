@@ -24,9 +24,18 @@ export default function Privacy({ className = '' }: { className?: string }) {
             <li>No ads, no analytics and no tracking cookies. Your phone only remembers who you picked and its family-code session.</li>
           </ul>
           <p><b>Where it lives:</b> a private Supabase (Postgres) database owned by Maryam, in an Asia-Pacific region. The website is hosted on Vercel.
-            Map tiles come from OpenStreetMap and fonts from Google Fonts. "Find pin" sends only the place name you search to OpenStreetMap.</p>
+            Map tiles come from OpenFreeMap/OpenStreetMap and fonts from Google Fonts. "Find pin" sends only the place name you search to OpenStreetMap.</p>
           <p><b>Your choices:</b> use a nickname instead of your name any time (tap your name at the top right). Ask Maryam to remove
             your data or the whole trip database at any time, including after the trip.</p>
+          <p><b>References &amp; credits:</b></p>
+          <ul className="list-disc space-y-1 pl-4">
+            <li>Map data © <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL)</li>
+            <li>Map tiles: <a className="underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> © <a className="underline" href="https://openmaptiles.org" target="_blank" rel="noreferrer">OpenMapTiles</a>, rendered with <a className="underline" href="https://maplibre.org" target="_blank" rel="noreferrer">MapLibre</a>; pastel colours are our own</li>
+            <li>Place search: <a className="underline" href="https://nominatim.org" target="_blank" rel="noreferrer">Nominatim</a> (OpenStreetMap)</li>
+            <li>Fonts: Fraunces and Inter via Google Fonts (SIL Open Font License)</li>
+            <li>Illustrations, sounds and music: made for this app (sounds are generated live in your browser)</li>
+            <li>Built with React, Vite, Tailwind CSS and Supabase; hosted on Vercel</li>
+          </ul>
         </div>
       </details>
     </div>

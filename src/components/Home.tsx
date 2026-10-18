@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { HOTELS, HOTEL_IDS, displayName, downloadCsv, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import Stats from './Stats'
-import MapView from './MapView'
-import Planner from './Planner'
+const MapView = lazy(() => import('./MapView'))
+const Planner = lazy(() => import('./Planner'))
 import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
 import { WaveBand } from './Art'
+import { getPrefs, onPrefs, setPrefs } from '../sound'
 
 type Tab = Kind | 'stats' | 'map' | 'plan'
 
@@ -41,6 +42,8 @@ export default function Home({ me, data, onLogout }: {
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [music, setMusic] = useState(getPrefs().ambience)
+  useEffect(() => onPrefs(() => setMusic(getPrefs().ambience)), [])
   const [goingFor, setGoingFor] = useState<Place | null>(null)
 
   async function toggleGoing(memberId: string, p: Place) {
@@ -132,9 +135,15 @@ export default function Home({ me, data, onLogout }: {
       <header className="sticky top-0 z-[600] bg-washi/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">JapanFam <span className="text-torii">●</span></h1>
+          <div className="flex items-center gap-2">
+          <button data-sound="none" onClick={() => setPrefs({ ambience: !music })} aria-label={music ? 'Turn off background music' : 'Turn on background music'}
+            className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg ${music ? 'border-torii bg-torii/10' : 'border-stone-300 bg-white grayscale'}`}>
+            {music ? '🎵' : '🔇'}
+          </button>
           <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-3 text-sm">
             <span className="text-lg">{me.emoji}</span>{displayName(me)}{me.is_admin && <span title="Trip planner">⭐</span>}
           </button>
+          </div>
         </div>
       </header>
       <WaveBand />
@@ -143,7 +152,7 @@ export default function Home({ me, data, onLogout }: {
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto grid max-w-2xl grid-cols-5">
           {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <button key={t.key} data-sound="tab" onClick={() => setTab(t.key)}
               className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${tab === t.key ? 'text-torii' : 'text-stone-500'}`}>
               <span className={`text-xl transition ${tab === t.key ? 'scale-110' : 'grayscale-[60%]'}`}>{t.icon}</span>{t.label}
             </button>
@@ -152,9 +161,13 @@ export default function Home({ me, data, onLogout }: {
       </nav>
 
       {tab === 'map' ? (
-        <MapView places={places} voteCount={voteCount} onOpen={(p) => setEditing(p)} />
+        <Suspense fallback={<div className="h-[calc(100dvh-8rem)] animate-pulse bg-[#fbf3e6]" />}>
+          <MapView places={places} voteCount={voteCount} onOpen={setEditing} />
+        </Suspense>
       ) : tab === 'plan' ? (
-        <Planner places={places} voteCount={voteCount} />
+        <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
+          <Planner places={places} voteCount={voteCount} />
+        </Suspense>
       ) : tab === 'stats' ? (
         <Stats places={places} votes={votes} members={members} voteCount={voteCount} />
       ) : (
