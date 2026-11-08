@@ -158,6 +158,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
     return n
   })
   const mosquesOn = layers.mosque
+  const [noteHidden, setNoteHidden] = useState(() => { try { return sessionStorage.getItem('jf-pin-note') === '1' } catch { return false } })
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
@@ -398,9 +399,10 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
           </div>
         </div>
       )}
-      {unpinned > 0 && mode === 'places' && !nearOpen && (
-        <div className="absolute bottom-[5.25rem] left-3 right-3 z-10 rounded-xl bg-white/95 px-3 py-2 text-xs text-stone-600 shadow">
-          📌 {unpinned} place{unpinned === 1 ? '' : 's'} not on the map yet. Open one and tap <b>Find pin</b>.
+      {unpinned > 0 && mode === 'places' && !nearOpen && !noteHidden && (
+        <div className="absolute bottom-[5.25rem] left-3 right-3 z-10 flex items-center gap-2 rounded-xl bg-white/95 px-3 py-1.5 text-xs text-stone-600 shadow">
+          <span className="flex-1">📌 {unpinned} place{unpinned === 1 ? '' : 's'} not on the map yet. Open one and tap <b>Find pin</b>.</span>
+          <button onClick={() => { setNoteHidden(true); try { sessionStorage.setItem('jf-pin-note', '1') } catch { /* ignore */ } }} aria-label="Dismiss" className="text-stone-400"><X className="h-4 w-4" /></button>
         </div>
       )}
     </div>
