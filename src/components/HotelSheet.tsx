@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Building2, Clock, Globe, Images, MapPin, Phone, TrainFront, X } from 'lucide-react'
 import Thumb from './Thumb'
 import { CATEGORIES, HOTELS, catOf, fmtMin, nearestHotel, travelFromPin, type HotelId, type Place } from '../lib'
@@ -39,6 +40,7 @@ export default function HotelSheet({ id, places, photoUrls, onClose, onOpenPlace
   id: HotelId; places: Place[]; photoUrls: Record<string, string>; onClose: () => void; onOpenPlace: (p: Place) => void
 }) {
   const h = HOTELS[id], info = HOTEL_INFO[id]
+  const [all, setAll] = useState(false)
   // places whose closest hotel is this one, nearest first
   const near = places
     .map((p) => ({ p, n: nearestHotel(p) }))
@@ -81,7 +83,7 @@ export default function HotelSheet({ id, places, photoUrls, onClose, onOpenPlace
           </p>
           <div className="mt-2 space-y-1.5">
             {near.length === 0 && <p className="text-sm text-stone-500">Nothing pinned near this hotel yet.</p>}
-            {near.map(({ p }) => {
+            {(all ? near : near.slice(0, 8)).map(({ p }) => {
               const t = travelFromPin({ ...p, nearest_hotels: [id] })
               return (
                 <button key={p.id} onClick={() => onOpenPlace(p)} className="flex w-full items-center gap-3 rounded-xl bg-white p-2 text-left">
@@ -93,6 +95,9 @@ export default function HotelSheet({ id, places, photoUrls, onClose, onOpenPlace
                 </button>
               )
             })}
+            {near.length > 8 && (
+              <button onClick={() => setAll(!all)} className="w-full rounded-xl py-2 text-sm text-torii">{all ? 'Show fewer' : `Show all ${near.length}`}</button>
+            )}
           </div>
         </div>
       </div>
