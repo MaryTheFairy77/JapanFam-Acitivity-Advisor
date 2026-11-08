@@ -46,8 +46,8 @@ export default function Home({ me, data, onLogout }: {
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
   const [viewingId, setViewingId] = useState<string | null>(null) // details sheet (overview → details on demand)
   const viewing = viewingId ? places.find((p) => p.id === viewingId) ?? null : null
-  const [view, setView] = useState<'list' | 'grid'>(() => (localStorage.getItem('jf-view') === 'grid' ? 'grid' : 'list'))
-  useEffect(() => { try { localStorage.setItem('jf-view', view) } catch { /* private mode */ } }, [view])
+  const [view, setView] = useState<'list' | 'grid'>(() => { try { return localStorage.getItem('jf-view2') === 'list' ? 'list' : 'grid' } catch { return 'grid' } })
+  useEffect(() => { try { localStorage.setItem('jf-view2', view) } catch { /* private mode */ } }, [view])
   const [showFilters, setShowFilters] = useState(false)
   const [hotelOpen, setHotelOpen] = useState<HotelId | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -247,9 +247,9 @@ export default function Home({ me, data, onLogout }: {
                 <SlidersHorizontal className="h-4 w-4" />
                 {activeFilters > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-torii text-[10px] text-white">{activeFilters}</span>}
               </button>
-              <div className="flex rounded-xl border border-stone-300 bg-white p-0.5" role="group" aria-label="View">
-                <button onClick={() => setView('list')} aria-pressed={view === 'list'} aria-label="List view" className={`rounded-lg p-1.5 ${view === 'list' ? 'bg-ink text-white' : 'text-stone-500'}`}><List className="h-4 w-4" /></button>
-                <button onClick={() => setView('grid')} aria-pressed={view === 'grid'} aria-label="Photo view" className={`rounded-lg p-1.5 ${view === 'grid' ? 'bg-ink text-white' : 'text-stone-500'}`}><LayoutGrid className="h-4 w-4" /></button>
+              <div className="flex rounded-xl border-2 border-indigo-300 bg-indigo-50 p-0.5 shadow-sm shadow-indigo-200" role="group" aria-label="View">
+                <button onClick={() => setView('grid')} aria-pressed={view === 'grid'} aria-label="Tiles view" title="Tiles" className={`rounded-lg p-1.5 transition ${view === 'grid' ? 'bg-indigo-500 text-white' : 'text-indigo-400'}`}><LayoutGrid className="h-4 w-4" /></button>
+                <button onClick={() => setView('list')} aria-pressed={view === 'list'} aria-label="List view" title="List" className={`rounded-lg p-1.5 transition ${view === 'list' ? 'bg-indigo-500 text-white' : 'text-indigo-400'}`}><List className="h-4 w-4" /></button>
               </div>
             </div>
             <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
