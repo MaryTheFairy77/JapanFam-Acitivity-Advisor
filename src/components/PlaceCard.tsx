@@ -1,6 +1,6 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet, X } from 'lucide-react'
 import Thumb from './Thumb'
-import { CATEGORIES, HOTELS, catOf, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type Member, type Place } from '../lib'
+import { CATEGORIES, HOTELS, catOf, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type HotelId, type Member, type Place } from '../lib'
 
 type IconT = LucideIcon
 /** 0 = cheapest/closest/shortest in its group, 1 = priciest/furthest/longest; null = not comparable */
@@ -101,10 +101,10 @@ export function PlaceTile({ place: p, votes, mine, photoUrls, onVote, onOpen }: 
 }
 
 /** DETAILS ON DEMAND: everything about one place, read-first. Editing is one tap away. */
-export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGoing, canEdit, photoUrls, ranks, est, kidMode, onClose, onVote, onVisited, onEdit, onImIn, onGoing }: {
+export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGoing, canEdit, photoUrls, ranks, est, kidMode, onClose, onVote, onVisited, onEdit, onImIn, onGoing, onHotel }: {
   place: Place; votes: number; mine: boolean; voters: Member[]; owners: Member[]; canEdit: boolean; photoUrls: Record<string, string>
   going: { total: number; text: string }; imGoing: boolean; ranks: Ranks; est: Estimates; kidMode: boolean
-  onClose: () => void; onVote: () => void; onVisited: () => void; onEdit: () => void; onImIn: () => void; onGoing: () => void
+  onClose: () => void; onVote: () => void; onVisited: () => void; onEdit: () => void; onImIn: () => void; onGoing: () => void; onHotel: (id: HotelId) => void
 }) {
   const f = facts(p, est)
   const missing = canEdit ? missingFields(p) : []
@@ -138,9 +138,9 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGo
           {p.nearest_hotels.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {p.nearest_hotels.map((h) => (
-                <a key={h} href={HOTELS[h].maps} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${f.auto.has('nearest_hotels') ? 'bg-[#fdf4c8] text-amber-900' : 'bg-sky-50 text-sky-800'}`}>
+                <button key={h} onClick={() => onHotel(h)} title={`About ${HOTELS[h].name}`} className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${f.auto.has('nearest_hotels') ? 'bg-[#fdf4c8] text-amber-900' : 'bg-sky-50 text-sky-800'}`}>
                   <Hotel className="h-3 w-3" />{HOTELS[h].short}
-                </a>
+                </button>
               ))}
             </div>
           )}

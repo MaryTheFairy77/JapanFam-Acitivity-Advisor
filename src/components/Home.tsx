@@ -3,6 +3,7 @@ import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, clai
 import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
+import HotelSheet from './HotelSheet'
 import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
 const Planner = lazy(() => import('./Planner'))
@@ -48,6 +49,7 @@ export default function Home({ me, data, onLogout }: {
   const [view, setView] = useState<'list' | 'grid'>(() => (localStorage.getItem('jf-view') === 'grid' ? 'grid' : 'list'))
   useEffect(() => { try { localStorage.setItem('jf-view', view) } catch { /* private mode */ } }, [view])
   const [showFilters, setShowFilters] = useState(false)
+  const [hotelOpen, setHotelOpen] = useState<HotelId | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
@@ -201,7 +203,7 @@ export default function Home({ me, data, onLogout }: {
 
       {tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-8rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} />
+          <MapView places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} />
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
@@ -328,6 +330,10 @@ export default function Home({ me, data, onLogout }: {
         <GoingSheet place={goingFor} members={members} attendees={attendees} onlyMemberId={kidMode ? me.id : undefined} onClose={() => setGoingFor(null)}
           onToggle={(id) => toggleGoing(id, goingFor)} />
       )}
+      {hotelOpen && !viewing && (
+        <HotelSheet id={hotelOpen} places={places} photoUrls={photoUrls} onClose={() => setHotelOpen(null)}
+          onOpenPlace={(p) => setViewingId(p.id)} />
+      )}
       {viewing && !editing && (
         <PlaceDetail place={viewing} votes={voteCount[viewing.id] ?? 0}
           mine={votes.some((v) => v.place_id === viewing.id && v.member_id === me.id)}
@@ -337,7 +343,7 @@ export default function Home({ me, data, onLogout }: {
           imGoing={attendees.some((a) => a.place_id === viewing.id && a.member_id === me.id)}
           canEdit={canEdit(viewing)} photoUrls={photoUrls} ranks={ranks[viewing.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
           onClose={() => setViewingId(null)} onVote={() => toggleVote(viewing)} onVisited={() => toggleVisited(viewing)}
-          onEdit={() => setEditing(viewing)} onImIn={() => toggleGoing(me.id, viewing)} onGoing={() => setGoingFor(viewing)} />
+          onEdit={() => setEditing(viewing)} onImIn={() => toggleGoing(me.id, viewing)} onGoing={() => setGoingFor(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }} />
       )}
       {editing && (
         <PlaceForm me={me} canDelete={me.is_admin} photoUrls={photoUrls}

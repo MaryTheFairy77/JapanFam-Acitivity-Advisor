@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type Place, type Region } from '../lib'
+import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -109,14 +109,16 @@ function popupFor(p: Place, votes: number, photo: string | undefined, onOpen: ()
   return root
 }
 
-export default function MapView({ places, voteCount, photoUrls, onOpen }: {
-  places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void
+export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel }: {
+  places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void; onHotel: (id: HotelId) => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
   const openRef = useRef(onOpen)
   openRef.current = onOpen
+  const hotelRef = useRef(onHotel)
+  hotelRef.current = onHotel
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
 
@@ -174,8 +176,11 @@ export default function MapView({ places, voteCount, photoUrls, onOpen }: {
     if (!m || !ready) return
     markers.current.forEach((mk) => mk.remove())
     markers.current = []
-    const add = (el: HTMLElement, lat: number, lng: number, popup: maplibregl.Popup) =>
-      markers.current.push(new maplibregl.Marker({ element: el }).setLngLat(ll(lat, lng)).setPopup(popup).addTo(m))
+    const add = (el: HTMLElement, lat: number, lng: number, popup?: maplibregl.Popup) => {
+      const mk = new maplibregl.Marker({ element: el }).setLngLat(ll(lat, lng))
+      if (popup) mk.setPopup(popup)
+      markers.current.push(mk.addTo(m))
+    }
 
     for (const p of visible) {
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
@@ -187,11 +192,11 @@ export default function MapView({ places, voteCount, photoUrls, onOpen }: {
     }
     for (const id of HOTEL_IDS) {
       const h = HOTELS[id]
-      const el = document.createElement('div')
-      const t = document.createElement('b'); t.textContent = '🏠 Home base'; el.appendChild(t)
-      const n = document.createElement('div'); n.textContent = h.name; el.appendChild(n)
-      const a = document.createElement('a'); a.href = h.maps; a.target = '_blank'; a.rel = 'noreferrer'; a.textContent = 'Open in Google Maps'; el.appendChild(a)
-      add(bubble('🏯', '#c8102e', 44), h.lat, h.lng, new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(el))
+      // tapping a hotel opens its overview sheet (photos link, how to get in, what's closest)
+      const pin = bubble('🏯', '#c8102e', 44)
+      pin.style.cursor = 'pointer'; pin.title = h.name
+      pin.addEventListener('click', (e) => { e.stopPropagation(); hotelRef.current(id) })
+      add(pin, h.lat, h.lng)
     }
     const src = m.getSource('strings') as maplibregl.GeoJSONSource | undefined
     src?.setData({
