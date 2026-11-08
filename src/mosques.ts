@@ -6,15 +6,17 @@ import { km } from './lib'
  *  - OpenStreetMap (amenity=place_of_worship + religion=muslim), © OpenStreetMap contributors, ODbL
  *  - prayer rooms: JNTO Muslim guide (japan.travel), Halal Media Japan, MATCHA, GROOVY JAPAN
  * Prayer-room pins are approximate (inside big buildings), so their links SEARCH Google Maps by name near the pin.
- * The map only shows the ones within 2 km of one of our places or hotels.
+ * The map only shows the ones within 2 km of one of our places or hotels, plus the ⭐ popular ones everywhere
+ * (popular picks: Tokyo Camii + Asakusa Mosque, Osaka Masjid + Masjid Istiqlal Osaka; MATCHA, GROOVY JAPAN, HalalTrip, masjid4all).
  */
-export type Mosque = { name: string; lat: number; lng: number; kind: 'mosque' | 'prayer_room'; note?: string; search?: string }
+/** popular = one of the 2 best-known, best-rated mosques per city: always shown on the map (not just near our places), ⭐ pin */
+export type Mosque = { name: string; lat: number; lng: number; kind: 'mosque' | 'prayer_room'; note?: string; search?: string; popular?: boolean }
 
 export const MOSQUES: Mosque[] = [
   // ── OpenStreetMap: mosques ──
   { name: 'Assalaam Masjid (Okachimachi)', lat: 35.705964, lng: 139.777849, kind: 'mosque', note: 'Near Ameyoko & PANGA' },
-  { name: 'Asakusa Mosque (Darul Arqam)', lat: 35.72177, lng: 139.801467, kind: 'mosque' },
-  { name: 'Tokyo Camii', lat: 35.668168, lng: 139.67655, kind: 'mosque', note: 'Open 10:00–18:00' },
+  { name: 'Asakusa Mosque (Darul Arqam)', lat: 35.72177, lng: 139.801467, kind: 'mosque', popular: true, note: 'The go-to mosque for visitors near Sensoji' },
+  { name: 'Tokyo Camii', lat: 35.668168, lng: 139.67655, kind: 'mosque', popular: true, note: 'Japan’s largest mosque, Ottoman style. Visitors 10:00–18:00' },
   { name: 'Hiroo Mosque', lat: 35.656179, lng: 139.72815, kind: 'mosque' },
   { name: 'Masjid Otsuka', lat: 35.729023, lng: 139.728238, kind: 'mosque' },
   { name: 'Makki Masjid', lat: 35.743705, lng: 139.842767, kind: 'mosque' },
@@ -23,7 +25,9 @@ export const MOSQUES: Mosque[] = [
   { name: 'Baitul Aman Mosque', lat: 35.868465, lng: 139.791608, kind: 'mosque' },
   { name: "Ja'me Masjid Yokohama", lat: 35.544228, lng: 139.60127, kind: 'mosque' },
   { name: 'Prayer Room (Takanawa Gateway)', lat: 35.634801, lng: 139.739655, kind: 'prayer_room', note: 'Next to JW Marriott Tokyo' },
-  { name: 'Osaka Masjid', lat: 34.70832, lng: 135.444961, kind: 'mosque', note: 'Near 1819 Osaka Halal' },
+  { name: 'Osaka Masjid', lat: 34.70832, lng: 135.444961, kind: 'mosque', popular: true, note: 'Osaka’s original central mosque (Nishiyodogawa), near 1819 Osaka Halal' },
+  { name: 'Masjid Istiqlal Osaka', lat: 34.6515, lng: 135.4944, kind: 'mosque', popular: true, search: 'Masjid Istiqlal Osaka',
+    note: 'Opened 2023, much-praised, halal mart. Open 05:00–23:00. 1-2-10 Nakabiraki, Nishinari (south of Namba)' },
   { name: 'Kyoto Mosque', lat: 35.021825, lng: 135.769578, kind: 'mosque', note: 'Tue–Sat 12:00–18:00' },
   { name: 'Islamic Research Centre Japan', lat: 34.863204, lng: 135.707036, kind: 'mosque' },
   // ── Prayer rooms (approximate pins inside buildings) ──

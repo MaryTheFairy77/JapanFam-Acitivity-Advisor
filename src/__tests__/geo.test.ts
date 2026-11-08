@@ -27,6 +27,11 @@ describe('mosques', () => {
   it('all pins are in Japan', () => {
     for (const m of MOSQUES) expect(inJapan(m.lat, m.lng)).toBe(true)
   })
+  it('has 2 popular mosques each for Tokyo and Osaka', () => {
+    const pop = MOSQUES.filter((m) => m.popular)
+    expect(pop.filter((m) => m.lng > 139).length).toBe(2)
+    expect(pop.filter((m) => m.lng < 136).length).toBe(2)
+  })
   it('finds a prayer place near our Osaka hotel', () => {
     const [m] = mosquesNear({ lat: 34.7029, lng: 135.4951 }, 1)
     expect(m.d).toBeLessThan(1)

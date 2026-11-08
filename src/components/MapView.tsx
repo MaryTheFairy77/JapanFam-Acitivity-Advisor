@@ -182,7 +182,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
   // mosques/prayer rooms within 2 km of any of our places or hotels (not every mosque in Japan)
   const mosques = useMemo<Mosque[]>(() => {
     const anchors = [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])]
-    return MOSQUES.filter((q) => anchors.some((a) => km(a, q) <= 2))
+    return MOSQUES.filter((q) => q.popular || anchors.some((a) => km(a, q) <= 2))
   }, [pinned])
   // nearest places to me (for the 📍 card)
   const nearest = useMemo(() => pos ? visible.map((p) => ({ p, d: km(pos, { lat: p.lat!, lng: p.lng! }) })).sort((a, b) => a.d - b.d).slice(0, 5) : [], [pos, visible])
@@ -247,8 +247,15 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
     }
     if (mode === 'places' && mosquesOn) {
       for (const q of mosques) {
-        add(bubble(q.kind === 'prayer_room' ? '🤲' : '🕌', '#059669', 28), q.lat, q.lng, new maplibregl.Popup({ offset: 16, closeButton: false })
-          .setDOMContent(simplePopup(q.name, `${q.kind === 'prayer_room' ? 'Prayer room' : 'Mosque'}${q.note ? ` · ${q.note}` : ''}`, q.lat, q.lng,
+        const pin = bubble(q.kind === 'prayer_room' ? '🤲' : '🕌', '#059669', q.popular ? 36 : 28)
+        if (q.popular) {
+          const star = document.createElement('span')
+          Object.assign(star.style, { position: 'absolute', top: '-8px', right: '-8px', fontSize: '14px', lineHeight: '1', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.3))' })
+          star.textContent = '⭐'
+          pin.firstElementChild?.appendChild(star)
+        }
+        add(pin, q.lat, q.lng, new maplibregl.Popup({ offset: 16, closeButton: false })
+          .setDOMContent(simplePopup(`${q.popular ? '⭐ ' : ''}${q.name}`, `${q.popular ? 'Popular mosque' : q.kind === 'prayer_room' ? 'Prayer room' : 'Mosque'}${q.note ? ` · ${q.note}` : ''}`, q.lat, q.lng,
             mosqueLink(q), q.search ? '📍 Find it on Google Maps' : '🚶 Walking directions')))
       }
     }
