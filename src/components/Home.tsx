@@ -10,10 +10,12 @@ const Planner = lazy(() => import('./Planner'))
 import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
-import { ArrowUpDown, Download, EyeOff, LayoutGrid, List, Music2, Search, SlidersHorizontal, VolumeX } from 'lucide-react'
+import { ArrowUpDown, ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Menu, Music2, Search, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
 
 type Tab = Kind | 'stats' | 'map' | 'plan'
 
+/** bottom bar = the everyday browsing tabs; Plan + Compare live in the ☰ menu */
+const BOTTOM: Tab[] = ['map', 'restaurant', 'activity']
 const TABS: { key: Tab; icon: string; label: string }[] = [
   { key: 'map', icon: '🗾', label: 'Map' },
   { key: 'restaurant', icon: '🍜', label: 'Food' },
@@ -50,6 +52,7 @@ export default function Home({ me, data, onLogout }: {
   useEffect(() => { try { localStorage.setItem('jf-view2', view) } catch { /* private mode */ } }, [view])
   const [showFilters, setShowFilters] = useState(false)
   const [hotelOpen, setHotelOpen] = useState<HotelId | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
@@ -181,8 +184,10 @@ export default function Home({ me, data, onLogout }: {
             className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg ${music ? 'border-torii bg-torii/10' : 'border-stone-300 bg-white grayscale'}`}>
             {music ? <Music2 className="h-4 w-4 text-torii" /> : <VolumeX className="h-4 w-4 text-stone-500" />}
           </button>
-          <button onClick={() => setProfileOpen(true)} className="flex items-center gap-2 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-3 text-sm">
-            <span className="text-lg">{me.emoji}</span>{displayName(me)}{me.is_admin && <span title="Trip planner">⭐</span>}
+          <button onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen}
+            className="flex items-center gap-1.5 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-2.5 text-sm">
+            <span className="text-lg">{me.emoji}</span><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}
+            <Menu className="ml-0.5 h-4 w-4 text-stone-500" />
           </button>
           </div>
         </div>
@@ -191,8 +196,8 @@ export default function Home({ me, data, onLogout }: {
 
       {/* Bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto grid max-w-2xl grid-cols-5">
-          {TABS.map((t) => (
+        <div className="mx-auto grid max-w-2xl grid-cols-3">
+          {TABS.filter((t) => BOTTOM.includes(t.key)).map((t) => (
             <button key={t.key} data-sound="tab" onClick={() => setTab(t.key)}
               className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${tab === t.key ? 'text-torii' : 'text-stone-500'}`}>
               <span className={`text-xl transition ${tab === t.key ? 'scale-110' : 'grayscale-[60%]'}`}>{t.icon}</span>{t.label}
@@ -322,6 +327,40 @@ export default function Home({ me, data, onLogout }: {
         </>
       )}
 
+      {menuOpen && (
+        <div className="fixed inset-0 z-[900] flex justify-end bg-black/40" onClick={() => setMenuOpen(false)}>
+          <nav onClick={(e) => e.stopPropagation()} aria-label="Menu"
+            className="flex h-full w-[82%] max-w-xs flex-col bg-washi p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl">
+            <div className="flex items-center gap-3 rounded-2xl bg-white p-3">
+              <span className="text-3xl">{me.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{displayName(me)}</p>
+                <p className="text-xs text-stone-500">{me.is_admin ? 'Trip planner ⭐' : 'Family member'}</p>
+              </div>
+              <button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="text-stone-400"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="mt-4 space-y-1">
+              {([['plan', '🗓️', 'Plan a day', 'Build a day around budget, time & salah'], ['stats', '📊', 'Compare', 'Rank places by price, travel, wait or votes']] as const).map(([k, icon, label, sub]) => (
+                <button key={k} data-sound="tab" onClick={() => { setTab(k); setMenuOpen(false); window.scrollTo(0, 0) }}
+                  className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ${tab === k ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-white'}`}>
+                  <span className="text-2xl">{icon}</span>
+                  <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block text-xs text-stone-500">{sub}</span></span>
+                  <ChevronRight className="h-4 w-4 text-stone-400" />
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 space-y-1 border-t border-stone-200 pt-4">
+              <button onClick={() => { setMenuOpen(false); setProfileOpen(true) }} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white">
+                <UserRound className="h-5 w-5 text-stone-500" /><span className="flex-1">Profile & settings</span><ChevronRight className="h-4 w-4 text-stone-400" />
+              </button>
+              <button onClick={() => { setMenuOpen(false); onLogout() }} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white">
+                <LogOut className="h-5 w-5 text-stone-500" /><span className="flex-1">Switch person / sign out</span>
+              </button>
+            </div>
+            <p className="mt-auto pt-4 text-center text-[11px] text-stone-400">JapanFam · Osaka · Kyoto · Tokyo</p>
+          </nav>
+        </div>
+      )}
       {profileOpen && (
         <ProfileSheet me={me} places={places} onClose={() => setProfileOpen(false)} onSaved={() => { setProfileOpen(false); refresh() }}
           onSwitch={() => { setProfileOpen(false); onLogout() }} />
