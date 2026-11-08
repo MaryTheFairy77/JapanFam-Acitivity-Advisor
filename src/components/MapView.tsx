@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { LocateFixed, X } from 'lucide-react'
+import { ago, inJapan, useFamilySpots, useLocationSharing, useMyPosition } from '../geo'
+import { MOSQUES, mosqueLink, mosquesNear, type Mosque } from '../mosques'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, fmtMin, fmtYen, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Place, type Region } from '../lib'
+import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, displayName, estimateTravel, fmtMin, fmtYen, km, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Member, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -109,9 +112,39 @@ function popupFor(p: Place, votes: number, photo: string | undefined, onOpen: ()
   return root
 }
 
-export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel }: {
+/** Small DOM popup: title, sub line, and a walking-directions link (all textContent, no user HTML). */
+function simplePopup(title: string, sub: string, lat: number, lng: number, href?: string, linkText = '🚶 Walking directions') {
+  const root = document.createElement('div')
+  root.style.minWidth = '150px'
+  const t = document.createElement('div'); t.textContent = title; Object.assign(t.style, { fontWeight: '600', fontSize: '14px' }); root.appendChild(t)
+  const s = document.createElement('div'); s.textContent = sub; s.style.color = '#57534e'; root.appendChild(s)
+  const a = document.createElement('a'); a.textContent = linkText; a.target = '_blank'; a.rel = 'noreferrer'
+  a.href = href ?? `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lng.toFixed(6)}&travelmode=walking`
+  a.style.display = 'block'; a.style.marginTop = '4px'; root.appendChild(a)
+  return root
+}
+
+/** Blue "you are here" dot. */
+function meDot() {
+  const outer = document.createElement('div')
+  const el = document.createElement('div')
+  outer.appendChild(el)
+  Object.assign(el.style, { width: '18px', height: '18px', borderRadius: '9999px', background: '#3b82f6', border: '3px solid #fff', boxShadow: '0 0 0 6px rgba(59,130,246,.25), 0 2px 6px rgba(0,0,0,.3)' })
+  return outer
+}
+
+export default function MapView({ me, members, places, voteCount, photoUrls, onOpen, onHotel }: {
+  me: Member; members: Member[]
   places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void; onHotel: (id: HotelId) => void
 }) {
+  // 📍 Places mode (pins) or 👨‍👩‍👧 Family mode (where is everyone)
+  const [mode, setMode] = useState<'places' | 'family'>('places')
+  const { pos, busy, err: posErr, locate } = useMyPosition()
+  const [nearOpen, setNearOpen] = useState(false)
+  const share = useLocationSharing(me.id, mode === 'family')
+  const spots = useFamilySpots(mode === 'family')
+  const [mosquesOn, setMosquesOn] = useState<boolean>(() => { try { return localStorage.getItem('jf-mosques') !== '0' } catch { return true } })
+  const toggleMosques = () => setMosquesOn((v) => { try { localStorage.setItem('jf-mosques', v ? '0' : '1') } catch { /* ignore */ } return !v })
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
@@ -134,6 +167,14 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
   const toggleShops = () => setShops((v) => { try { localStorage.setItem('japanfam.mapShops', v ? '0' : '1') } catch { /* ignore */ } return !v })
   const nShops = pinned.filter((p) => p.category === 'shopping').length
   const visible = useMemo(() => pinned.filter((p) => (show === 'all' || p.kind === show) && (shops || p.category !== 'shopping')), [pinned, show, shops])
+  // mosques/prayer rooms within 2 km of any of our places or hotels (not every mosque in Japan)
+  const mosques = useMemo<Mosque[]>(() => {
+    const anchors = [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])]
+    return MOSQUES.filter((q) => anchors.some((a) => km(a, q) <= 2))
+  }, [pinned])
+  // nearest places to me (for the 📍 card)
+  const nearest = useMemo(() => pos ? visible.map((p) => ({ p, d: km(pos, { lat: p.lat!, lng: p.lng! }) })).sort((a, b) => a.d - b.d).slice(0, 5) : [], [pos, visible])
+  const nearestMosque = useMemo(() => pos ? mosquesNear(pos, 1)[0] ?? null : null, [pos])
 
   // create the map once
   useEffect(() => {
@@ -182,7 +223,24 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
       markers.current.push(mk.addTo(m))
     }
 
-    for (const p of visible) {
+    if (pos) add(meDot(), pos.lat, pos.lng, new maplibregl.Popup({ offset: 12, closeButton: false }).setText(`You are here (±${pos.accuracy} m)`))
+    if (mode === 'family') {
+      for (const s of spots) {
+        const mem = members.find((x) => x.id === s.member_id)
+        if (!mem) continue
+        const pin = bubble(mem.emoji, s.member_id === me.id ? '#3b82f6' : '#10b981', 40)
+        const sub = `${ago(s.updated_at)}${s.accuracy_m ? ` · ±${s.accuracy_m} m` : ''}`
+        add(pin, s.lat, s.lng, new maplibregl.Popup({ offset: 22, closeButton: false }).setDOMContent(simplePopup(displayName(mem), sub, s.lat, s.lng)))
+      }
+    }
+    if (mode === 'places' && mosquesOn) {
+      for (const q of mosques) {
+        add(bubble(q.kind === 'prayer_room' ? '🤲' : '🕌', '#059669', 28), q.lat, q.lng, new maplibregl.Popup({ offset: 16, closeButton: false })
+          .setDOMContent(simplePopup(q.name, `${q.kind === 'prayer_room' ? 'Prayer room' : 'Mosque'}${q.note ? ` · ${q.note}` : ''}`, q.lat, q.lng,
+            mosqueLink(q), q.search ? '📍 Find it on Google Maps' : '🚶 Walking directions')))
+      }
+    }
+    for (const p of mode === 'places' ? visible : []) {
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
       popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0,
         isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { popup.remove(); openRef.current(p) }))
@@ -201,13 +259,13 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
     const src = m.getSource('strings') as maplibregl.GeoJSONSource | undefined
     src?.setData({
       type: 'FeatureCollection',
-      features: visible.flatMap((p) => {
+      features: (mode === 'places' ? visible : []).flatMap((p) => {
         const h = nearestHotel(p)
         return h ? [{ type: 'Feature' as const, properties: { color: p.kind === 'restaurant' ? '#c8102e' : '#4f46e5' },
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
-  }, [visible, voteCount, photoUrls, ready])
+  }, [visible, voteCount, photoUrls, ready, mode, spots, members, me.id, mosques, mosquesOn, pos])
 
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
@@ -227,7 +285,11 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
           <button data-sound="tab" className={chip(view === 'kanto')} onClick={() => setView('kanto')}>🗼 {REGIONS.kanto.label}</button>
           <button data-sound="tab" className={chip(view === 'all')} onClick={() => setView('all')}>🗾 All</button>
         </div>
-        <div className="pointer-events-auto flex gap-2">
+        <div className="pointer-events-auto flex w-fit rounded-full border border-indigo-300 bg-white/95 p-0.5 text-sm shadow-sm">
+          <button data-sound="tab" onClick={() => setMode('places')} className={`rounded-full px-3 py-1 ${mode === 'places' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>📍 Places</button>
+          <button data-sound="tab" onClick={() => { setMode('family'); setNearOpen(false) }} className={`rounded-full px-3 py-1 ${mode === 'family' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>👨‍👩‍👧 Family</button>
+        </div>
+        {mode === 'places' && <div className="pointer-events-auto flex gap-2 overflow-x-auto">
           <button className={chip(show === 'all')} onClick={() => setShow('all')}>Everything</button>
           <button className={chip(show === 'restaurant')} onClick={() => setShow('restaurant')}>🍜 Food</button>
           <button className={chip(show === 'activity')} onClick={() => setShow('activity')}>🎢 Activities</button>
@@ -236,9 +298,86 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
               🛍️ {shops ? '' : `+${nShops}`}
             </button>
           )}
-        </div>
+          {mosques.length > 0 && (
+            <button className={chip(mosquesOn)} onClick={toggleMosques} title={mosquesOn ? 'Hide mosques' : 'Show mosques'}>🕌</button>
+          )}
+        </div>}
       </div>
-      {unpinned > 0 && (
+
+      {/* 📍 Near me */}
+      <button onClick={async () => {
+          const p = await locate()
+          if (!p || !map.current) return
+          map.current.flyTo({ center: ll(p.lat, p.lng), zoom: 15, duration: 900 })
+          if (mode === 'places') setNearOpen(true)
+        }}
+        aria-label="Near me" title="Show where I am"
+        className={`absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 border-indigo-300 bg-white shadow-lg ${busy ? 'animate-pulse' : ''}`}>
+        <LocateFixed className="h-5 w-5 text-indigo-600" />
+      </button>
+      {posErr && <div className="absolute right-16 top-1/2 z-10 -translate-y-1/2 max-w-[70%] rounded-xl bg-white/95 px-3 py-2 text-xs text-torii shadow">{posErr}</div>}
+
+      {/* Nearest places to me */}
+      {mode === 'places' && nearOpen && pos && (
+        <div className="absolute inset-x-3 bottom-3 z-20 max-h-[45%] overflow-y-auto rounded-2xl bg-white/97 p-3 shadow-xl">
+          <div className="flex items-center justify-between">
+            <p className="font-display text-lg">Near you</p>
+            <button onClick={() => setNearOpen(false)} aria-label="Close" className="text-stone-400"><X className="h-5 w-5" /></button>
+          </div>
+          {!inJapan(pos.lat, pos.lng) && <p className="text-xs text-amber-700">You’re not in Japan yet, so these are far away. This works best on the trip.</p>}
+          <div className="mt-1 space-y-1">
+            {nearest.map(({ p, d }) => (
+              <button key={p.id} onClick={() => onOpen(p)} className="flex w-full items-center gap-2 rounded-xl px-1 py-1.5 text-left hover:bg-stone-50">
+                <span className="text-lg">{p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
+                <span className="shrink-0 text-xs text-stone-500">{d < 1 ? `${Math.round(d * 1000)} m` : `${d.toFixed(1)} km`} · ~{fmtMin(estimateTravel(d).minutes)}</span>
+              </button>
+            ))}
+            {nearestMosque && (
+              <a href={mosqueLink(nearestMosque)} target="_blank" rel="noreferrer"
+                className="flex items-center gap-2 rounded-xl bg-emerald-50 px-1 py-1.5 text-sm">
+                <span className="text-lg">🕌</span><span className="min-w-0 flex-1 truncate">{nearestMosque.name}</span>
+                <span className="shrink-0 text-xs text-emerald-800">{nearestMosque.d < 1 ? `${Math.round(nearestMosque.d * 1000)} m` : `${nearestMosque.d.toFixed(1)} km`}</span>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Family mode: share toggle + who's where */}
+      {mode === 'family' && (
+        <div className="absolute inset-x-3 bottom-3 z-20 rounded-2xl bg-white/97 p-3 shadow-xl">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{me.emoji}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{share.sharing ? 'You’re sharing your spot' : 'Your spot is private'}</p>
+              <p className="text-[11px] text-stone-500">{share.sharing
+                ? `${share.status ?? 'Starting…'} · only while the app is open · stops at midnight Japan time`
+                : 'Japan only · only while the app is open · auto-off at midnight'}</p>
+            </div>
+            <button onClick={() => (share.sharing ? share.stop() : share.start())}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${share.sharing ? 'border border-stone-300 bg-white text-stone-700' : 'bg-emerald-600 text-white'}`}>
+              {share.sharing ? 'Stop' : 'Share'}
+            </button>
+          </div>
+          <div className="-mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1">
+            {spots.length === 0 && <p className="text-xs text-stone-500">Nobody is sharing right now. In Japan, tap Share so the family can find you.</p>}
+            {spots.map((s) => {
+              const mem = members.find((x) => x.id === s.member_id)
+              if (!mem) return null
+              return (
+                <button key={s.member_id} onClick={() => map.current?.flyTo({ center: ll(s.lat, s.lng), zoom: 16, duration: 800 })}
+                  className="flex shrink-0 flex-col items-center rounded-xl bg-stone-50 px-2.5 py-1.5">
+                  <span className="text-xl">{mem.emoji}</span>
+                  <span className="max-w-[4.5rem] truncate text-[11px] font-medium">{displayName(mem)}</span>
+                  <span className="text-[10px] text-stone-500">{ago(s.updated_at)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {unpinned > 0 && mode === 'places' && !nearOpen && (
         <div className="absolute bottom-3 left-3 right-12 z-10 rounded-xl bg-white/95 px-3 py-2 text-xs text-stone-600 shadow">
           📌 {unpinned} place{unpinned === 1 ? '' : 's'} not on the map yet. Open one and tap <b>Find pin</b>.
         </div>

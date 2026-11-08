@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PHOTO_BUCKET, isStoragePhoto, supabase, type Attendee, type Member, type Place, type Vote } from './lib'
 
-/** Loads everything (small family dataset) and refreshes on focus + every 20s. Only runs once the device is unlocked. */
+const SNAP = 'japanfam.snapshot.v1'
+type Snapshot = { members: Member[]; places: Place[]; votes: Vote[]; attendees: Attendee[]; photoUrls: Record<string, string>; savedAt: number }
+function readSnap(): Snapshot | null { try { const s = localStorage.getItem(SNAP); return s ? JSON.parse(s) as Snapshot : null } catch { return null } }
+
+/**
+ * Loads everything (small family dataset) and refreshes on focus + every 20s. Only runs once the device is unlocked.
+ * Offline: every good load is saved on the phone; if the network fails we show that saved copy (read-only) instead of an error.
+ */
 export function useData(enabled: boolean) {
   const [members, setMembers] = useState<Member[]>([])
   const [places, setPlaces] = useState<Place[]>([])
@@ -11,18 +18,27 @@ export function useData(enabled: boolean) {
   const signed = useRef<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [offlineSince, setOfflineSince] = useState<number | null>(null) // savedAt of the copy we're showing
 
   const refresh = useCallback(async () => {
+    const fail = (e: unknown) => ({ data: null, error: { message: String((e as Error)?.message ?? e) } })
     const [m, p, v, a] = await Promise.all([
       supabase.from('members').select('*').order('created_at'),
       supabase.from('places').select('*').order('created_at'),
       supabase.from('votes').select('member_id, place_id'),
       supabase.from('attendees').select('member_id, place_id'),
-    ])
+    ].map((q) => Promise.resolve(q).catch(fail)))
     const err = m.error ?? p.error ?? v.error ?? a.error
-    if (err) setError(err.message)
-    else {
-      setError(null)
+    if (err) {
+      const snap = readSnap()
+      if (snap && (!navigator.onLine || /fetch|network|Failed|Load failed/i.test(err.message))) {
+        setMembers(snap.members); setPlaces(snap.places); setVotes(snap.votes); setAttendees(snap.attendees)
+        signed.current = { ...snap.photoUrls, ...signed.current }
+        setPhotoUrls({ ...signed.current })
+        setOfflineSince(snap.savedAt); setError(null)
+      } else setError(err.message)
+    } else {
+      setError(null); setOfflineSince(null)
       setMembers(m.data as Member[])
       setPlaces(p.data as Place[])
       setVotes(v.data as Vote[])
@@ -34,6 +50,9 @@ export function useData(enabled: boolean) {
         data?.forEach((d) => { if (d.signedUrl && d.path) signed.current[d.path] = d.signedUrl })
         setPhotoUrls({ ...signed.current })
       }
+      try {
+        localStorage.setItem(SNAP, JSON.stringify({ members: m.data, places: p.data, votes: v.data, attendees: a.data, photoUrls: signed.current, savedAt: Date.now() }))
+      } catch { /* storage full: keep going */ }
     }
     setLoading(false)
   }, [])
@@ -44,8 +63,9 @@ export function useData(enabled: boolean) {
     const id = setInterval(refresh, 20000)
     const onFocus = () => refresh()
     window.addEventListener('focus', onFocus)
-    return () => { clearInterval(id); window.removeEventListener('focus', onFocus) }
+    window.addEventListener('online', onFocus)
+    return () => { clearInterval(id); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus) }
   }, [refresh, enabled])
 
-  return { members, places, votes, attendees, photoUrls, loading, error, refresh, setPlaces, setVotes, setAttendees }
+  return { members, places, votes, attendees, photoUrls, loading, error, offlineSince, refresh, setPlaces, setVotes, setAttendees }
 }

@@ -1,6 +1,7 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet, X } from 'lucide-react'
 import Thumb from './Thumb'
-import { CATEGORIES, HOTELS, catOf, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type HotelId, type Member, type Place } from '../lib'
+import { mosqueLink, mosquesNear } from '../mosques'
+import { CATEGORIES, HOTELS, catOf, estimateTravel, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type HotelId, type Member, type Place } from '../lib'
 
 type IconT = LucideIcon
 /** 0 = cheapest/closest/shortest in its group, 1 = priciest/furthest/longest; null = not comparable */
@@ -43,6 +44,12 @@ function VoteBtn({ mine, n, onVote, size = 'md' }: { mine: boolean; n: number; o
   )
 }
 
+const fmtDist = (d: number) => (d < 1 ? `${Math.round(d * 1000)} m` : `${d.toFixed(1)} km`)
+function NearBadge({ d }: { d: number | null | undefined }) {
+  if (d == null) return null
+  return <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">📍 {fmtDist(d)}</span>
+}
+
 /** Tiny tinted number pill for the overview (green = cheaper/quicker, red = pricier/longer, yellow = estimate). */
 function Pill({ icon: Icon, value, r, guess, unknown, label }: { icon: IconT; value: string; r: number | null; guess?: boolean; unknown?: boolean; label: string }) {
   if (unknown) return <span title={`${label}: not known yet`} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-stone-300 px-1.5 py-0.5 text-xs text-stone-500"><Icon className="h-3 w-3" />❓</span>
@@ -55,8 +62,8 @@ function Pill({ icon: Icon, value, r, guess, unknown, label }: { icon: IconT; va
 }
 
 /** OVERVIEW row: photo, name, symbols, 3 numbers, vote. Tap anywhere → details. */
-export default function PlaceCard({ place: p, rank, votes, mine, imGoing, ranks, est, photoUrls, onVote, onOpen }: {
-  place: Place; rank?: number; votes: number; mine: boolean; imGoing: boolean; ranks: Ranks; est: Estimates
+export default function PlaceCard({ place: p, rank, votes, mine, imGoing, ranks, est, photoUrls, nearKm, onVote, onOpen }: {
+  place: Place; rank?: number; votes: number; mine: boolean; imGoing: boolean; ranks: Ranks; est: Estimates; nearKm?: number | null
   photoUrls: Record<string, string>; onVote: () => void; onOpen: () => void
 }) {
   const f = facts(p, est)
@@ -70,7 +77,7 @@ export default function PlaceCard({ place: p, rank, votes, mine, imGoing, ranks,
       </div>
       <div className="min-w-0 flex-1">
         <h3 className={`truncate font-display text-base leading-snug ${p.visited ? 'text-stone-500' : ''}`}>{p.name}</h3>
-        <div className="mt-1 flex flex-wrap gap-1"><Badges p={p} small />{imGoing && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">✓ I’m in</span>}</div>
+        <div className="mt-1 flex flex-wrap gap-1"><NearBadge d={nearKm} /><Badges p={p} small />{imGoing && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">✓ I’m in</span>}</div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           <Pill icon={Wallet} label="Price per person" value={f.price == null ? '' : fmtYen(f.price)} unknown={f.price == null} r={ranks.price} guess={f.auto.has('price')} />
           <Pill icon={TrainFront} label="Travel from closest hotel" value={fmtMin(f.travel)} r={ranks.travel} guess={f.travelGuess} />
@@ -83,8 +90,8 @@ export default function PlaceCard({ place: p, rank, votes, mine, imGoing, ranks,
 }
 
 /** ZOOMED-OUT gallery tile: big photo, name, vote. */
-export function PlaceTile({ place: p, votes, mine, photoUrls, onVote, onOpen }: {
-  place: Place; votes: number; mine: boolean; photoUrls: Record<string, string>; onVote: () => void; onOpen: () => void
+export function PlaceTile({ place: p, votes, mine, photoUrls, nearKm, onVote, onOpen }: {
+  place: Place; votes: number; mine: boolean; nearKm?: number | null; photoUrls: Record<string, string>; onVote: () => void; onOpen: () => void
 }) {
   return (
     <article onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}
@@ -94,7 +101,7 @@ export function PlaceTile({ place: p, votes, mine, photoUrls, onVote, onOpen }: 
       {p.visited && <span className="absolute left-1.5 top-1.5 rounded-full bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">Been ✓</span>}
       <div className="p-2">
         <h3 className="line-clamp-2 text-sm font-medium leading-snug">{p.name}</h3>
-        <div className="mt-1 flex flex-wrap gap-1"><Badges p={p} small /></div>
+        <div className="mt-1 flex flex-wrap gap-1"><NearBadge d={nearKm} /><Badges p={p} small /></div>
       </div>
     </article>
   )
@@ -144,6 +151,19 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGo
               ))}
             </div>
           )}
+
+          {(() => {
+            if (p.lat == null || p.lng == null) return null
+            const q = mosquesNear({ lat: p.lat, lng: p.lng }, 1)[0]
+            if (!q || q.d > 3) return null
+            return (
+              <a href={mosqueLink(q)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                <span className="text-base">{q.kind === 'prayer_room' ? '🤲' : '🕌'}</span>
+                <span className="min-w-0 flex-1"><span className="block truncate font-medium">{q.name}</span>
+                  <span className="block text-emerald-800/80">Nearest {q.kind === 'prayer_room' ? 'prayer room' : 'mosque'} · {fmtDist(q.d)} · {estimateTravel(q.d).text.replace(' (est.', ' (').replace(/\(.*\)/, '').trim()}</span></span>
+              </a>
+            )
+          })()}
 
           {/* Links */}
           <div className="mt-4 grid grid-cols-2 gap-2">

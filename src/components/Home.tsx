@@ -1,9 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, km, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import HotelSheet from './HotelSheet'
+import { useMyPosition } from '../geo'
 import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
 const Planner = lazy(() => import('./Planner'))
@@ -23,10 +24,11 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
   { key: 'plan', icon: '🗓️', label: 'Plan' },
   { key: 'stats', icon: '📊', label: 'Compare' },
 ]
-type SortKey = 'votes' | 'price' | 'travel' | 'wait' | 'newest'
+type SortKey = 'votes' | 'near' | 'price' | 'travel' | 'wait' | 'newest'
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'votes', label: '👍 Most votes' },
+  { key: 'near', label: '📍 Near me' },
   { key: 'price', label: '¥ Cheapest' },
   { key: 'travel', label: '🚗 Closest' },
   { key: 'wait', label: '⏱ Shortest wait' },
@@ -53,6 +55,8 @@ export default function Home({ me, data, onLogout }: {
   const [showFilters, setShowFilters] = useState(false)
   const [hotelOpen, setHotelOpen] = useState<HotelId | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const { pos: myPos, busy: locating, err: posErr, locate } = useMyPosition()
+  const distTo = (p: Place) => (myPos && p.lat != null && p.lng != null ? km(myPos, { lat: p.lat, lng: p.lng }) : null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
@@ -109,13 +113,15 @@ export default function Home({ me, data, onLogout }: {
       .sort((a, b) => {
         switch (sort) {
           case 'votes': return (voteCount[b.id] ?? 0) - (voteCount[a.id] ?? 0)
+          case 'near': return nullsLast(distTo(a), distTo(b))
           case 'price': return nullsLast(a.price_jpy, b.price_jpy) // unknown prices go last, never guessed
           case 'travel': return nullsLast(a.travel_minutes, b.travel_minutes)
           case 'wait': return nullsLast(a.wait_minutes ?? est.wait[a.kind], b.wait_minutes ?? est.wait[b.kind])
           default: return b.created_at.localeCompare(a.created_at)
         }
       })
-  }, [places, tab, hotel, halalOnly, taste, cat, hideVisited, q, sort, voteCount, est])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [places, tab, hotel, halalOnly, taste, cat, hideVisited, q, sort, voteCount, est, myPos])
 
   const activeFilters = (hotel !== 'all' ? 1 : 0) + (halalOnly ? 1 : 0) + (taste !== 'all' ? 1 : 0) + (hideVisited ? 1 : 0)
 
@@ -193,6 +199,11 @@ export default function Home({ me, data, onLogout }: {
         </div>
       </header>
       <WaveBand />
+      {data.offlineSince && (
+        <div className="sticky top-[60px] z-[590] mx-3 mt-1 rounded-xl bg-amber-100 px-3 py-1.5 text-center text-xs text-amber-900 shadow-sm">
+          📴 Offline: showing what was saved at {new Date(data.offlineSince).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Votes & edits need internet.
+        </div>
+      )}
 
       {/* Bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
@@ -208,7 +219,7 @@ export default function Home({ me, data, onLogout }: {
 
       {tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-8rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} />
+          <MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} />
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
@@ -260,7 +271,8 @@ export default function Home({ me, data, onLogout }: {
             <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
               <ArrowUpDown className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
               {SORTS.map((s) => (
-                <button key={s.key} className={chip(sort === s.key)} onClick={() => setSort(s.key)}>{s.label}</button>
+                <button key={s.key} className={chip(sort === s.key) + (s.key === 'near' && locating ? ' animate-pulse' : '')}
+                  onClick={() => { setSort(s.key); if (s.key === 'near') locate() }}>{s.label}</button>
               ))}
             </div>
             {showFilters && (
@@ -291,6 +303,7 @@ export default function Home({ me, data, onLogout }: {
                 </div>
               </div>
             )}
+            {sort === 'near' && posErr && <p className="text-xs text-torii">{posErr}</p>}
             <p className="text-xs text-stone-500">{list.length} {list.length === 1 ? 'place' : 'places'}{activeFilters > 0 && <> · <button className="underline" onClick={() => { setHotel('all'); setHalalOnly(false); setTaste('all'); setHideVisited(false) }}>clear filters</button></>}</p>
           </div>
 
@@ -305,7 +318,7 @@ export default function Home({ me, data, onLogout }: {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {list.map((p) => (
                   <PlaceTile key={p.id} place={p} votes={voteCount[p.id] ?? 0} photoUrls={photoUrls}
-                    mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)}
+                    mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)} nearKm={sort === 'near' ? distTo(p) : null}
                     onVote={() => toggleVote(p)} onOpen={() => setViewingId(p.id)} />
                 ))}
               </div>
@@ -313,7 +326,7 @@ export default function Home({ me, data, onLogout }: {
               <PlaceCard key={p.id} place={p} rank={sort === 'votes' ? i + 1 : undefined} votes={voteCount[p.id] ?? 0}
                 mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)}
                 imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
-                photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }} est={est}
+                photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }} est={est} nearKm={sort === 'near' ? distTo(p) : null}
                 onVote={() => toggleVote(p)} onOpen={() => setViewingId(p.id)} />
             ))}
           </div>

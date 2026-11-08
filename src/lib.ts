@@ -30,11 +30,18 @@ export async function ensureSession() {
   const { error } = await supabase.auth.signInAnonymously()
   return error ? error.message : null
 }
+/** Has this phone joined the family? Remembered on the phone so the app still opens offline. */
 export async function isFamily() {
-  const { data: s } = await supabase.auth.getSession()
-  if (!s.session) return false
-  const { data, error } = await supabase.rpc('is_family')
-  return !error && data === true
+  const KEY = 'japanfam.joined'
+  const remembered = () => { try { return localStorage.getItem(KEY) === '1' } catch { return false } }
+  let session = null
+  try { session = (await supabase.auth.getSession()).data.session } catch { /* offline token refresh */ }
+  if (!session) return !navigator.onLine && remembered()
+  try {
+    const { data, error } = await supabase.rpc('is_family')
+    if (!error) { try { localStorage.setItem(KEY, data === true ? '1' : '0') } catch { /* ignore */ } return data === true }
+  } catch { /* offline */ }
+  return remembered()
 }
 export interface Vote { member_id: string; place_id: string }
 export interface Place {
