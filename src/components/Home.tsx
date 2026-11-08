@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
-import PlaceCard from './PlaceCard'
+import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
@@ -9,7 +9,7 @@ const Planner = lazy(() => import('./Planner'))
 import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
-import { ArrowUpDown, Download, EyeOff, Music2, Search, VolumeX } from 'lucide-react'
+import { ArrowUpDown, Download, EyeOff, LayoutGrid, List, Music2, Search, SlidersHorizontal, VolumeX } from 'lucide-react'
 
 type Tab = Kind | 'stats' | 'map' | 'plan'
 
@@ -43,12 +43,17 @@ export default function Home({ me, data, onLogout }: {
   const [hideVisited, setHideVisited] = useState(false)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null) // details sheet (overview → details on demand)
+  const viewing = viewingId ? places.find((p) => p.id === viewingId) ?? null : null
+  const [view, setView] = useState<'list' | 'grid'>(() => (localStorage.getItem('jf-view') === 'grid' ? 'grid' : 'list'))
+  useEffect(() => { try { localStorage.setItem('jf-view', view) } catch { /* private mode */ } }, [view])
+  const [showFilters, setShowFilters] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
   const kidMode = isKid(me)
-  const canEdit = (p: Place) => !kidMode && (me.is_admin || (p.created_by != null && p.created_by === me.id))
+  const canEdit = (p: Place) => !kidMode && (me.is_admin || (p.created_by != null && (p.created_by === me.id || (p.co_owners ?? []).includes(me.id))))
   useEffect(() => onPrefs(() => setMusic(getPrefs().ambience)), [])
   const [goingFor, setGoingFor] = useState<Place | null>(null)
 
@@ -106,6 +111,8 @@ export default function Home({ me, data, onLogout }: {
         }
       })
   }, [places, tab, hotel, halalOnly, taste, cat, hideVisited, q, sort, voteCount, est])
+
+  const activeFilters = (hotel !== 'all' ? 1 : 0) + (halalOnly ? 1 : 0) + (taste !== 'all' ? 1 : 0) + (hideVisited ? 1 : 0)
 
   async function toggleVote(p: Place) {
     const mine = votes.some((v) => v.place_id === p.id && v.member_id === me.id)
@@ -194,7 +201,7 @@ export default function Home({ me, data, onLogout }: {
 
       {tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-8rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} />
+          <MapView places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} />
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
@@ -204,7 +211,7 @@ export default function Home({ me, data, onLogout }: {
       ) : tab === 'stats' ? (
         <>
           {fujiBg}
-          <div className="relative z-10"><Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={setEditing} /></div>
+          <div className="relative z-10"><Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} /></div>
         </>
       ) : (
         <>
@@ -225,62 +232,82 @@ export default function Home({ me, data, onLogout }: {
               </div>
             </div>
           )}
-          {/* Filters */}
+          {/* Filters: one compact row; the rest folds away (zoom & filter without the scrolling) */}
           <div className="relative z-10 space-y-2 px-4 pt-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search"
-                className="w-full rounded-xl border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-torii" />
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search"
+                  className="w-full rounded-xl border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-torii" />
+              </div>
+              <button onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters} aria-label="Filters"
+                className={`relative inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-sm ${showFilters ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`}>
+                <SlidersHorizontal className="h-4 w-4" />
+                {activeFilters > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-torii text-[10px] text-white">{activeFilters}</span>}
+              </button>
+              <div className="flex rounded-xl border border-stone-300 bg-white p-0.5" role="group" aria-label="View">
+                <button onClick={() => setView('list')} aria-pressed={view === 'list'} aria-label="List view" className={`rounded-lg p-1.5 ${view === 'list' ? 'bg-ink text-white' : 'text-stone-500'}`}><List className="h-4 w-4" /></button>
+                <button onClick={() => setView('grid')} aria-pressed={view === 'grid'} aria-label="Photo view" className={`rounded-lg p-1.5 ${view === 'grid' ? 'bg-ink text-white' : 'text-stone-500'}`}><LayoutGrid className="h-4 w-4" /></button>
+              </div>
             </div>
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-              <button className={chip(hotel === 'all')} onClick={() => setHotel('all')}>All hotels</button>
-              {HOTEL_IDS.map((h) => (
-                <button key={h} className={chip(hotel === h)} onClick={() => setHotel(h)}>{HOTELS[h].short}</button>
+            <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
+              <ArrowUpDown className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+              {SORTS.map((s) => (
+                <button key={s.key} className={chip(sort === s.key)} onClick={() => setSort(s.key)}>{s.label}</button>
               ))}
             </div>
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-              {tab === 'restaurant' && (
-                <>
-                  <button className={chip(halalOnly)} onClick={() => setHalalOnly(!halalOnly)}>☪︎ Halal</button>
-                  <button className={chip(taste === 'savory')} onClick={() => setTaste(taste === 'savory' ? 'all' : 'savory')} aria-label="Savoury">🧂</button>
-                  <button className={chip(taste === 'sweet')} onClick={() => setTaste(taste === 'sweet' ? 'all' : 'sweet')} aria-label="Sweet">🍡</button>
-                </>
-              )}
-              <button className={chip(hideVisited) + ' inline-flex items-center gap-1'} onClick={() => setHideVisited(!hideVisited)}><EyeOff className="h-3.5 w-3.5" />Been</button>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <ArrowUpDown className="h-4 w-4 text-stone-500" aria-label="Sort" />
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}
-                className="rounded-lg border border-stone-300 bg-white px-2 py-1.5">
-                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-              <span className="ml-auto text-stone-500">{list.length}</span>
-              <button onClick={exportCsv} disabled={!list.length} aria-label="Download CSV" title="Download CSV"
-                className="inline-flex items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-stone-700 disabled:opacity-40"><Download className="h-4 w-4" />CSV</button>
-            </div>
-            <p className="flex items-center gap-1.5 text-[11px] text-stone-500">
-              <span className="inline-block h-2.5 w-6 rounded-full" style={{ background: 'linear-gradient(90deg,#e2f4e9,#faf7f1,#fde4e6)' }} />
-              cheaper / quicker → pricier / longer, compared with the other {tab === 'restaurant' ? 'restaurants' : CATEGORIES[cat].label.toLowerCase()}
-            </p>
+            {showFilters && (
+              <div className="space-y-2 rounded-2xl border border-stone-200 bg-white/90 p-3">
+                <div className="flex flex-wrap gap-2">
+                  <button className={chip(hotel === 'all')} onClick={() => setHotel('all')}>All hotels</button>
+                  {HOTEL_IDS.map((h) => (
+                    <button key={h} className={chip(hotel === h)} onClick={() => setHotel(h)}>{HOTELS[h].short}</button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {tab === 'restaurant' && (
+                    <>
+                      <button className={chip(halalOnly)} onClick={() => setHalalOnly(!halalOnly)}>☪︎ Halal</button>
+                      <button className={chip(taste === 'savory')} onClick={() => setTaste(taste === 'savory' ? 'all' : 'savory')} aria-label="Savoury">🧂 Savoury</button>
+                      <button className={chip(taste === 'sweet')} onClick={() => setTaste(taste === 'sweet' ? 'all' : 'sweet')} aria-label="Sweet">🍡 Sweet</button>
+                    </>
+                  )}
+                  <button className={chip(hideVisited) + ' inline-flex items-center gap-1'} onClick={() => setHideVisited(!hideVisited)}><EyeOff className="h-3.5 w-3.5" />Hide been</button>
+                </div>
+                <div className="flex items-center gap-2 border-t border-stone-100 pt-2">
+                  <p className="flex items-center gap-1.5 text-[11px] text-stone-500">
+                    <span className="inline-block h-2.5 w-6 shrink-0 rounded-full" style={{ background: 'linear-gradient(90deg,#e2f4e9,#faf7f1,#fde4e6)' }} />
+                    green = cheaper / quicker, red = pricier / longer, yellow ✨ = estimate
+                  </p>
+                  <button onClick={exportCsv} disabled={!list.length} aria-label="Download CSV" title="Download CSV"
+                    className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs text-stone-700 disabled:opacity-40"><Download className="h-3.5 w-3.5" />CSV</button>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-stone-500">{list.length} {list.length === 1 ? 'place' : 'places'}{activeFilters > 0 && <> · <button className="underline" onClick={() => { setHotel('all'); setHalalOnly(false); setTaste('all'); setHideVisited(false) }}>clear filters</button></>}</p>
           </div>
 
           {/* List */}
-          <div className="relative z-10 mt-3 space-y-3 px-4">
+          <div className="relative z-10 mt-2 space-y-2 px-4">
             {list.length === 0 && (
               <div className="rounded-2xl border-2 border-dashed border-stone-300 p-8 text-center text-stone-500">
                 Nothing here yet. Tap <b>+ Add</b> to suggest a {tab === 'restaurant' ? 'restaurant' : CATEGORIES[cat].one}.
               </div>
             )}
-            {list.map((p, i) => (
-              <PlaceCard key={p.id} place={p} rank={sort === 'votes' ? i + 1 : undefined}
-                voters={members.filter((m) => votes.some((v) => v.place_id === p.id && v.member_id === m.id))}
-                addedBy={members.find((m) => m.id === p.created_by)}
+            {view === 'grid' ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {list.map((p) => (
+                  <PlaceTile key={p.id} place={p} votes={voteCount[p.id] ?? 0} photoUrls={photoUrls}
+                    mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)}
+                    onVote={() => toggleVote(p)} onOpen={() => setViewingId(p.id)} />
+                ))}
+              </div>
+            ) : list.map((p, i) => (
+              <PlaceCard key={p.id} place={p} rank={sort === 'votes' ? i + 1 : undefined} votes={voteCount[p.id] ?? 0}
                 mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)}
-                going={goingSummary(p.id, members, attendees)}
                 imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
-                onImIn={() => toggleGoing(me.id, p)} onGoing={() => setGoingFor(p)}
-                canEdit={canEdit(p)} photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
-                onVote={() => toggleVote(p)} onVisited={() => toggleVisited(p)} onEdit={() => setEditing(p)} />
+                photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }} est={est}
+                onVote={() => toggleVote(p)} onOpen={() => setViewingId(p.id)} />
             ))}
           </div>
 
@@ -300,6 +327,17 @@ export default function Home({ me, data, onLogout }: {
       {goingFor && (
         <GoingSheet place={goingFor} members={members} attendees={attendees} onlyMemberId={kidMode ? me.id : undefined} onClose={() => setGoingFor(null)}
           onToggle={(id) => toggleGoing(id, goingFor)} />
+      )}
+      {viewing && !editing && (
+        <PlaceDetail place={viewing} votes={voteCount[viewing.id] ?? 0}
+          mine={votes.some((v) => v.place_id === viewing.id && v.member_id === me.id)}
+          voters={members.filter((m) => votes.some((v) => v.place_id === viewing.id && v.member_id === m.id))}
+          owners={[viewing.created_by, ...(viewing.co_owners ?? [])].map((id) => members.find((m) => m.id === id)).filter((m): m is Member => !!m)}
+          going={goingSummary(viewing.id, members, attendees)}
+          imGoing={attendees.some((a) => a.place_id === viewing.id && a.member_id === me.id)}
+          canEdit={canEdit(viewing)} photoUrls={photoUrls} ranks={ranks[viewing.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
+          onClose={() => setViewingId(null)} onVote={() => toggleVote(viewing)} onVisited={() => toggleVisited(viewing)}
+          onEdit={() => setEditing(viewing)} onImIn={() => toggleGoing(me.id, viewing)} onGoing={() => setGoingFor(viewing)} />
       )}
       {editing && (
         <PlaceForm me={me} canDelete={me.is_admin} photoUrls={photoUrls}

@@ -35,7 +35,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const readOnly = !!place && !canEdit
-  const isMine = !!place && place.created_by === me.id
+  const isMine = !!place && (place.created_by === me.id || (place.co_owners ?? []).includes(me.id))
   // planners editing someone else's place go through the planner code
   const needsPlannerCode = !!place && !isMine && me.is_admin
 
@@ -237,7 +237,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
         )}
         {readOnly && (
           <p className="mb-4 rounded-xl bg-white p-3 text-sm text-stone-600">
-            🔒 Only {creator ? `${creator.emoji} ${displayName(creator)}` : 'the person who added this'} or a trip planner ⭐ can change this place.
+            🔒 Only {creator ? `${creator.emoji} ${displayName(creator)}` : 'the person who added this'} (or a co-owner of the idea) or a trip planner ⭐ can change this place.
           </p>
         )}
         <fieldset disabled={readOnly} className="space-y-3 disabled:opacity-80">

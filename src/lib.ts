@@ -65,6 +65,8 @@ export interface Place {
   visited: boolean
   visited_at: string | null
   created_by: string | null
+  /** people who suggested the same idea: credited + can edit like the creator */
+  co_owners: string[]
   created_at: string
 }
 
