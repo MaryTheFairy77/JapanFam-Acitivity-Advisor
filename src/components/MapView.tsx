@@ -147,16 +147,18 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
   // trip-only tools (Near me + Family) appear 24 Dec – 10 Jan
   const trip = tripToolsOn()
   // legend strip = the key AND the on/off switches (remembered per phone)
-  type Layer = 'food' | 'act' | 'shop' | 'mosque' | 'hotel'
+  type Layer = 'food' | 'act' | 'shop' | 'mosque'
   const [layers, setLayers] = useState<Record<Layer, boolean>>(() => {
-    const def = { food: true, act: true, shop: false, mosque: true, hotel: true }
+    const def = { food: true, act: true, shop: false, mosque: true }
     try { return { ...def, ...JSON.parse(localStorage.getItem('jf-map-layers') ?? '{}') } } catch { return def }
   })
-  const toggle = (k: Layer) => setLayers((l) => {
-    const n = { ...l, [k]: !l[k] }
-    try { localStorage.setItem('jf-map-layers', JSON.stringify(n)) } catch { /* ignore */ }
-    return n
-  })
+  const saveLayers = (n: Record<Layer, boolean>) => { try { localStorage.setItem('jf-map-layers', JSON.stringify(n)) } catch { /* ignore */ } return n }
+  const toggle = (k: Layer) => setLayers((l) => saveLayers({ ...l, [k]: !l[k] }))
+  const everything = layers.food && layers.act && layers.shop && layers.mosque
+  // 🎌 Everything: turn every layer on (tap again to go back to the usual view without shops)
+  const toggleEverything = () => setLayers(() => saveLayers(everything
+    ? { food: true, act: true, shop: false, mosque: true }
+    : { food: true, act: true, shop: true, mosque: true }))
   const mosquesOn = layers.mosque
   const [noteHidden, setNoteHidden] = useState(() => { try { return sessionStorage.getItem('jf-pin-note') === '1' } catch { return false } })
   const box = useRef<HTMLDivElement>(null)
@@ -258,7 +260,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
         p.lat!, p.lng!, popup)
     }
-    for (const id of layers.hotel ? HOTEL_IDS : []) {
+    for (const id of HOTEL_IDS) { // hotels are always shown
       const h = HOTELS[id]
       // tapping a hotel opens its overview sheet (photos link, how to get in, what's closest)
       const pin = bubble('🏯', '#c8102e', 44)
@@ -275,7 +277,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
-  }, [visible, voteCount, photoUrls, ready, mode, spots, members, me.id, mosques, mosquesOn, pos, layers.hotel])
+  }, [visible, voteCount, photoUrls, ready, mode, spots, members, me.id, mosques, mosquesOn, pos])
 
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
@@ -313,7 +315,6 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
             ['act', '🎢', 'Do', '#6366f1'],
             ['shop', '🛍️', 'Shops', '#6366f1'],
             ['mosque', '🕌', 'Mosques', '#059669'],
-            ['hotel', '🏯', 'Hotels', '#c8102e'],
           ] as const).map(([k, icon, label, ring]) => (
             <button key={k} onClick={() => toggle(k)} aria-pressed={layers[k]} data-sound="tap"
               title={`${layers[k] ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
@@ -323,6 +324,11 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
               {label}
             </button>
           ))}
+          <button onClick={toggleEverything} aria-pressed={everything} data-sound="tap" title={everything ? 'Back to the usual view' : 'Show everything'}
+            className={`flex min-w-[3.5rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${everything ? 'text-stone-800' : 'text-stone-500'}`}>
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${everything ? 'bg-ink text-white' : 'border-2 border-stone-300 bg-white'}`}>🎌</span>
+            Everything
+          </button>
         </div>
       )}
 
