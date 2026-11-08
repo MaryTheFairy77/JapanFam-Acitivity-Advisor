@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inJapan, nextJapanMidnight } from '../geo'
+import { inJapan, nextJapanMidnight, tripToolsOn } from '../geo'
 import { MOSQUES, mosquesNear } from '../mosques'
 
 describe('family finder privacy rules', () => {
@@ -30,5 +30,15 @@ describe('mosques', () => {
   it('finds a prayer place near our Osaka hotel', () => {
     const [m] = mosquesNear({ lat: 34.7029, lng: 135.4951 }, 1)
     expect(m.d).toBeLessThan(1)
+  })
+})
+
+describe('trip-only tools', () => {
+  it('are on 24 Dec – 10 Jan (Japan time) and off otherwise', () => {
+    expect(tripToolsOn(Date.UTC(2026, 10, 8))).toBe(false) // today, 8 Nov
+    expect(tripToolsOn(Date.UTC(2026, 11, 23, 14, 59))).toBe(false) // 23 Dec 23:59 JST
+    expect(tripToolsOn(Date.UTC(2026, 11, 23, 15, 0))).toBe(true) // 24 Dec 00:00 JST
+    expect(tripToolsOn(Date.UTC(2027, 0, 10, 14, 59))).toBe(true) // 10 Jan 23:59 JST
+    expect(tripToolsOn(Date.UTC(2027, 0, 10, 15, 0))).toBe(false) // 11 Jan 00:00 JST
   })
 })

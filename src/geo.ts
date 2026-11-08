@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './lib'
 
+/**
+ * Trip-only tools (📍 Near me + 👨‍👩‍👧 Family finder) switch themselves on from 24 Dec 2026 to 10 Jan 2027, Japan time.
+ * To test early on one phone: localStorage.setItem('jf-trip-tools', '1')
+ */
+export const TRIP_TOOLS_FROM = Date.UTC(2026, 11, 24) - 9 * 3600e3 // 24 Dec 00:00 JST
+export const TRIP_TOOLS_UNTIL = Date.UTC(2027, 0, 11) - 9 * 3600e3 // end of 10 Jan JST
+export function tripToolsOn(now = Date.now()) {
+  try { if (localStorage.getItem('jf-trip-tools') === '1') return true } catch { /* ignore */ }
+  return now >= TRIP_TOOLS_FROM && now < TRIP_TOOLS_UNTIL
+}
+
 export type Pos = { lat: number; lng: number; accuracy: number; at: number }
 
 /**

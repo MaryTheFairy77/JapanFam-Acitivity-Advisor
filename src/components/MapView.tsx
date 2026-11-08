@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LocateFixed, X } from 'lucide-react'
-import { ago, inJapan, useFamilySpots, useLocationSharing, useMyPosition } from '../geo'
+import { ago, inJapan, tripToolsOn, useFamilySpots, useLocationSharing, useMyPosition } from '../geo'
 import { MOSQUES, mosqueLink, mosquesNear, type Mosque } from '../mosques'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -138,13 +138,26 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
   places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void; onHotel: (id: HotelId) => void
 }) {
   // 📍 Places mode (pins) or 👨‍👩‍👧 Family mode (where is everyone)
-  const [mode, setMode] = useState<'places' | 'family'>('places')
+  const [modeRaw, setMode] = useState<'places' | 'family'>('places')
   const { pos, busy, err: posErr, locate } = useMyPosition()
+  const mode = tripToolsOn() ? modeRaw : 'places'
   const [nearOpen, setNearOpen] = useState(false)
   const share = useLocationSharing(me.id, mode === 'family')
   const spots = useFamilySpots(mode === 'family')
-  const [mosquesOn, setMosquesOn] = useState<boolean>(() => { try { return localStorage.getItem('jf-mosques') !== '0' } catch { return true } })
-  const toggleMosques = () => setMosquesOn((v) => { try { localStorage.setItem('jf-mosques', v ? '0' : '1') } catch { /* ignore */ } return !v })
+  // trip-only tools (Near me + Family) appear 24 Dec – 10 Jan
+  const trip = tripToolsOn()
+  // legend strip = the key AND the on/off switches (remembered per phone)
+  type Layer = 'food' | 'act' | 'shop' | 'mosque' | 'hotel'
+  const [layers, setLayers] = useState<Record<Layer, boolean>>(() => {
+    const def = { food: true, act: true, shop: false, mosque: true, hotel: true }
+    try { return { ...def, ...JSON.parse(localStorage.getItem('jf-map-layers') ?? '{}') } } catch { return def }
+  })
+  const toggle = (k: Layer) => setLayers((l) => {
+    const n = { ...l, [k]: !l[k] }
+    try { localStorage.setItem('jf-map-layers', JSON.stringify(n)) } catch { /* ignore */ }
+    return n
+  })
+  const mosquesOn = layers.mosque
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
@@ -161,12 +174,8 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
     const k = pinned.filter((p) => regionOf(p) === 'kansai').length
     return k > pinned.length - k ? 'kansai' : 'kanto'
   })
-  const [show, setShow] = useState<'all' | 'restaurant' | 'activity'>('all')
-  // shopping is hidden by default (there are lots of shops); remembered per phone
-  const [shops, setShops] = useState<boolean>(() => { try { return localStorage.getItem('japanfam.mapShops') === '1' } catch { return false } })
-  const toggleShops = () => setShops((v) => { try { localStorage.setItem('japanfam.mapShops', v ? '0' : '1') } catch { /* ignore */ } return !v })
-  const nShops = pinned.filter((p) => p.category === 'shopping').length
-  const visible = useMemo(() => pinned.filter((p) => (show === 'all' || p.kind === show) && (shops || p.category !== 'shopping')), [pinned, show, shops])
+  const visible = useMemo(() => pinned.filter((p) =>
+    p.kind === 'restaurant' ? layers.food : catOf(p) === 'shopping' ? layers.shop : layers.act), [pinned, layers])
   // mosques/prayer rooms within 2 km of any of our places or hotels (not every mosque in Japan)
   const mosques = useMemo<Mosque[]>(() => {
     const anchors = [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])]
@@ -187,7 +196,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         center: ll(...start.center), zoom: start.zoom - 0.5, attributionControl: false,
       })
       // compact ⓘ credit (OpenStreetMap licence requires visible credit; full list is in T&Cs → References)
-      m.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+      m.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-right')
       // start collapsed as a small ⓘ (MapLibre opens it on first load)
       const collapse = () => box.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show')
       m.once('idle', collapse); setTimeout(collapse, 50)
@@ -248,7 +257,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
         p.lat!, p.lng!, popup)
     }
-    for (const id of HOTEL_IDS) {
+    for (const id of layers.hotel ? HOTEL_IDS : []) {
       const h = HOTELS[id]
       // tapping a hotel opens its overview sheet (photos link, how to get in, what's closest)
       const pin = bubble('🏯', '#c8102e', 44)
@@ -265,7 +274,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
-  }, [visible, voteCount, photoUrls, ready, mode, spots, members, me.id, mosques, mosquesOn, pos])
+  }, [visible, voteCount, photoUrls, ready, mode, spots, members, me.id, mosques, mosquesOn, pos, layers.hotel])
 
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
@@ -279,33 +288,45 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 space-y-2 p-3">
-        <div className="pointer-events-auto flex gap-2 overflow-x-auto">
-          <button data-sound="tab" className={chip(view === 'kansai')} onClick={() => setView('kansai')}>🦌 {REGIONS.kansai.label}</button>
-          <button data-sound="tab" className={chip(view === 'kanto')} onClick={() => setView('kanto')}>🗼 {REGIONS.kanto.label}</button>
-          <button data-sound="tab" className={chip(view === 'all')} onClick={() => setView('all')}>🗾 All</button>
+      {/* Top: one small city switch (+ Places/Family during the trip) */}
+      <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-2">
+        <div className="pointer-events-auto flex rounded-full border border-stone-300 bg-white/95 p-0.5 text-sm shadow-sm">
+          {([['kanto', '🗼 Tokyo'], ['kansai', '🦌 Osaka'], ['all', '🗾 All']] as const).map(([k, label]) => (
+            <button key={k} data-sound="tab" onClick={() => setView(k)}
+              className={`rounded-full px-3 py-1 ${view === k ? 'bg-ink text-white' : 'text-stone-600'}`}>{label}</button>
+          ))}
         </div>
-        <div className="pointer-events-auto flex w-fit rounded-full border border-indigo-300 bg-white/95 p-0.5 text-sm shadow-sm">
-          <button data-sound="tab" onClick={() => setMode('places')} className={`rounded-full px-3 py-1 ${mode === 'places' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>📍 Places</button>
-          <button data-sound="tab" onClick={() => { setMode('family'); setNearOpen(false) }} className={`rounded-full px-3 py-1 ${mode === 'family' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>👨‍👩‍👧 Family</button>
-        </div>
-        {mode === 'places' && <div className="pointer-events-auto flex gap-2 overflow-x-auto">
-          <button className={chip(show === 'all')} onClick={() => setShow('all')}>Everything</button>
-          <button className={chip(show === 'restaurant')} onClick={() => setShow('restaurant')}>🍜 Food</button>
-          <button className={chip(show === 'activity')} onClick={() => setShow('activity')}>🎢 Activities</button>
-          {nShops > 0 && show !== 'restaurant' && (
-            <button className={chip(shops)} onClick={toggleShops} title={shops ? 'Hide shopping' : 'Show shopping'}>
-              🛍️ {shops ? '' : `+${nShops}`}
-            </button>
-          )}
-          {mosques.length > 0 && (
-            <button className={chip(mosquesOn)} onClick={toggleMosques} title={mosquesOn ? 'Hide mosques' : 'Show mosques'}>🕌</button>
-          )}
-        </div>}
+        {trip && (
+          <div className="pointer-events-auto flex rounded-full border border-indigo-300 bg-white/95 p-0.5 text-sm shadow-sm">
+            <button data-sound="tab" onClick={() => setMode('places')} className={`rounded-full px-3 py-1 ${mode === 'places' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>📍 Places</button>
+            <button data-sound="tab" onClick={() => { setMode('family'); setNearOpen(false) }} className={`rounded-full px-3 py-1 ${mode === 'family' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>👨‍👩‍👧 Family</button>
+          </div>
+        )}
       </div>
 
-      {/* 📍 Near me */}
-      <button onClick={async () => {
+      {/* Bottom: legend strip = the key AND the on/off switches */}
+      {mode === 'places' && !nearOpen && (
+        <div className="absolute inset-x-3 bottom-3 z-10 flex justify-around rounded-2xl border border-stone-200 bg-white/95 px-1 py-1.5 shadow-lg" role="group" aria-label="Map legend: tap to show or hide">
+          {([
+            ['food', '🍜', 'Food', '#f59e0b'],
+            ['act', '🎢', 'Do', '#6366f1'],
+            ['shop', '🛍️', 'Shops', '#6366f1'],
+            ['mosque', '🕌', 'Mosques', '#059669'],
+            ['hotel', '🏯', 'Hotels', '#c8102e'],
+          ] as const).map(([k, icon, label, ring]) => (
+            <button key={k} onClick={() => toggle(k)} aria-pressed={layers[k]} data-sound="tap"
+              title={`${layers[k] ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
+              className={`flex min-w-[3.5rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${layers[k] ? 'text-stone-800' : 'text-stone-400'}`}>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base"
+                style={layers[k] ? { border: `3px solid ${ring}` } : { border: '2px dashed #d6d3d1', filter: 'grayscale(1)', opacity: 0.55 }}>{icon}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 📍 Near me (trip only) */}
+      {trip && <button onClick={async () => {
           const p = await locate()
           if (!p || !map.current) return
           map.current.flyTo({ center: ll(p.lat, p.lng), zoom: 15, duration: 900 })
@@ -314,7 +335,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         aria-label="Near me" title="Show where I am"
         className={`absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 border-indigo-300 bg-white shadow-lg ${busy ? 'animate-pulse' : ''}`}>
         <LocateFixed className="h-5 w-5 text-indigo-600" />
-      </button>
+      </button>}
       {posErr && <div className="absolute right-16 top-1/2 z-10 -translate-y-1/2 max-w-[70%] rounded-xl bg-white/95 px-3 py-2 text-xs text-torii shadow">{posErr}</div>}
 
       {/* Nearest places to me */}
@@ -378,7 +399,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         </div>
       )}
       {unpinned > 0 && mode === 'places' && !nearOpen && (
-        <div className="absolute bottom-3 left-3 right-12 z-10 rounded-xl bg-white/95 px-3 py-2 text-xs text-stone-600 shadow">
+        <div className="absolute bottom-[5.25rem] left-3 right-3 z-10 rounded-xl bg-white/95 px-3 py-2 text-xs text-stone-600 shadow">
           📌 {unpinned} place{unpinned === 1 ? '' : 's'} not on the map yet. Open one and tap <b>Find pin</b>.
         </div>
       )}

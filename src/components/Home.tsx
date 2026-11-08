@@ -4,7 +4,7 @@ import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import HotelSheet from './HotelSheet'
-import { useMyPosition } from '../geo'
+import { tripToolsOn, useMyPosition } from '../geo'
 import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
 const Planner = lazy(() => import('./Planner'))
@@ -270,7 +270,7 @@ export default function Home({ me, data, onLogout }: {
             </div>
             <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
               <ArrowUpDown className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
-              {SORTS.map((s) => (
+              {SORTS.filter((s) => s.key !== 'near' || tripToolsOn()).map((s) => (
                 <button key={s.key} className={chip(sort === s.key) + (s.key === 'near' && locating ? ' animate-pulse' : '')}
                   onClick={() => { setSort(s.key); if (s.key === 'near') locate() }}>{s.label}</button>
               ))}
