@@ -56,3 +56,7 @@ language sql immutable as $$
 $$;
 alter table public.locations drop constraint if exists locations_in_japan;
 alter table public.locations add constraint locations_in_japan check (public.in_japan(lat, lng));
+
+alter function public.in_japan(double precision, double precision) set search_path = public;
+alter function public.locations_touch() set search_path = public;
+alter function public.places_lock_owners() set search_path = public;
