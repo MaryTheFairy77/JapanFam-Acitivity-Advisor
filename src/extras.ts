@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { supabase } from './lib'
 
 /**
  * Small free extras for the map (no keys, no accounts, nothing paid):
  * - Weather: Open-Meteo (open-meteo.com), today's rain chance + max/min for the city on screen. Cached 1 h per city, shown offline too.
- * - Stations: OpenStreetMap via Overpass, railway/subway stations near our hotels + places. Cached 7 days per phone.
+ * - Stations: OpenStreetMap (via the "stations" edge function + stations_cache table), near our hotels + places.
  */
 
 function cacheGet<T>(key: string, maxAgeMs: number): T | null {
@@ -59,50 +60,31 @@ export function useWeather(city: keyof typeof WEATHER_SPOTS | null) {
 // ───────────── Stations ─────────────
 
 export type Station = { id: number; name: string; lat: number; lng: number }
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter']
 
-/** Stations within `radiusM` of each anchor (hotel or place). Fetched once, cached per set of anchors. */
-export function useStations(active: boolean, anchors: { lat: number; lng: number }[], radiusM = 700) {
-  const [list, setList] = useState<Station[]>([])
-  // round anchors so tiny pin nudges don't refetch
+/**
+ * Stations within ~700 m of each anchor (hotel or place).
+ * Read from public.stations_cache (filled by the "stations" edge function, which asks OpenStreetMap server-side:
+ * Overpass often blocks browsers when busy). Refreshed when the set of places changes. Cached on the phone for offline.
+ */
+export function useStations(active: boolean, anchors: { lat: number; lng: number }[]) {
+  const [list, setList] = useState<Station[]>(() => cacheGet<Station[]>('jf-stations-v2', 30 * 864e5) ?? [])
   const pts = Array.from(new Set(anchors.map((a) => `${a.lat.toFixed(3)},${a.lng.toFixed(3)}`))).sort()
   const sig = pts.join(';')
   useEffect(() => {
     if (!active || !pts.length) return
-    const key = 'jf-stations-v1'
-    let cached: { sig: string; v: Station[] } | null = null
-    try { cached = JSON.parse(localStorage.getItem(key) ?? 'null')?.v ?? null } catch { /* ignore */ }
-    const fresh = cacheGet<{ sig: string; v: Station[] }>(key, 7 * 864e5)
-    if (cached) setList(cached.v)
-    if (fresh && fresh.sig === sig) return
-    const q = `[out:json][timeout:25];(${pts.map((p) => `node(around:${radiusM},${p})["railway"="station"];node(around:${radiusM},${p})["public_transport"="station"]["railway"];`).join('')});out body;`
     let alive = true
     ;(async () => {
-      for (const base of OVERPASS) {
-        try {
-          const r = await fetch(base, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-          if (!r.ok) continue
-          const j = await r.json()
-          const seen = new Set<string>()
-          const v: Station[] = []
-          for (const e of j.elements ?? []) {
-            const name: string | undefined = e.tags?.['name:en'] ?? e.tags?.['name:ja_rm'] ?? e.tags?.name
-            if (!name || e.lat == null) continue
-            // one pin per station name nearby (big stations have many nodes)
-            const k = `${name}|${e.lat.toFixed(2)}|${e.lon.toFixed(2)}`
-            if (seen.has(k)) continue
-            seen.add(k)
-            v.push({ id: e.id, name: name.replace(/ Station$/i, ''), lat: e.lat, lng: e.lon })
-          }
-          cacheSet(key, { sig, v })
-          if (alive) setList(v)
-          return
-        } catch { /* try the next mirror */ }
-      }
-    })()
+      const { data } = await supabase.from('stations_cache').select('sig, data').eq('id', 1).maybeSingle()
+      if (data?.data && alive) { setList(data.data as Station[]); cacheSet('jf-stations-v2', data.data) }
+      if (data?.sig === sig) return
+      const points = pts.map((p) => p.split(',').map(Number))
+      const r = await supabase.functions.invoke('stations', { body: { points, sig } })
+      const st = (r.data as { stations?: Station[] } | null)?.stations
+      if (st && alive) { setList(st); cacheSet('jf-stations-v2', st) }
+    })().catch(() => { /* offline: keep the phone's copy */ })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, sig, radiusM])
+  }, [active, sig])
   return active ? list : []
 }
 
