@@ -140,7 +140,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
   const { pos, busy, err: posErr, locate } = useMyPosition()
   const mode = 'places' as const
   const [nearOpen, setNearOpen] = useState(false)
-  // trip-only tool (Near me) appears 24 Dec – 10 Jan
+  // trip-only tool (Near me) appears 26 Dec – 8 Jan
   const trip = tripToolsOn()
   // legend strip = the key AND the on/off switches (remembered per phone)
   type Layer = 'food' | 'act' | 'shop' | 'mosque'

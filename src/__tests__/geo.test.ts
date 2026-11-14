@@ -33,11 +33,24 @@ describe('mosques', () => {
 })
 
 describe('trip-only tools', () => {
-  it('are on 24 Dec – 10 Jan (Japan time) and off otherwise', () => {
-    expect(tripToolsOn(Date.UTC(2026, 10, 8))).toBe(false) // today, 8 Nov
-    expect(tripToolsOn(Date.UTC(2026, 11, 23, 14, 59))).toBe(false) // 23 Dec 23:59 JST
-    expect(tripToolsOn(Date.UTC(2026, 11, 23, 15, 0))).toBe(true) // 24 Dec 00:00 JST
-    expect(tripToolsOn(Date.UTC(2027, 0, 10, 14, 59))).toBe(true) // 10 Jan 23:59 JST
-    expect(tripToolsOn(Date.UTC(2027, 0, 10, 15, 0))).toBe(false) // 11 Jan 00:00 JST
+  it('are on 26 Dec – 8 Jan (Japan time) and off otherwise', () => {
+    expect(tripToolsOn(Date.UTC(2026, 10, 14))).toBe(false) // 14 Nov
+    expect(tripToolsOn(Date.UTC(2026, 11, 25, 14, 59))).toBe(false) // 25 Dec 23:59 JST (flying)
+    expect(tripToolsOn(Date.UTC(2026, 11, 25, 15, 0))).toBe(true) // 26 Dec 00:00 JST
+    expect(tripToolsOn(Date.UTC(2027, 0, 8, 14, 59))).toBe(true) // 8 Jan 23:59 JST
+    expect(tripToolsOn(Date.UTC(2027, 0, 8, 15, 0))).toBe(false) // 9 Jan 00:00 JST
+  })
+})
+
+describe('hotel stays', async () => {
+  const { tripDays } = await import('../lib')
+  it('covers 26 Dec – 8 Jan with the right hotel each night', () => {
+    const d = tripDays()
+    expect(d.length).toBe(14)
+    expect(d[0]).toMatchObject({ date: '2026-12-26', hotel: 'toranomon', moving: false })
+    expect(d[3]).toMatchObject({ date: '2026-12-29', hotel: 'osaka', from: 'toranomon', moving: true })
+    expect(d.find((x) => x.date === '2027-01-02')!.hotel).toBe('osaka')
+    expect(d.find((x) => x.date === '2027-01-03')).toMatchObject({ hotel: 'jw_tokyo', from: 'osaka', moving: true })
+    expect(d[13]).toMatchObject({ date: '2027-01-08', hotel: null, last: true })
   })
 })

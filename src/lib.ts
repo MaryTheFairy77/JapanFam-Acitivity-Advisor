@@ -96,6 +96,30 @@ export const HOTELS: Record<HotelId, { name: string; short: string; city: string
 }
 export const HOTEL_IDS = Object.keys(HOTELS) as HotelId[]
 
+/**
+ * Where we sleep each night (checked with Maryam 14 Nov 2026). Dates are Japan dates, 'YYYY-MM-DD'.
+ * Tokyo (Toranomon) 26–28 Dec · Osaka 29 Dec – 2 Jan · Tokyo (JW) 3–7 Jan · fly home 8 Jan.
+ */
+export const STAYS: { hotel: HotelId; checkIn: string; checkOut: string }[] = [
+  { hotel: 'toranomon', checkIn: '2026-12-26', checkOut: '2026-12-29' },
+  { hotel: 'osaka', checkIn: '2026-12-29', checkOut: '2027-01-03' },
+  { hotel: 'jw_tokyo', checkIn: '2027-01-03', checkOut: '2027-01-08' },
+]
+/** One entry per trip day, 26 Dec → 8 Jan. Moving days have `from` (morning hotel) + `hotel` (night hotel); the last day has no night. */
+export type TripDay = { date: string; hotel: HotelId | null; from: HotelId | null; moving: boolean; last: boolean }
+export function tripDays(): TripDay[] {
+  const out: TripDay[] = []
+  const nightAt = (d: string) => STAYS.find((s) => d >= s.checkIn && d < s.checkOut)?.hotel ?? null
+  const start = new Date(STAYS[0].checkIn + 'T00:00:00Z'), end = new Date(STAYS[STAYS.length - 1].checkOut + 'T00:00:00Z')
+  for (let t = start.getTime(); t <= end.getTime(); t += 864e5) {
+    const date = new Date(t).toISOString().slice(0, 10)
+    const prev = new Date(t - 864e5).toISOString().slice(0, 10)
+    const hotel = nightAt(date), from = nightAt(prev)
+    out.push({ date, hotel, from, moving: from != null && hotel != null && from !== hotel, last: hotel == null })
+  }
+  return out
+}
+
 export const REGIONS: Record<Region, { label: string; center: [number, number]; zoom: number }> = {
   kansai: { label: 'Osaka & Kyoto', center: [34.75, 135.55], zoom: 10 },
   kanto: { label: 'Tokyo & Fuji', center: [35.6, 139.5], zoom: 9 },

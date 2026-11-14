@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react'
 
 /**
- * Trip-only tool (📍 Near me) switch themselves on from 24 Dec 2026 to 10 Jan 2027, Japan time.
+ * Trip-only tool (📍 Near me) switches itself on while we're in Japan: 26 Dec 2026 – 8 Jan 2027, Japan time (24/25 Dec + 9/10 Jan are flights + Dubai layover).
  * To test early on one phone: localStorage.setItem('jf-trip-tools', '1')
  */
-export const TRIP_TOOLS_FROM = Date.UTC(2026, 11, 24) - 9 * 3600e3 // 24 Dec 00:00 JST
-export const TRIP_TOOLS_UNTIL = Date.UTC(2027, 0, 11) - 9 * 3600e3 // end of 10 Jan JST
+export const TRIP_TOOLS_FROM = Date.UTC(2026, 11, 26) - 9 * 3600e3 // 26 Dec 00:00 JST
+export const TRIP_TOOLS_UNTIL = Date.UTC(2027, 0, 9) - 9 * 3600e3 // end of 8 Jan JST
 export function tripToolsOn(now = Date.now()) {
   try { if (localStorage.getItem('jf-trip-tools') === '1') return true } catch { /* ignore */ }
   return now >= TRIP_TOOLS_FROM && now < TRIP_TOOLS_UNTIL
