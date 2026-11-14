@@ -3,6 +3,7 @@ import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, clai
 import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
+import QuickAdd from './QuickAdd'
 import HotelSheet from './HotelSheet'
 import { tripToolsOn, useMyPosition } from '../geo'
 import Stats from './Stats'
@@ -60,6 +61,7 @@ export default function Home({ me, data, onLogout }: {
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
   const [offlineTip, setOfflineTip] = useState(false)
+  const [quickAdd, setQuickAdd] = useState(false)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
   const kidMode = isKid(me)
@@ -339,7 +341,7 @@ export default function Home({ me, data, onLogout }: {
           </div>
 
           {!kidMode && (
-          <button onClick={() => setEditing('new')}
+          <button onClick={() => setQuickAdd(true)}
             className="fixed bottom-20 right-1/2 z-30 mb-[env(safe-area-inset-bottom)] translate-x-1/2 rounded-full bg-torii px-6 py-3.5 font-medium text-white shadow-lg shadow-torii/30 active:scale-95">
             + Add {tab === 'restaurant' ? 'restaurant' : CATEGORIES[cat].one}
           </button>
@@ -403,6 +405,12 @@ export default function Home({ me, data, onLogout }: {
           canEdit={canEdit(viewing)} photoUrls={photoUrls} ranks={ranks[viewing.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
           onClose={() => setViewingId(null)} onVote={() => toggleVote(viewing)} onVisited={() => toggleVisited(viewing)}
           onEdit={() => setEditing(viewing)} onImIn={() => toggleGoing(me.id, viewing)} onGoing={() => setGoingFor(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }} />
+      )}
+      {quickAdd && (
+        <QuickAdd me={me} defaultKind={tab === 'activity' ? 'activity' : 'restaurant'} defaultCategory={cat}
+          onClose={() => setQuickAdd(false)}
+          onManual={() => { setQuickAdd(false); setEditing('new') }}
+          onSaved={async (id) => { setQuickAdd(false); await refresh(); setViewingId(id) }} />
       )}
       {editing && (
         <PlaceForm me={me} canDelete={me.is_admin} photoUrls={photoUrls}

@@ -1,6 +1,7 @@
 // Deployed to Supabase as the "resolve-maps" Edge Function (verify_jwt = true).
 // Follows a short Google Maps link server-side. Returns { lat, lng } when the link contains coordinates,
 // otherwise { address } (phone-app share links only carry the address) for the app to look up on OpenStreetMap.
+// Also returns { name } when the link names the place (/maps/place/NAME), so the app can fill the name in.
 // Only Google hosts are followed (no open proxy).
 const ALLOWED = /^(maps\.app\.goo\.gl|goo\.gl|(www\.|maps\.)?google\.[a-z.]+|consent\.google\.[a-z.]+)$/i
 const cors = {
@@ -19,6 +20,14 @@ function coords(s: string): { lat: number; lng: number } | null {
   const lat = +m[1], lng = +m[2]
   return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null
 }
+function placeName(u: URL): string | null {
+  const inner = u.searchParams.get('continue')
+  if (inner) { try { return placeName(new URL(inner)) } catch { /* ignore */ } }
+  const place = dec(u.pathname).match(/\/maps\/place\/([^/@]+)/)
+  if (!place) return null
+  const n = place[1].replace(/\+/g, ' ').split(',')[0].trim()
+  return n && !/^-?\d+\.\d+/.test(n) ? n.slice(0, 120) : null
+}
 function addressFrom(u: URL): string | null {
   const inner = u.searchParams.get('continue')
   if (inner) { try { return addressFrom(new URL(inner)) } catch { /* ignore */ } }
@@ -36,22 +45,24 @@ Deno.serve(async (req: Request) => {
     if (typeof url !== 'string' || url.length > 2000) return json({ error: 'bad url' }, 400)
     let u = new URL(url.trim())
     let address: string | null = null
+    let name: string | null = null
     for (let hop = 0; hop < 6; hop++) {
       if (u.protocol !== 'https:' || !ALLOWED.test(u.hostname)) return json({ error: 'Only Google Maps links are supported' }, 400)
+      name ??= placeName(u)
       const c = coords(u.toString())
-      if (c) return json(c)
+      if (c) return json({ ...c, name })
       address ??= addressFrom(u)
       if (/^consent\./i.test(u.hostname)) break // cookie wall: we already have what we need
       const r = await fetch(u, { redirect: 'manual', headers: { 'User-Agent': 'Mozilla/5.0 (JapanFam trip app)', 'Accept-Language': 'en' } })
       const loc = r.headers.get('location')
       if (!loc) {
         const c2 = coords((await r.text()).slice(0, 400000))
-        if (c2) return json(c2)
+        if (c2) return json({ ...c2, name })
         break
       }
       u = new URL(loc, u)
     }
-    return address ? json({ address }) : json({ error: 'No location found in that link' }, 404)
+    return address ? json({ address, name }) : json({ error: 'No location found in that link' }, 404)
   } catch (_e) {
     return json({ error: 'Could not read that link' }, 400)
   }

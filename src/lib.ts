@@ -409,21 +409,32 @@ export function addressCandidates(address: string): string[] {
 }
 
 /** Resolve any Google Maps link to a pin. exact=false means "found from the address" (shown ✨ until confirmed). */
-export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: number; exact: boolean } | null> {
+export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: number; exact: boolean; name?: string | null } | null> {
   const direct = parseLatLng(url)
-  if (direct) return { ...direct, exact: true }
+  const nameInUrl = (() => { try { const m = decodeURIComponent(url).match(/\/maps\/place\/([^/@]+)/); return m ? m[1].replace(/\+/g, ' ').split(',')[0].trim() : null } catch { return null } })()
+  if (direct) return { ...direct, exact: true, name: nameInUrl }
   if (!/^https?:\/\/([a-z.]*google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl)\//i.test(url.trim())) return null
   const { data, error } = await supabase.functions.invoke('resolve-maps', { body: { url: url.trim() } })
   if (error || !data) return null
-  if (typeof data.lat === 'number') return { lat: data.lat, lng: data.lng, exact: true }
+  const name = typeof data.name === 'string' ? data.name : nameInUrl
+  if (typeof data.lat === 'number') return { lat: data.lat, lng: data.lng, exact: true, name }
   if (typeof data.address === 'string') {
     for (const q of addressCandidates(data.address)) {
       const lk = await lookupPlace(q).catch(() => null)
-      if (lk) return { lat: lk.lat, lng: lk.lng, exact: false }
+      if (lk) return { lat: lk.lat, lng: lk.lng, exact: false, name }
       await new Promise((r) => setTimeout(r, 1000)) // OpenStreetMap asks for ≤1 request/second
     }
   }
   return null
+}
+
+// ── Instagram links (read on the server; Gemini FREE tier finds the place in the caption) ──
+export const isInstagramLink = (u: string) => /^https?:\/\/(www\.)?instagram\.com\//i.test(u.trim())
+export type InstaResult = { name?: string; area?: string | null; kind?: Kind | 'shopping' | null; description?: string | null; halal?: string | null; source?: string; error?: string }
+export async function readInstagram(url: string): Promise<InstaResult> {
+  const { data, error } = await supabase.functions.invoke('read-instagram', { body: { url: url.trim() } })
+  if (error || !data) return { error: 'failed' }
+  return data as InstaResult
 }
 
 /** A Google Maps search for this name, centred on the pin: opens the real listing in most cases (free, no API). */
