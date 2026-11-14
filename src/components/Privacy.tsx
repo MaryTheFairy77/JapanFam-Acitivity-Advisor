@@ -35,6 +35,7 @@ export default function Privacy({ className = '' }: { className?: string }) {
             <li>Map data © <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL)</li>
             <li>Map tiles: <a className="underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> © <a className="underline" href="https://openmaptiles.org" target="_blank" rel="noreferrer">OpenMapTiles</a>, rendered with <a className="underline" href="https://maplibre.org" target="_blank" rel="noreferrer">MapLibre</a>; pastel colours are our own</li>
             <li>Mosques: OpenStreetMap; prayer rooms: JNTO Muslim guide, Halal Media Japan, MATCHA, GROOVY JAPAN</li>
+            <li>Train stations: OpenStreetMap (via Overpass); weather: <a className="underline" href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a> (CC BY 4.0). Only the hotel/place spots and city are sent, never anything about you.</li>
             <li>Place search: <a className="underline" href="https://nominatim.org" target="_blank" rel="noreferrer">Nominatim</a> (OpenStreetMap)</li>
             <li>Fonts: Fraunces and Inter via Google Fonts (SIL Open Font License)</li>
             <li>Illustrations, placeholder art, sounds and music: original, made for this app (sounds are generated live in your browser)</li>

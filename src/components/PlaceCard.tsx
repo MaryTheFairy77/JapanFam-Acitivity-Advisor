@@ -1,5 +1,6 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet, X } from 'lucide-react'
 import Thumb from './Thumb'
+import Face from './Face'
 import { mosqueLink, mosquesNear } from '../mosques'
 import { CATEGORIES, HOTELS, catOf, estimateTravel, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type HotelId, type Member, type Place } from '../lib'
 
@@ -191,7 +192,7 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGo
                   <span className={p.visited ? 'text-emerald-700' : 'text-stone-600'}>{p.visited ? 'Been ✓' : 'Been here?'}</span>
                 </label>
               )}
-            {voters.length > 0 && <span className="ml-auto truncate text-xs text-stone-500" title={voters.map(displayName).join(', ')}>👍 {voters.map((v) => v.emoji).join('')}</span>}
+            {voters.length > 0 && <span className="ml-auto flex flex-wrap items-center justify-end gap-1 text-xs text-stone-500">👍 {voters.map((v) => <Face key={v.id} m={v} className="h-8 w-8 rounded-full text-lg" />)}</span>}
           </div>
 
           {/* Who suggested it = who can edit it */}

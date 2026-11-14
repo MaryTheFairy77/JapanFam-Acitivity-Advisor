@@ -11,7 +11,7 @@ const Planner = lazy(() => import('./Planner'))
 import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
-import { ArrowUpDown, ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Menu, Music2, Search, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
+import { ArrowUpDown, ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Menu, Music2, Search, WifiOff, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
 
 type Tab = Kind | 'stats' | 'map' | 'plan'
 
@@ -59,6 +59,7 @@ export default function Home({ me, data, onLogout }: {
   const distTo = (p: Place) => (myPos && p.lat != null && p.lng != null ? km(myPos, { lat: p.lat, lng: p.lng }) : null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [music, setMusic] = useState(getPrefs().ambience)
+  const [offlineTip, setOfflineTip] = useState(false)
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
   const kidMode = isKid(me)
@@ -186,6 +187,17 @@ export default function Home({ me, data, onLogout }: {
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">JapanFam <span className="text-torii">●</span></h1>
           <div className="flex items-center gap-2">
+          {data.offlineSince && (
+            <button onClick={() => setOfflineTip((v) => !v)} aria-label="Offline: showing saved data"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-amber-400 bg-amber-100 text-amber-800">
+              <WifiOff className="h-4 w-4" />
+              {offlineTip && (
+                <span role="status" className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl bg-ink/85 px-3 py-2 text-left text-xs font-normal text-white shadow-lg">
+                  📴 Offline: showing what was saved at {new Date(data.offlineSince).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Votes &amp; edits need internet.
+                </span>
+              )}
+            </button>
+          )}
           <button data-sound="none" onClick={() => setPrefs({ ambience: !music })} aria-label={music ? 'Turn off background music' : 'Turn on background music'}
             className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg ${music ? 'border-torii bg-torii/10' : 'border-stone-300 bg-white grayscale'}`}>
             {music ? <Music2 className="h-4 w-4 text-torii" /> : <VolumeX className="h-4 w-4 text-stone-500" />}
@@ -199,11 +211,6 @@ export default function Home({ me, data, onLogout }: {
         </div>
       </header>
       <WaveBand />
-      {data.offlineSince && (
-        <div className="sticky top-[60px] z-[590] mx-3 mt-1 rounded-xl bg-amber-100 px-3 py-1.5 text-center text-xs text-amber-900 shadow-sm">
-          📴 Offline: showing what was saved at {new Date(data.offlineSince).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Votes & edits need internet.
-        </div>
-      )}
 
       {/* Bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">

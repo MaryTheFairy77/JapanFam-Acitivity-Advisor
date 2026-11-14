@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LocateFixed, X } from 'lucide-react'
+import { LocateFixed, Umbrella, X } from 'lucide-react'
 import { inJapan, tripToolsOn, useMyPosition } from '../geo'
+import { useStations, useWeather, walkTo } from '../extras'
 import { MOSQUES, mosqueLink, mosquesNear, type Mosque } from '../mosques'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -125,6 +126,17 @@ function simplePopup(title: string, sub: string, lat: number, lng: number, href?
 }
 
 /** Blue "you are here" dot. */
+/** Small teal station marker (tap for the name + walking directions). */
+function stationPin() {
+  const outer = document.createElement('div')
+  const el = document.createElement('div')
+  outer.appendChild(el)
+  Object.assign(el.style, { width: '22px', height: '22px', borderRadius: '6px', background: '#fff', border: '2px solid #0f766e',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,.2)' })
+  el.textContent = '🚉'
+  return outer
+}
+
 function meDot() {
   const outer = document.createElement('div')
   const el = document.createElement('div')
@@ -143,18 +155,18 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
   // trip-only tool (Near me) appears 26 Dec – 8 Jan
   const trip = tripToolsOn()
   // legend strip = the key AND the on/off switches (remembered per phone)
-  type Layer = 'food' | 'act' | 'shop' | 'mosque'
+  type Layer = 'food' | 'act' | 'shop' | 'mosque' | 'station'
   const [layers, setLayers] = useState<Record<Layer, boolean>>(() => {
-    const def = { food: true, act: true, shop: false, mosque: true }
+    const def = { food: true, act: true, shop: false, mosque: true, station: true }
     try { return { ...def, ...JSON.parse(localStorage.getItem('jf-map-layers') ?? '{}') } } catch { return def }
   })
   const saveLayers = (n: Record<Layer, boolean>) => { try { localStorage.setItem('jf-map-layers', JSON.stringify(n)) } catch { /* ignore */ } return n }
   const toggle = (k: Layer) => setLayers((l) => saveLayers({ ...l, [k]: !l[k] }))
-  const everything = layers.food && layers.act && layers.shop && layers.mosque
+  const everything = layers.food && layers.act && layers.shop && layers.mosque && layers.station
   // 🎌 Everything: turn every layer on (tap again to go back to the usual view without shops)
   const toggleEverything = () => setLayers(() => saveLayers(everything
-    ? { food: true, act: true, shop: false, mosque: true }
-    : { food: true, act: true, shop: true, mosque: true }))
+    ? { food: true, act: true, shop: false, mosque: true, station: true }
+    : { food: true, act: true, shop: true, mosque: true, station: true }))
   const mosquesOn = layers.mosque
   const [noteHidden, setNoteHidden] = useState(() => { try { return sessionStorage.getItem('jf-pin-note') === '1' } catch { return false } })
   const box = useRef<HTMLDivElement>(null)
@@ -180,6 +192,11 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
     const anchors = [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])]
     return MOSQUES.filter((q) => q.popular || anchors.some((a) => km(a, q) <= 2))
   }, [pinned])
+  // 🚉 stations near our hotels + places (OpenStreetMap, cached on the phone)
+  const stationAnchors = useMemo(() => [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])], [pinned])
+  const stations = useStations(layers.station, stationAnchors)
+  // ☂ today's weather for the city on screen (Open-Meteo, free)
+  const weather = useWeather(view === 'all' ? null : view)
   // nearest places to me (for the 📍 card)
   const nearest = useMemo(() => pos ? visible.map((p) => ({ p, d: km(pos, { lat: p.lat!, lng: p.lng! }) })).sort((a, b) => a.d - b.d).slice(0, 5) : [], [pos, visible])
   const nearestMosque = useMemo(() => pos ? mosquesNear(pos, 1)[0] ?? null : null, [pos])
@@ -232,6 +249,12 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
     }
 
     if (pos) add(meDot(), pos.lat, pos.lng, new maplibregl.Popup({ offset: 12, closeButton: false }).setText(`You are here (±${pos.accuracy} m)`))
+    if (layers.station) {
+      for (const st of stations) {
+        add(stationPin(), st.lat, st.lng, new maplibregl.Popup({ offset: 12, closeButton: false })
+          .setDOMContent(simplePopup(`🚉 ${st.name}`, 'Station', st.lat, st.lng, walkTo(st.lat, st.lng))))
+      }
+    }
     if (mode === 'places' && mosquesOn) {
       for (const q of mosques) {
         const pin = bubble(q.kind === 'prayer_room' ? '🤲' : '🕌', '#059669', q.popular ? 36 : 28)
@@ -271,7 +294,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
-  }, [visible, voteCount, photoUrls, ready, mode, mosques, mosquesOn, pos])
+  }, [visible, voteCount, photoUrls, ready, mode, mosques, mosquesOn, pos, stations, layers.station])
 
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
@@ -293,6 +316,14 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
               className={`rounded-full px-3 py-1 ${view === k ? 'bg-ink text-white' : 'text-stone-600'}`}>{label}</button>
           ))}
         </div>
+        {weather && view !== 'all' && (
+          <div aria-label={`${view === 'kanto' ? 'Tokyo' : 'Osaka'} today: ${weather.rain ?? '?'}% chance of rain, high ${weather.max}°, low ${weather.min}°`}
+            className="flex items-center gap-1 rounded-full border border-stone-200/80 bg-white/80 px-2 py-0.5 text-[11px] text-stone-700 backdrop-blur-sm">
+            <Umbrella className="h-3 w-3 text-blue-600" aria-hidden />
+            {weather.rain != null && <span>{weather.rain}%</span>}
+            <span className="text-stone-400">·</span><span className="font-semibold">{weather.max}°</span><span>/ {weather.min}°</span>
+          </div>
+        )}
       </div>
 
       {/* Bottom: legend strip = the key AND the on/off switches */}
@@ -303,17 +334,18 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
             ['act', '🎢', 'Do', '#6366f1'],
             ['shop', '🛍️', 'Shops', '#6366f1'],
             ['mosque', '🕌', 'Mosques', '#059669'],
+            ['station', '🚉', 'Stations', '#0f766e'],
           ] as const).map(([k, icon, label, ring]) => (
             <button key={k} onClick={() => toggle(k)} aria-pressed={layers[k]} data-sound="tap"
               title={`${layers[k] ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
-              className={`flex min-w-[3.5rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${layers[k] ? 'text-stone-800' : 'text-stone-400'}`}>
+              className={`flex min-w-[3rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${layers[k] ? 'text-stone-800' : 'text-stone-400'}`}>
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base"
                 style={layers[k] ? { border: `3px solid ${ring}` } : { border: '2px dashed #d6d3d1', filter: 'grayscale(1)', opacity: 0.55 }}>{icon}</span>
               {label}
             </button>
           ))}
           <button onClick={toggleEverything} aria-pressed={everything} data-sound="tap" title={everything ? 'Back to the usual view' : 'Show everything'}
-            className={`flex min-w-[3.5rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${everything ? 'text-stone-800' : 'text-stone-500'}`}>
+            className={`flex min-w-[3rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${everything ? 'text-stone-800' : 'text-stone-500'}`}>
             <span className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${everything ? 'bg-ink text-white' : 'border-2 border-stone-300 bg-white'}`}>🎌</span>
             Everything
           </button>

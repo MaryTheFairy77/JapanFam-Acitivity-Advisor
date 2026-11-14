@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { catOf, displayName, fmtMin, fmtYen, rankOf, tint, YELLOW, type Member, type Place, type Vote } from '../lib'
+import { catOf, fmtMin, fmtYen, rankOf, tint, YELLOW, type Member, type Place, type Vote } from '../lib'
 import Thumb from './Thumb'
+import Face from './Face'
 
 type Metric = 'votes' | 'price' | 'travel' | 'wait' | 'value'
 
@@ -114,7 +115,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
                     // unit histogram: one face per vote
                     <div className="mt-1 flex min-h-[1.5rem] flex-wrap items-center gap-0.5">
                       {voters.length ? voters.map((vv) => (
-                        <span key={vv.id} title={displayName(vv)} className="flex h-6 w-6 items-center justify-center rounded-full bg-torii/10 text-sm">{vv.emoji}</span>
+                        <Face key={vv.id} m={vv} inButton className="h-7 w-7 rounded-full bg-torii/10 text-sm" />
                       )) : <span className="text-xs text-stone-400">No votes yet</span>}
                     </div>
                   ) : (
