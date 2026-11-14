@@ -15,7 +15,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
 const IG = /^https:\/\/(www\.)?instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(p|reel|reels|tv)\/([A-Za-z0-9_-]{5,40})/
-const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest']
+const MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash']
 
 const unescape = (s: string) => s
   .replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
@@ -69,22 +69,23 @@ async function askGemini(text: string, key: string) {
       // easy question: skip the model's "thinking" step (much faster); falls back if a model doesn't support it
       generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 400, ...(noThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(8000),
   })
+  let last = 'ai_failed'
   for (const model of MODELS) {
     let r: Response
     try {
       r = await call(model, true)
-      if (r.status === 400) r = await call(model, false)
-    } catch { return { error: 'busy' } } // timed out
-    if (r.status === 404) continue // model name retired: try the next
-    if (r.status === 429) return { error: 'busy' } // free-tier limit reached: no charge, just try later
+      if (r.status === 400) { console.log('gemini', model, 400, (await r.text()).slice(0, 300)); r = await call(model, false) }
+    } catch (e) { console.log('gemini', model, 'timeout/error', String(e).slice(0, 200)); last = 'busy'; continue }
+    // 404 = model retired; 429 = that model's free-tier limit (some models have none): no charge, try the next model
+    if (r.status === 404 || r.status === 429) { console.log('gemini', model, r.status, (await r.text()).slice(0, 300)); last = 'busy'; continue }
     if (!r.ok) { console.log('gemini', model, r.status, (await r.text()).slice(0, 200)); return { error: 'ai_failed' } }
     const j = await r.json()
     const out = j?.candidates?.[0]?.content?.parts?.find((p: { text?: string }) => p.text)?.text
-    try { return JSON.parse(out) } catch { return { error: 'ai_failed' } }
+    try { return JSON.parse(out) } catch { console.log('gemini', model, 'bad json', String(out).slice(0, 200)); return { error: 'ai_failed' } }
   }
-  return { error: 'ai_failed' }
+  return { error: last }
 }
 
 const clip = (v: unknown, n: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null)
