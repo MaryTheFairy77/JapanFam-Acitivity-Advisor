@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LocateFixed, Umbrella, X } from 'lucide-react'
 import { inJapan, tripToolsOn, useMyPosition } from '../geo'
-import { useStations, useWeather, walkTo } from '../extras'
+import { useWeather, walkTo } from '../extras'
+import { STATIONS } from '../stations'
 import { MOSQUES, mosqueLink, mosquesNear, type Mosque } from '../mosques'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -192,9 +193,8 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
     const anchors = [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])]
     return MOSQUES.filter((q) => q.popular || anchors.some((a) => km(a, q) <= 2))
   }, [pinned])
-  // 🚉 stations near our hotels + places (OpenStreetMap, cached on the phone)
-  const stationAnchors = useMemo(() => [...pinned.map((p) => ({ lat: p.lat!, lng: p.lng! })), ...HOTEL_IDS.map((h) => HOTELS[h])], [pinned])
-  const stations = useStations(layers.station, stationAnchors)
+  // 🚉 stations near our hotels + places (fixed list in src/stations.ts, like the mosques)
+  const stations = layers.station ? STATIONS : []
   // ☂ today's weather for the city on screen (Open-Meteo, free)
   const weather = useWeather(view === 'all' ? null : view)
   // nearest places to me (for the 📍 card)
@@ -252,7 +252,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
     if (layers.station) {
       for (const st of stations) {
         add(stationPin(), st.lat, st.lng, new maplibregl.Popup({ offset: 12, closeButton: false })
-          .setDOMContent(simplePopup(`🚉 ${st.name}`, 'Station', st.lat, st.lng, walkTo(st.lat, st.lng))))
+          .setDOMContent(simplePopup(`🚉 ${st.name}`, `${st.ja} · Station`, st.lat, st.lng, walkTo(st.lat, st.lng))))
       }
     }
     if (mode === 'places' && mosquesOn) {

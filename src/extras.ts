@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './lib'
 
 /**
  * Small free extras for the map (no keys, no accounts, nothing paid):
  * - Weather: Open-Meteo (open-meteo.com), today's rain chance + max/min for the city on screen. Cached 1 h per city, shown offline too.
- * - Stations: OpenStreetMap (via the "stations" edge function + stations_cache table), near our hotels + places.
  */
 
 function cacheGet<T>(key: string, maxAgeMs: number): T | null {
@@ -58,35 +56,6 @@ export function useWeather(city: keyof typeof WEATHER_SPOTS | null) {
 }
 
 // ───────────── Stations ─────────────
-
-export type Station = { id: number; name: string; lat: number; lng: number }
-
-/**
- * Stations within ~700 m of each anchor (hotel or place).
- * Read from public.stations_cache (filled by the "stations" edge function, which asks OpenStreetMap server-side:
- * Overpass often blocks browsers when busy). Refreshed when the set of places changes. Cached on the phone for offline.
- */
-export function useStations(active: boolean, anchors: { lat: number; lng: number }[]) {
-  const [list, setList] = useState<Station[]>(() => cacheGet<Station[]>('jf-stations-v2', 30 * 864e5) ?? [])
-  const pts = Array.from(new Set(anchors.map((a) => `${a.lat.toFixed(3)},${a.lng.toFixed(3)}`))).sort()
-  const sig = pts.join(';')
-  useEffect(() => {
-    if (!active || !pts.length) return
-    let alive = true
-    ;(async () => {
-      const { data } = await supabase.from('stations_cache').select('sig, data').eq('id', 1).maybeSingle()
-      if (data?.data && alive) { setList(data.data as Station[]); cacheSet('jf-stations-v2', data.data) }
-      if (data?.sig === sig) return
-      const points = pts.map((p) => p.split(',').map(Number))
-      const r = await supabase.functions.invoke('stations', { body: { points, sig } })
-      const st = (r.data as { stations?: Station[] } | null)?.stations
-      if (st && alive) { setList(st); cacheSet('jf-stations-v2', st) }
-    })().catch(() => { /* offline: keep the phone's copy */ })
-    return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, sig])
-  return active ? list : []
-}
 
 /** Google Maps walking directions to a spot (opens the Maps app on phones). */
 export const walkTo = (lat: number, lng: number) =>

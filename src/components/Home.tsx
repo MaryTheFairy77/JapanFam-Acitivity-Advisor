@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { CATEGORIES, CATEGORY_IDS, catOf, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, km, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, catOf, regionOf, type Region, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, km, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
@@ -47,6 +47,7 @@ export default function Home({ me, data, onLogout }: {
   const [halalOnly, setHalalOnly] = useState(false)
   const [taste, setTaste] = useState<'all' | 'sweet' | 'savory'>('all')
   const [cat, setCat] = useState<Category>('activity') // Do tab: 🎢 Activities | 🛍 Shopping
+  const [foodCity, setFoodCity] = useState<Region>('kanto') // Food tab: 🗼 Tokyo | 🦌 Osaka (shows where we're short)
   const [hideVisited, setHideVisited] = useState(false)
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Place | 'new' | null>(null)
@@ -103,6 +104,8 @@ export default function Home({ me, data, onLogout }: {
       .filter((p) => !halalOnly || p.halal === 'Halal certified' || p.halal === 'Muslim friendly')
       .filter((p) => taste === 'all' || p.taste === taste || p.taste === 'both')
       .filter((p) => p.kind !== 'activity' || catOf(p) === cat)
+      // food split by city; places with no pin yet show in both so they're not lost
+      .filter((p) => p.kind !== 'restaurant' || regionOf(p) == null || regionOf(p) === foodCity)
       .filter((p) => !hideVisited || !p.visited)
       .filter((p) => !q || `${p.name} ${p.description ?? ''}`.toLowerCase().includes(q.toLowerCase()))
       .sort((a, b) => {
@@ -116,7 +119,7 @@ export default function Home({ me, data, onLogout }: {
         }
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places, tab, hotel, halalOnly, taste, cat, hideVisited, q, sort, voteCount, est, myPos])
+  }, [places, tab, hotel, halalOnly, taste, cat, foodCity, hideVisited, q, sort, voteCount, est, myPos])
 
   const activeFilters = (hotel !== 'all' ? 1 : 0) + (halalOnly ? 1 : 0) + (taste !== 'all' ? 1 : 0) + (hideVisited ? 1 : 0)
 
@@ -251,6 +254,22 @@ export default function Home({ me, data, onLogout }: {
                     <button key={c} role="tab" aria-selected={cat === c} data-sound="tab" onClick={() => setCat(c)}
                       className={`rounded-xl py-2 text-sm font-medium transition ${cat === c ? 'bg-ink text-white shadow' : 'text-stone-600'}`}>
                       {CATEGORIES[c].emoji} {CATEGORIES[c].label} <span className="opacity-60">{n}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {/* Food tab: Tokyo | Osaka sub-tabs (counts show where we're short) */}
+          {tab === 'restaurant' && (
+            <div className="relative z-10 px-4 pt-3">
+              <div className="grid grid-cols-2 gap-1 rounded-2xl border border-stone-200 bg-white p-1" role="tablist">
+                {([['kanto', '🗼 Tokyo & Fuji'], ['kansai', '🦌 Osaka & Kyoto']] as const).map(([r, label]) => {
+                  const n = places.filter((p) => p.kind === 'restaurant' && regionOf(p) === r).length
+                  return (
+                    <button key={r} role="tab" aria-selected={foodCity === r} data-sound="tab" onClick={() => setFoodCity(r)}
+                      className={`rounded-xl py-2 text-sm font-medium transition ${foodCity === r ? 'bg-ink text-white shadow' : 'text-stone-600'}`}>
+                      {label} <span className="opacity-60">{n}</span>
                     </button>
                   )
                 })}
