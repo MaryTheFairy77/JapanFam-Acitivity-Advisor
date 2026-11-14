@@ -63,8 +63,8 @@ function Pill({ icon: Icon, value, r, guess, unknown, label }: { icon: IconT; va
 }
 
 /** OVERVIEW row: photo, name, symbols, 3 numbers, vote. Tap anywhere → details. */
-export default function PlaceCard({ place: p, rank, votes, mine, imGoing, ranks, est, photoUrls, nearKm, onVote, onOpen }: {
-  place: Place; rank?: number; votes: number; mine: boolean; imGoing: boolean; ranks: Ranks; est: Estimates; nearKm?: number | null
+export default function PlaceCard({ place: p, rank, votes, mine, ranks, est, photoUrls, nearKm, onVote, onOpen }: {
+  place: Place; rank?: number; votes: number; mine: boolean; ranks: Ranks; est: Estimates; nearKm?: number | null
   photoUrls: Record<string, string>; onVote: () => void; onOpen: () => void
 }) {
   const f = facts(p, est)
@@ -78,7 +78,7 @@ export default function PlaceCard({ place: p, rank, votes, mine, imGoing, ranks,
       </div>
       <div className="min-w-0 flex-1">
         <h3 className={`truncate font-display text-base leading-snug ${p.visited ? 'text-stone-500' : ''}`}>{p.name}</h3>
-        <div className="mt-1 flex flex-wrap gap-1"><NearBadge d={nearKm} /><Badges p={p} small />{imGoing && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">✓ I’m in</span>}</div>
+        <div className="mt-1 flex flex-wrap gap-1"><NearBadge d={nearKm} /><Badges p={p} small /></div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           <Pill icon={Wallet} label="Price per person" value={f.price == null ? '' : fmtYen(f.price)} unknown={f.price == null} r={ranks.price} guess={f.auto.has('price')} />
           <Pill icon={TrainFront} label="Travel from closest hotel" value={fmtMin(f.travel)} r={ranks.travel} guess={f.travelGuess} />
@@ -109,10 +109,10 @@ export function PlaceTile({ place: p, votes, mine, photoUrls, nearKm, onVote, on
 }
 
 /** DETAILS ON DEMAND: everything about one place, read-first. Editing is one tap away. */
-export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGoing, canEdit, photoUrls, ranks, est, kidMode, onClose, onVote, onVisited, onEdit, onImIn, onGoing, onHotel }: {
+export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, photoUrls, ranks, est, kidMode, onClose, onVote, onVisited, onEdit, onHotel }: {
   place: Place; votes: number; mine: boolean; voters: Member[]; owners: Member[]; canEdit: boolean; photoUrls: Record<string, string>
-  going: { total: number; text: string }; imGoing: boolean; ranks: Ranks; est: Estimates; kidMode: boolean
-  onClose: () => void; onVote: () => void; onVisited: () => void; onEdit: () => void; onImIn: () => void; onGoing: () => void; onHotel: (id: HotelId) => void
+  ranks: Ranks; est: Estimates; kidMode: boolean
+  onClose: () => void; onVote: () => void; onVisited: () => void; onEdit: () => void; onHotel: (id: HotelId) => void
 }) {
   const f = facts(p, est)
   const missing = canEdit ? missingFields(p) : []
@@ -172,18 +172,8 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, going, imGo
             {safeUrl(p.website_url) && <a href={safeUrl(p.website_url)!} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-300 bg-white py-2.5 text-sm"><Globe className="h-4 w-4" />Website</a>}
           </div>
 
-          {/* Who's going + been */}
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-white p-2">
-            <button onClick={onImIn} data-sound="pop"
-              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium ${imGoing ? 'bg-emerald-600 text-white' : 'border border-stone-300 bg-white text-stone-700'}`}>
-              {imGoing && <Check className="h-4 w-4" />}I’m in
-            </button>
-            <button onClick={onGoing} className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-stone-600">
-              <Users className="h-4 w-4 shrink-0" /><span className="truncate">{going.total ? going.text : 'Nobody yet'}</span>
-              <PencilLine className="ml-auto h-3.5 w-3.5 shrink-0 text-torii" />
-            </button>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
+          {/* Been here? */}
+          <div className="mt-4 flex items-center gap-2">
             {kidMode
               ? (p.visited && <span className="text-sm text-emerald-700">Been ✓</span>)
               : (

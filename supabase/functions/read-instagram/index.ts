@@ -35,7 +35,7 @@ async function caption(link: string): Promise<string | null> {
   // Instagram serves Open Graph tags (incl. the caption) to link-preview bots; often refuses everyone else.
   for (const ua of ['facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', 'Mozilla/5.0 (compatible; JapanFamBot/1.0)']) {
     try {
-      const r = await fetch(link, { headers: { 'User-Agent': ua, 'Accept-Language': 'en' }, redirect: 'follow' })
+      const r = await fetch(link, { headers: { 'User-Agent': ua, 'Accept-Language': 'en' }, redirect: 'follow', signal: AbortSignal.timeout(6000) })
       if (!r.ok) continue
       const html = (await r.text()).slice(0, 600000)
       const parts = [meta(html, 'og:title'), meta(html, 'og:description'), meta(html, 'description')].filter(Boolean).map((s) => unescape(s!))
@@ -61,20 +61,27 @@ Caption:
 `
 
 async function askGemini(text: string, key: string) {
+  const call = (model: string, noThinking: boolean) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: PROMPT + text + '\n"""' }] }],
+      // easy question: skip the model's "thinking" step (much faster); falls back if a model doesn't support it
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 400, ...(noThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+    }),
+    signal: AbortSignal.timeout(15000),
+  })
   for (const model of MODELS) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: PROMPT + text + '\n"""' }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 400 },
-      }),
-    })
+    let r: Response
+    try {
+      r = await call(model, true)
+      if (r.status === 400) r = await call(model, false)
+    } catch { return { error: 'busy' } } // timed out
     if (r.status === 404) continue // model name retired: try the next
     if (r.status === 429) return { error: 'busy' } // free-tier limit reached: no charge, just try later
-    if (!r.ok) return { error: 'ai_failed' }
+    if (!r.ok) { console.log('gemini', model, r.status, (await r.text()).slice(0, 200)); return { error: 'ai_failed' } }
     const j = await r.json()
-    const out = j?.candidates?.[0]?.content?.parts?.[0]?.text
+    const out = j?.candidates?.[0]?.content?.parts?.find((p: { text?: string }) => p.text)?.text
     try { return JSON.parse(out) } catch { return { error: 'ai_failed' } }
   }
   return { error: 'ai_failed' }
@@ -92,7 +99,7 @@ Deno.serve(async (req: Request) => {
     if (!m) return json({ error: 'not_instagram' }, 400)
     const link = `https://www.instagram.com/${m[2] === 'reels' ? 'reel' : m[2]}/${m[3]}/`
     const text = await caption(link)
-    if (!text) return json({ error: 'no_caption' }, 200)
+    if (!text) { console.log('no caption', link); return json({ error: 'no_caption' }, 200) }
     const key = Deno.env.get('GEMINI_API_KEY')
     if (!key) return json({ error: 'no_key', caption: text.slice(0, 600) }, 200)
     const g = await askGemini(text, key)

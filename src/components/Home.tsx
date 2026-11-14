@@ -10,7 +10,7 @@ import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
 const Planner = lazy(() => import('./Planner'))
 const TripPlan = lazy(() => import('./TripPlan'))
-import { GoingSheet, ProfileSheet, goingSummary } from './Sheets'
+import { ProfileSheet } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
 import { ArrowUpDown, ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Menu, Music2, Search, WifiOff, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
@@ -40,7 +40,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 export default function Home({ me, data, onLogout }: {
   me: Member; data: ReturnType<typeof useData>; onLogout: () => void
 }) {
-  const { members, places, votes, attendees, photoUrls, refresh, setPlaces, setVotes, setAttendees } = data
+  const { members, places, votes, photoUrls, refresh, setPlaces, setVotes } = data
   const [tab, setTab] = useState<Tab>('map')
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
@@ -69,16 +69,6 @@ export default function Home({ me, data, onLogout }: {
   const kidMode = isKid(me)
   const canEdit = (p: Place) => !kidMode && (me.is_admin || (p.created_by != null && (p.created_by === me.id || (p.co_owners ?? []).includes(me.id))))
   useEffect(() => onPrefs(() => setMusic(getPrefs().ambience)), [])
-  const [goingFor, setGoingFor] = useState<Place | null>(null)
-
-  async function toggleGoing(memberId: string, p: Place) {
-    const on = attendees.some((a) => a.place_id === p.id && a.member_id === memberId)
-    setAttendees(on ? attendees.filter((a) => !(a.place_id === p.id && a.member_id === memberId)) : [...attendees, { member_id: memberId, place_id: p.id }])
-    const { error } = on
-      ? await supabase.from('attendees').delete().match({ member_id: memberId, place_id: p.id })
-      : await supabase.from('attendees').insert({ member_id: memberId, place_id: p.id })
-    if (error) { alert(error.message); refresh() }
-  }
 
   const voteCount = useMemo(() => {
     const c: Record<string, number> = {}
@@ -163,8 +153,6 @@ export default function Home({ me, data, onLogout }: {
       ...(p.kind === 'activity' ? { Category: CATEGORIES[catOf(p)].label } : {}),
       'Long line': p.long_line,
       Website: p.website_url,
-      ...Object.fromEntries(goingSummary(p.id, members, attendees).counts.map((c) => [`Going (${c.g.many})`, c.n])),
-      'Who is going': members.filter((m) => attendees.some((a) => a.place_id === p.id && a.member_id === m.id)).map(displayName),
       Votes: voteCount[p.id] ?? 0,
       'Voted by': members.filter((m) => votes.some((v) => v.place_id === p.id && v.member_id === m.id)).map(displayName),
       Visited: p.visited ? 'Yes' : 'No',
@@ -344,7 +332,6 @@ export default function Home({ me, data, onLogout }: {
             ) : list.map((p, i) => (
               <PlaceCard key={p.id} place={p} rank={sort === 'votes' ? i + 1 : undefined} votes={voteCount[p.id] ?? 0}
                 mine={votes.some((v) => v.place_id === p.id && v.member_id === me.id)}
-                imGoing={attendees.some((a) => a.place_id === p.id && a.member_id === me.id)}
                 photoUrls={photoUrls} ranks={ranks[p.id] ?? { price: null, travel: null, wait: null }} est={est} nearKm={sort === 'near' ? distTo(p) : null}
                 onVote={() => toggleVote(p)} onOpen={() => setViewingId(p.id)} />
             ))}
@@ -397,10 +384,6 @@ export default function Home({ me, data, onLogout }: {
         <ProfileSheet me={me} places={places} onClose={() => setProfileOpen(false)} onSaved={() => { setProfileOpen(false); refresh() }}
           onSwitch={() => { setProfileOpen(false); onLogout() }} />
       )}
-      {goingFor && (
-        <GoingSheet place={goingFor} members={members} attendees={attendees} onlyMemberId={kidMode ? me.id : undefined} onClose={() => setGoingFor(null)}
-          onToggle={(id) => toggleGoing(id, goingFor)} />
-      )}
       {hotelOpen && !viewing && (
         <HotelSheet id={hotelOpen} places={places} photoUrls={photoUrls} onClose={() => setHotelOpen(null)}
           onOpenPlace={(p) => setViewingId(p.id)} />
@@ -410,11 +393,9 @@ export default function Home({ me, data, onLogout }: {
           mine={votes.some((v) => v.place_id === viewing.id && v.member_id === me.id)}
           voters={members.filter((m) => votes.some((v) => v.place_id === viewing.id && v.member_id === m.id))}
           owners={[viewing.created_by, ...(viewing.co_owners ?? [])].map((id) => members.find((m) => m.id === id)).filter((m): m is Member => !!m)}
-          going={goingSummary(viewing.id, members, attendees)}
-          imGoing={attendees.some((a) => a.place_id === viewing.id && a.member_id === me.id)}
           canEdit={canEdit(viewing)} photoUrls={photoUrls} ranks={ranks[viewing.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
           onClose={() => setViewingId(null)} onVote={() => toggleVote(viewing)} onVisited={() => toggleVisited(viewing)}
-          onEdit={() => setEditing(viewing)} onImIn={() => toggleGoing(me.id, viewing)} onGoing={() => setGoingFor(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }} />
+          onEdit={() => setEditing(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }} />
       )}
       {quickAdd && (
         <QuickAdd me={me} defaultKind={tab === 'activity' ? 'activity' : 'restaurant'} defaultCategory={cat}

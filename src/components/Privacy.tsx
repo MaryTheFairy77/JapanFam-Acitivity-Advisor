@@ -9,7 +9,7 @@ export default function Privacy({ className = '' }: { className?: string }) {
         <summary className="cursor-pointer font-medium text-torii">Privacy &amp; security (T&amp;Cs)</summary>
         <div className="mt-2 space-y-2 rounded-xl bg-white/70 p-3 text-stone-600">
           <p><b>What we store:</b> your first name (or a nickname you choose), an emoji avatar, whether you're an adult, teen or kid,
-            your votes, which places you're going to, and places the family adds. <b>Never</b> stored: surnames, phone numbers, emails,
+            your votes and places the family adds. <b>Never</b> stored: surnames, phone numbers, emails,
             passwords or photos of people (please only add photos of places/food).</p>
           <p><b>Your location:</b> "📍 Near me" uses your phone's location once, on your phone only; it is not saved or sent anywhere. The app never shares where you are with anyone.</p>
           <p><b>Who can see it:</b> only phones that entered the family code. This is enforced inside the database itself

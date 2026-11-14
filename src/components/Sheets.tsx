@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, resolveMapsLink, setPlannerCode, supabase, HOTELS, type Group, type Attendee, type Member, type Place } from '../lib'
+import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, resolveMapsLink, setPlannerCode, supabase, HOTELS, type Group, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
 import { TRACKS, getPrefs, setPrefs, type Track } from '../sound'
 
@@ -71,50 +71,6 @@ export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
       <Privacy className="mt-5" />
     </Sheet>
   )
-}
-
-/** Tick who's going to a place — anyone can tick for anyone (parents for kids). */
-export function GoingSheet({ place, members, attendees, onlyMemberId, onClose, onToggle }: {
-  place: Place; members: Member[]; attendees: Attendee[]; onlyMemberId?: string; onClose: () => void; onToggle: (memberId: string) => void
-}) {
-  const going = new Set(attendees.filter((a) => a.place_id === place.id).map((a) => a.member_id))
-  return (
-    <Sheet title="Who's going?" onClose={onClose}>
-      <p className="-mt-2 mb-4 text-sm text-stone-600">{place.name}</p>
-      {GROUPS.map((g) => {
-        const list = members.filter((m) => m.grp === g.key)
-        if (!list.length) return null
-        const n = list.filter((m) => going.has(m.id)).length
-        return (
-          <section key={g.key} className="mb-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-torii">{g.label} · {n}</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {list.map((m) => {
-                const on = going.has(m.id)
-                return (
-                  <button key={m.id} onClick={() => onToggle(m.id)} disabled={!!onlyMemberId && m.id !== onlyMemberId}
-                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm disabled:opacity-50 ${on ? 'border-emerald-400 bg-emerald-50' : 'border-stone-200 bg-white'}`}>
-                    <span className="text-lg">{m.emoji}</span>
-                    <span className="flex-1 truncate">{displayName(m)}</span>
-                    <span>{on ? '✅' : '⬜'}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
-      <button onClick={onClose} className="mt-2 w-full rounded-full bg-torii py-3 font-semibold text-white">Done</button>
-    </Sheet>
-  )
-}
-
-export function goingSummary(placeId: string, members: Member[], attendees: Attendee[]) {
-  const ids = new Set(attendees.filter((a) => a.place_id === placeId).map((a) => a.member_id))
-  const counts = GROUPS.map((g) => ({ g, n: members.filter((m) => m.grp === g.key && ids.has(m.id)).length }))
-  const total = counts.reduce((s, c) => s + c.n, 0)
-  const text = counts.filter((c) => c.n).map((c) => `${c.n} ${c.n === 1 ? c.g.one : c.g.many}`).join(' · ')
-  return { total, text, counts }
 }
 
 /** Trip planners only: add a family member (checked server-side with the planner code). */

@@ -47,14 +47,16 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
     setMsg(null); setFound(null)
     try {
       if (isInstagramLink(text)) {
-        setBusy('Reading the Instagram post…')
-        const r = await readInstagram(text)
+        setBusy('Opening the Instagram post…')
+        const slow = setTimeout(() => setBusy('Working out which place it is…'), 5000)
+        const r = await readInstagram(text).finally(() => clearTimeout(slow))
         if (r.error || !r.name) {
           setMsg({
             no_caption: 'Instagram didn’t let us read that post.',
             no_place: 'That post doesn’t name a place we could find.',
             no_key: 'Instagram reading isn’t switched on yet.',
             busy: 'The free Instagram reader is busy right now.',
+            timeout: 'Instagram took too long to answer.',
           }[r.error ?? ''] ?? 'Couldn’t read that post.')
           setQ(''); setBusy(null)
           return

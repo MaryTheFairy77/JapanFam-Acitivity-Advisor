@@ -33,8 +33,8 @@ Deno.serve(async (req: Request) => {
     const q = `[out:json][timeout:60];(${pts.map((p: string) => `node(around:700,${p})["railway"="station"];`).join('')});out body;`
     for (const m of MIRRORS) {
       try {
-        const r = await fetch(m, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'JapanFam family trip app' }, signal: AbortSignal.timeout(25000) })
-        if (!r.ok) continue
+        const r = await fetch(m, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json, */*', 'User-Agent': 'JapanFamTrip/1.0 (+https://japanfam-activity-advisor.vercel.app)' }, signal: AbortSignal.timeout(25000) })
+        if (!r.ok) { console.log('overpass', m, r.status, (await r.text()).slice(0, 200)); continue }
         const j = await r.json()
         const seen = new Set<string>()
         const stations: { id: number; name: string; lat: number; lng: number }[] = []
@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({ id: 1, sig, data: stations, updated_at: new Date().toISOString() }),
         })
         return json({ stations })
-      } catch { /* try next mirror */ }
+      } catch (e) { console.log('overpass', m, 'error', String(e).slice(0, 200)) }
     }
     return json({ error: 'busy' }, 200)
   } catch (_e) {

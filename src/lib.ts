@@ -432,9 +432,11 @@ export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: 
 export const isInstagramLink = (u: string) => /^https?:\/\/(www\.)?instagram\.com\//i.test(u.trim())
 export type InstaResult = { name?: string; area?: string | null; kind?: Kind | 'shopping' | null; description?: string | null; halal?: string | null; source?: string; error?: string }
 export async function readInstagram(url: string): Promise<InstaResult> {
-  const { data, error } = await supabase.functions.invoke('read-instagram', { body: { url: url.trim() } })
-  if (error || !data) return { error: 'failed' }
-  return data as InstaResult
+  // never spin forever: give up after 30 s (the server itself stops at ~6 s for Instagram + ~15 s for Gemini)
+  const timeout = new Promise<InstaResult>((r) => setTimeout(() => r({ error: 'timeout' }), 30000))
+  const call = supabase.functions.invoke('read-instagram', { body: { url: url.trim() } })
+    .then(({ data, error }) => (error || !data ? { error: 'failed' } : data as InstaResult), () => ({ error: 'failed' }))
+  return Promise.race([call, timeout])
 }
 
 /** A Google Maps search for this name, centred on the pin: opens the real listing in most cases (free, no API). */
