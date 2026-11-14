@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inJapan, nextJapanMidnight, tripToolsOn } from '../geo'
+import { inJapan, tripToolsOn } from '../geo'
 import { MOSQUES, mosquesNear } from '../mosques'
 
 describe('family finder privacy rules', () => {
@@ -14,12 +14,6 @@ describe('family finder privacy rules', () => {
     expect(inJapan(35.0116, 135.7681)).toBe(true) // Kyoto
     expect(inJapan(35.36, 138.73)).toBe(true) // Mt Fuji
     expect(inJapan(33.59, 130.40)).toBe(true) // Fukuoka
-  })
-  it('sharing stops at the next midnight Japan time', () => {
-    // 2026-12-01 10:00 UTC = 19:00 JST → next JST midnight = 2026-12-01 15:00 UTC
-    expect(new Date(nextJapanMidnight(Date.UTC(2026, 11, 1, 10))).toISOString()).toBe('2026-12-01T15:00:00.000Z')
-    // 2026-12-01 16:00 UTC = 01:00 JST on the 2nd → next midnight = 2026-12-02 15:00 UTC
-    expect(new Date(nextJapanMidnight(Date.UTC(2026, 11, 1, 16))).toISOString()).toBe('2026-12-02T15:00:00.000Z')
   })
 })
 

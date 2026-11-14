@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LocateFixed, X } from 'lucide-react'
-import { ago, inJapan, tripToolsOn, useFamilySpots, useLocationSharing, useMyPosition } from '../geo'
+import { inJapan, tripToolsOn, useMyPosition } from '../geo'
 import { MOSQUES, mosqueLink, mosquesNear, type Mosque } from '../mosques'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, displayName, estimateTravel, fmtMin, fmtYen, km, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Member, type Place, type Region } from '../lib'
+import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, estimateTravel, fmtMin, fmtYen, km, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Member, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
 
@@ -133,18 +133,14 @@ function meDot() {
   return outer
 }
 
-export default function MapView({ me, members, places, voteCount, photoUrls, onOpen, onHotel }: {
+export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel }: {
   me: Member; members: Member[]
   places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void; onHotel: (id: HotelId) => void
 }) {
-  // 📍 Places mode (pins) or 👨‍👩‍👧 Family mode (where is everyone)
-  const [modeRaw, setMode] = useState<'places' | 'family'>('places')
   const { pos, busy, err: posErr, locate } = useMyPosition()
-  const mode = tripToolsOn() ? modeRaw : 'places'
+  const mode = 'places' as const
   const [nearOpen, setNearOpen] = useState(false)
-  const share = useLocationSharing(me.id, mode === 'family')
-  const spots = useFamilySpots(mode === 'family')
-  // trip-only tools (Near me + Family) appear 24 Dec – 10 Jan
+  // trip-only tool (Near me) appears 24 Dec – 10 Jan
   const trip = tripToolsOn()
   // legend strip = the key AND the on/off switches (remembered per phone)
   type Layer = 'food' | 'act' | 'shop' | 'mosque'
@@ -236,15 +232,6 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
     }
 
     if (pos) add(meDot(), pos.lat, pos.lng, new maplibregl.Popup({ offset: 12, closeButton: false }).setText(`You are here (±${pos.accuracy} m)`))
-    if (mode === 'family') {
-      for (const s of spots) {
-        const mem = members.find((x) => x.id === s.member_id)
-        if (!mem) continue
-        const pin = bubble(mem.emoji, s.member_id === me.id ? '#3b82f6' : '#10b981', 40)
-        const sub = `${ago(s.updated_at)}${s.accuracy_m ? ` · ±${s.accuracy_m} m` : ''}`
-        add(pin, s.lat, s.lng, new maplibregl.Popup({ offset: 22, closeButton: false }).setDOMContent(simplePopup(displayName(mem), sub, s.lat, s.lng)))
-      }
-    }
     if (mode === 'places' && mosquesOn) {
       for (const q of mosques) {
         const pin = bubble(q.kind === 'prayer_room' ? '🤲' : '🕌', '#059669', q.popular ? 36 : 28)
@@ -284,7 +271,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
-  }, [visible, voteCount, photoUrls, ready, mode, spots, members, me.id, mosques, mosquesOn, pos])
+  }, [visible, voteCount, photoUrls, ready, mode, mosques, mosquesOn, pos])
 
   const chip = (on: boolean) =>
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
@@ -298,7 +285,7 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         </div>
       )}
 
-      {/* Top: one small city switch (+ Places/Family during the trip) */}
+      {/* Top: one small city switch */}
       <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-2">
         <div className="pointer-events-auto flex rounded-full border border-stone-300 bg-white/95 p-0.5 text-sm shadow-sm">
           {([['kanto', '🗼 Tokyo'], ['kansai', '🦌 Osaka'], ['all', '🗾 All']] as const).map(([k, label]) => (
@@ -306,12 +293,6 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
               className={`rounded-full px-3 py-1 ${view === k ? 'bg-ink text-white' : 'text-stone-600'}`}>{label}</button>
           ))}
         </div>
-        {trip && (
-          <div className="pointer-events-auto flex rounded-full border border-indigo-300 bg-white/95 p-0.5 text-sm shadow-sm">
-            <button data-sound="tab" onClick={() => setMode('places')} className={`rounded-full px-3 py-1 ${mode === 'places' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>📍 Places</button>
-            <button data-sound="tab" onClick={() => { setMode('family'); setNearOpen(false) }} className={`rounded-full px-3 py-1 ${mode === 'family' ? 'bg-indigo-500 text-white' : 'text-indigo-500'}`}>👨‍👩‍👧 Family</button>
-          </div>
-        )}
       </div>
 
       {/* Bottom: legend strip = the key AND the on/off switches */}
@@ -379,39 +360,6 @@ export default function MapView({ me, members, places, voteCount, photoUrls, onO
         </div>
       )}
 
-      {/* Family mode: share toggle + who's where */}
-      {mode === 'family' && (
-        <div className="absolute inset-x-3 bottom-3 z-20 rounded-2xl bg-white/97 p-3 shadow-xl">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{me.emoji}</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{share.sharing ? 'You’re sharing your spot' : 'Your spot is private'}</p>
-              <p className="text-[11px] text-stone-500">{share.sharing
-                ? `${share.status ?? 'Starting…'} · only while the app is open · stops at midnight Japan time`
-                : 'Japan only · only while the app is open · auto-off at midnight'}</p>
-            </div>
-            <button onClick={() => (share.sharing ? share.stop() : share.start())}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${share.sharing ? 'border border-stone-300 bg-white text-stone-700' : 'bg-emerald-600 text-white'}`}>
-              {share.sharing ? 'Stop' : 'Share'}
-            </button>
-          </div>
-          <div className="-mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1">
-            {spots.length === 0 && <p className="text-xs text-stone-500">Nobody is sharing right now. In Japan, tap Share so the family can find you.</p>}
-            {spots.map((s) => {
-              const mem = members.find((x) => x.id === s.member_id)
-              if (!mem) return null
-              return (
-                <button key={s.member_id} onClick={() => map.current?.flyTo({ center: ll(s.lat, s.lng), zoom: 16, duration: 800 })}
-                  className="flex shrink-0 flex-col items-center rounded-xl bg-stone-50 px-2.5 py-1.5">
-                  <span className="text-xl">{mem.emoji}</span>
-                  <span className="max-w-[4.5rem] truncate text-[11px] font-medium">{displayName(mem)}</span>
-                  <span className="text-[10px] text-stone-500">{ago(s.updated_at)}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
       {unpinned > 0 && mode === 'places' && !nearOpen && !noteHidden && (
         <div className="absolute bottom-[5.25rem] left-3 right-3 z-10 flex items-center gap-2 rounded-xl bg-white/95 px-3 py-1.5 text-xs text-stone-600 shadow">
           <span className="flex-1">📌 {unpinned} place{unpinned === 1 ? '' : 's'} not on the map yet. Open one and tap <b>Find pin</b>.</span>
