@@ -190,16 +190,16 @@ export function DayBuilder({ title, hotel, date, places, voteCount, photoUrls, i
         </div>
       )}
 
-      <div className="sticky bottom-20 z-10 space-y-2 rounded-2xl bg-washi/95 pt-2 backdrop-blur">
+      <div className="pointer-events-none sticky bottom-20 z-10 space-y-2 pt-2 [&>*]:pointer-events-auto">
         <button disabled={!steps.length || busy || !!dup} onClick={async () => {
           setBusy(true); setMsg(null)
           const err = await onSave({ start, steps: steps.map((g) => g.map((p) => p.id)) }, ids)
           setBusy(false); setMsg(err ?? '✓ Saved')
-        }} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-torii py-3.5 text-base font-semibold text-white disabled:opacity-40">
+        }} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-torii py-3.5 text-base font-semibold text-white shadow-lg disabled:bg-stone-400">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}{saveLabel}
         </button>
         {extra}
-        {msg && <p className="text-center text-sm text-stone-600">{msg}</p>}
+        {msg && <p className="mx-auto w-fit rounded-full bg-ink/85 px-3 py-1 text-center text-sm text-white">{msg}</p>}
       </div>
       <p className="pb-2 text-center text-[11px] text-stone-400">Earliest start {clock(EARLIEST)} · evenings are fine · be at the hotel or near a prayer room at Maghrib</p>
     </div>
