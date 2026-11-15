@@ -71,3 +71,8 @@ body {
   .petal, .splash-ring { display: none; }
   .splash-sun, .fade-up, .rise { animation-duration: .01s !important; animation-delay: 0s !important; }
 }
+
+/* iPhone Safari zooms the page when you tap a text box with text smaller than 16px. Keep every typing field at 16px+. */
+@layer base {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea { font-size: max(16px, 1em) !important; }
+}
