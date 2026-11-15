@@ -57,16 +57,21 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
         el.addEventListener('click', (e) => { e.stopPropagation(); setSel(pin) })
         new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(m)
       }
+      // NB: never set `position` on a marker element: maplibre positions it (position:absolute + transform).
+      // Overriding it made the photo pins drift when zooming. The badge sits in an inner relative box.
       const round = (src: string | null | undefined, size: number, border: string, label?: string, faded = false) => {
         const el = document.createElement('div')
-        Object.assign(el.style, { width: `${size}px`, height: `${size}px`, borderRadius: '999px', border, background: '#d6d3d1 center/cover no-repeat',
-          backgroundImage: src ? `url("${src.replace(/"/g, '%22')}")` : '', boxShadow: '0 3px 10px rgba(0,0,0,.25)', cursor: 'pointer', position: 'relative', opacity: faded ? '0.8' : '1' })
+        Object.assign(el.style, { width: `${size}px`, height: `${size}px`, cursor: 'pointer', opacity: faded ? '0.8' : '1' })
+        const inner = document.createElement('div')
+        Object.assign(inner.style, { position: 'relative', width: '100%', height: '100%', boxSizing: 'border-box', borderRadius: '999px', border, background: '#d6d3d1 center/cover no-repeat',
+          backgroundImage: src ? `url("${src.replace(/"/g, '%22')}")` : '', boxShadow: '0 2px 6px rgba(0,0,0,.25)' })
         if (label) {
           const b = document.createElement('span'); b.textContent = label
-          Object.assign(b.style, { position: 'absolute', top: '-6px', left: '-6px', width: '22px', height: '22px', borderRadius: '999px', background: '#c8102e', color: '#fff',
-            font: '700 12px Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' })
-          el.appendChild(b)
+          Object.assign(b.style, { position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', borderRadius: '999px', background: '#c8102e', color: '#fff',
+            font: '700 11px Inter, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' })
+          inner.appendChild(b)
         }
+        el.appendChild(inner)
         return el
       }
       const small = (txt: string, color: string, radius: string) => {
@@ -78,14 +83,14 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
       const usedIds = new Set(stops.map((s) => s.p.id))
       const region = hotel.region
       const others = stops.length ? foodNear(places, stops[0].p, region, 8).filter((p) => !usedIds.has(p.id) && near({ lat: p.lat!, lng: p.lng! }, 2)) : []
-      for (const p of others) add(round(photo(p), 34, '3px solid #fff', undefined, true), p.lat!, p.lng!, { key: p.id, name: p.name, lat: p.lat!, lng: p.lng!, sub: `Other halal food · ${p.halal}`, photo: photo(p) })
+      for (const p of others) add(round(photo(p), 26, '2px solid #fff', undefined, true), p.lat!, p.lng!, { key: p.id, name: p.name, lat: p.lat!, lng: p.lng!, sub: `Other halal food · ${p.halal}`, photo: photo(p) })
       for (const st of STATIONS.filter((s) => near(s, 0.9))) add(small('🚉', '#0f766e', '6px'), st.lat, st.lng, { key: 'st' + st.name + st.lat, name: `${st.name} station`, lat: st.lat, lng: st.lng, sub: st.ja })
       for (const mo of MOSQUES.filter((x) => near(x, 1.5))) add(small(mo.kind === 'mosque' ? '🕌' : '🤲', '#059669', '999px'), mo.lat, mo.lng, { key: 'mo' + mo.name, name: mo.name, lat: mo.lat, lng: mo.lng, sub: mo.kind === 'mosque' ? 'Mosque' : 'Prayer room' })
       // hotel + numbered stops on top
       const h = document.createElement('div'); h.textContent = '🏯'
       Object.assign(h.style, { width: '44px', height: '44px', borderRadius: '999px', background: '#fff', border: '4px solid #c8102e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', cursor: 'pointer' })
       add(h, hotel.lat, hotel.lng, { key: 'hotel', name: hotel.name, lat: hotel.lat, lng: hotel.lng, sub: `Start ${clock(tl.start)} · back ${clock(tl.end)}` })
-      stops.forEach((s, i) => add(round(photo(s.p), 60, s.food ? '4px solid #1f1a17' : '4px solid #fff', String(i + 1)), s.p.lat!, s.p.lng!,
+      stops.forEach((s, i) => add(round(photo(s.p), 40, s.food ? '3px solid #1f1a17' : '3px solid #fff', String(i + 1)), s.p.lat!, s.p.lng!,
         { key: s.p.id, name: `${i + 1} · ${s.names}`, lat: s.p.lat!, lng: s.p.lng!, sub: `${legText(s.leg)} · arrive ~${clock(s.arrive)}`, photo: photo(s.p) }))
       const b = new maplibregl.LngLatBounds()
       pts.forEach((p) => b.extend([p.lng, p.lat]))
