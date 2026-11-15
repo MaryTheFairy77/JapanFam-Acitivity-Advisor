@@ -19,7 +19,7 @@ export default function Privacy({ className = '' }: { className?: string }) {
           <ul className="list-disc space-y-1 pl-4">
             <li>The family code and the trip-planner code are stored only as one-way hashes (bcrypt), never in plain text.</li>
             <li>After 5 wrong codes a phone is locked out for 15 minutes, and each wrong try is slowed down.</li>
-            <li>Each phone is linked to the person who picked their name. You can change only your own nickname/avatar and edit or delete only places and day ideas you added; trip planners (with their own code) can edit or delete any place, idea or planned day and add people. Anyone in the family can add places, vote, tick "visited" and mark who's going.</li>
+            <li>Each phone is linked to the person who picked their name. You can change only your own nickname/avatar and edit or delete only places and day ideas you added; trip planners (with their own code) can edit any place, delete ideas or planned days and add people (only the person who added a place can delete it). Anyone in the family can add places, vote, tick "visited" and mark who's going.</li>
             <li>Photos are stored in a private folder in the same database and are shown through short-lived private links (12 hours), never public URLs. Photos are shrunk before upload, which also removes hidden camera/location data.</li>
             <li>The database rejects unsafe links and oversized or invalid entries.</li>
             <li>All traffic is encrypted (HTTPS), and the database provider encrypts stored data.</li>

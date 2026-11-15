@@ -71,6 +71,8 @@ export default function Home({ me, data, onLogout }: {
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
   const kidMode = isKid(me)
+  // delete = ONLY whoever added it (Maryam, 15 Nov): no planners, no co-owners; Maryam deletes others via SQL admin_delete_place
+  const canDelete = (p: Place) => !kidMode && p.created_by != null && p.created_by === me.id
   const canEdit = (p: Place) => !kidMode && (me.is_admin || (p.created_by != null && (p.created_by === me.id || (p.co_owners ?? []).includes(me.id))))
   useEffect(() => onPrefs(() => setMusic(getPrefs().ambience)), [])
 
@@ -418,7 +420,7 @@ export default function Home({ me, data, onLogout }: {
           canEdit={canEdit(viewing)} photoUrls={photoUrls} ranks={ranks[viewing.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
           onClose={() => setViewingId(null)} onVote={() => toggleVote(viewing)} onVisited={() => toggleVisited(viewing)}
           onEdit={() => setEditing(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }}
-          onDelete={canEdit(viewing) ? () => setDeleting(viewing) : undefined} />
+          onDelete={canDelete(viewing) ? () => setDeleting(viewing) : undefined} />
       )}
       {quickAdd && (
         <QuickAdd me={me} defaultKind={tab === 'activity' ? 'activity' : 'restaurant'} defaultCategory={cat}
@@ -427,7 +429,7 @@ export default function Home({ me, data, onLogout }: {
           onSaved={async (id) => { setQuickAdd(false); await refresh(); setViewingId(id) }} />
       )}
       {editing && (
-        <PlaceForm me={me} canDelete={editing !== 'new' && canEdit(editing)} onDelete={() => editing !== 'new' && setDeleting(editing)} photoUrls={photoUrls}
+        <PlaceForm me={me} canDelete={editing !== 'new' && canDelete(editing)} onDelete={() => editing !== 'new' && setDeleting(editing)} photoUrls={photoUrls}
           canEdit={editing === 'new' || canEdit(editing)} creator={editing === 'new' ? undefined : members.find((m) => m.id === editing.created_by)} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
           place={editing === 'new' ? null : editing} defaultCategory={cat}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />

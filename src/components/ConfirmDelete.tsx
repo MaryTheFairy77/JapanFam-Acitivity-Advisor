@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Loader2, Trash2 } from 'lucide-react'
-import { HOTELS, catOf, displayName, getPlannerCode, isKid, setPlannerCode, supabase, type HotelId, type Member, type Place } from '../lib'
+import { HOTELS, catOf, displayName, getPlannerCode, setPlannerCode, supabase, type HotelId, type Member, type Place } from '../lib'
 import type { IdeaRow, PlannedDay } from '../itinerary'
 
 export type Impact = { icon: string; text: string }
@@ -84,13 +84,12 @@ const n = (k: number, one: string, many = one + 's') => `${k} ${k === 1 ? one : 
 type PlaceImpact = { votes: number; going: number; hearts: number; plan_days: { day: string; locked: boolean; empties: boolean }[]; ideas: { member: string; hotel: HotelId; empties: boolean }[] }
 
 /** 🗑 Delete a restaurant / activity / shop: asks the database where it's used, then confirms. */
-export function DeletePlace({ place, me, members, onClose, onDone }: { place: Place; me: Member; members: Member[]; onClose: () => void; onDone: () => void }) {
+export function DeletePlace({ place, members, onClose, onDone }: { place: Place; me?: Member; members: Member[]; onClose: () => void; onDone: () => void }) {
   const [imp, setImp] = useState<PlaceImpact | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     supabase.rpc('place_delete_impact', { place: place.id }).then(({ data, error }) => { if (error || !data) setFailed(true); else setImp(data as PlaceImpact) })
   }, [place.id])
-  const owner = !isKid(me) && (place.created_by === me.id || (place.co_owners ?? []).includes(me.id))
   const who = (id: string) => { const m = members.find((x) => x.id === id); return m ? displayName(m) : 'Someone' }
   const what = place.kind === 'restaurant' ? 'restaurant' : catOf(place) === 'shopping' ? 'shop' : 'activity'
   const lines: Impact[] = [{ icon: place.kind === 'restaurant' ? '🍜' : catOf(place) === 'shopping' ? '🛍️' : '🎢', text: `“${place.name}” from ${place.kind === 'restaurant' ? 'Food' : 'Do'}, the 🗾 Map, 📊 Compare and the CSV` }]
@@ -107,11 +106,11 @@ export function DeletePlace({ place, me, members, onClose, onDone }: { place: Pl
     if (place.image_url) lines.push({ icon: '📷', text: 'Its photo' })
   } else if (failed) lines.push({ icon: '⚠️', text: 'Couldn’t check where it’s used (no internet?). Votes, plans and ideas that use it would also be cleaned up.' })
   return (
-    <ConfirmDelete title={`Delete this ${what}?`} lines={lines} loading={!imp && !failed} needsCode={!owner}
+    <ConfirmDelete title={`Delete this ${what}?`} lines={lines} loading={!imp && !failed}
       keeps={['Every other place, vote and day']}
       onClose={onClose} onDone={onDone}
-      onConfirm={async (code) => {
-        const { data, error } = await supabase.rpc('delete_place', { place: place.id, code })
+      onConfirm={async () => {
+        const { data, error } = await supabase.rpc('delete_place', { place: place.id, code: null })
         return error ? 'Couldn’t delete. Check your internet.' : String(data)
       }} />
   )
