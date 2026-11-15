@@ -265,7 +265,7 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
     <div className="fixed inset-0 z-[700] flex flex-col bg-washi" role="dialog" aria-modal="true" aria-label={`Plan for ${dayLabel(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}`}>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)]">
         <header className="sticky top-0 z-10 -mx-4 flex items-center gap-2 bg-washi/95 px-4 py-3 backdrop-blur">
-          <button onClick={onClose} aria-label="Back to all days" className="flex h-11 items-center gap-1 rounded-full bg-white pl-2 pr-3 text-sm font-medium shadow-sm"><ChevronLeft className="h-5 w-5" />All days</button>
+          <button onClick={onClose} aria-label="Back to all days" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"><ChevronLeft className="h-6 w-6" /></button>
           <h2 className="flex-1 font-display text-2xl">{dayLabel(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}</h2>
           <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STAY_TINT[hotel]}`}>🏯 {HOTELS[hotel].short}</span>
           {day.locked && <span className="text-lg" title="Locked by a planner">🔒</span>}

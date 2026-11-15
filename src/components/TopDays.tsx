@@ -154,7 +154,7 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
     <div className="fixed inset-0 z-[700] overflow-y-auto bg-washi" role="dialog" aria-modal="true" aria-label="Top days">
       <div className="mx-auto max-w-2xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
         <header className="sticky top-0 z-10 -mx-4 flex items-center gap-2 bg-washi/95 px-4 pb-2 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
-          <button onClick={onClose} className="flex h-11 items-center gap-1 rounded-full bg-white pl-2 pr-3 text-sm font-medium shadow-sm"><ChevronLeft className="h-5 w-5" />Trip plan</button>
+          <button onClick={onClose} aria-label="Back to trip plan" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"><ChevronLeft className="h-6 w-6" /></button>
           <h2 className="flex-1 font-display text-2xl">🏆 Top days</h2>
         </header>
         <div className="mb-3 grid grid-cols-4 gap-1.5">
