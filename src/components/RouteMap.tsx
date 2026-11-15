@@ -63,8 +63,11 @@ export default function RouteMap({ day, food, places, photoUrls, onClose }: {
         const coords = [[hotel.lng, hotel.lat], ...stops.map((s) => [s.p.lng!, s.p.lat!]), [hotel.lng, hotel.lat]]
         const legs = coords.slice(1).map((c, i) => ({ type: 'Feature' as const, properties: { home: i === coords.length - 2 ? 1 : 0 }, geometry: { type: 'LineString' as const, coordinates: [coords[i], c] } }))
         m.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: legs } })
-        m.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round' },
-          paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.85, 'line-dasharray': ['case', ['==', ['get', 'home'], 1], ['literal', [0.5, 2]], ['literal', [1, 0]]] } })
+        m.addLayer({ id: 'route', type: 'line', source: 'route', filter: ['==', ['get', 'home'], 0], layout: { 'line-cap': 'round' },
+          paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.85 } })
+        // last leg back to the hotel: dashed (dasharray can't depend on data, so it's its own layer)
+        m.addLayer({ id: 'route-home', type: 'line', source: 'route', filter: ['==', ['get', 'home'], 1], layout: { 'line-cap': 'round' },
+          paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.7, 'line-dasharray': [0.5, 2] } })
         const times = [...stops.map((s) => legText(s.leg)), day.chain ? legText(day.chain.back) : '']
         coords.slice(1).forEach((c, i) => {
           const a = coords[i]
