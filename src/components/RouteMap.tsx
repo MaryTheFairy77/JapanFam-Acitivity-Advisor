@@ -58,6 +58,23 @@ export default function RouteMap({ day, food, places, photoUrls, onClose }: {
         Object.assign(el.style, { width: '24px', height: '24px', borderRadius: radius, background: '#fff', border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', cursor: 'pointer' })
         return el
       }
+        // other halal food nearby (faded), stations, prayer rooms
+      const usedIds = new Set(stops.map((s) => s.p.id))
+      const region = hotel.region
+      const others = stops.length ? foodNear(places, stops[0].p, region, 8).filter((p) => !usedIds.has(p.id) && near({ lat: p.lat!, lng: p.lng! }, 2)) : []
+      for (const p of others) add(round(photo(p), 34, '3px solid #fff', undefined, true), p.lat!, p.lng!, { key: p.id, name: p.name, lat: p.lat!, lng: p.lng!, sub: `Other halal food · ${p.halal}`, photo: photo(p) })
+      for (const st of STATIONS.filter((s) => near(s, 0.9))) add(small('🚉', '#0f766e', '6px'), st.lat, st.lng, { key: 'st' + st.name + st.lat, name: `${st.name} station`, lat: st.lat, lng: st.lng, sub: st.ja })
+      for (const mo of MOSQUES.filter((x) => near(x, 1.5))) add(small(mo.kind === 'mosque' ? '🕌' : '🤲', '#059669', '999px'), mo.lat, mo.lng, { key: 'mo' + mo.name, name: mo.name, lat: mo.lat, lng: mo.lng, sub: mo.kind === 'mosque' ? 'Mosque' : 'Prayer room' })
+      // hotel + numbered stops on top
+      const h = document.createElement('div'); h.textContent = '🏯'
+      Object.assign(h.style, { width: '44px', height: '44px', borderRadius: '999px', background: '#fff', border: '4px solid #c8102e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', cursor: 'pointer' })
+      add(h, hotel.lat, hotel.lng, { key: 'hotel', name: hotel.name, lat: hotel.lat, lng: hotel.lng, sub: `Start ${day.chain ? clock(day.chain.startMin) : ''} · back ${day.chain ? clock(day.chain.endMin) : ''}` })
+      stops.forEach((s, i) => add(round(photo(s.p), 60, s.role === 'food' ? '4px solid #1f1a17' : '4px solid #fff', String(i + 1)), s.p.lat!, s.p.lng!,
+        { key: s.p.id, name: `${i + 1} · ${s.p.name}`, lat: s.p.lat!, lng: s.p.lng!, sub: `${legText(s.leg)} · arrive ~${clock(s.arrive)}`, photo: photo(s.p) }))
+        const b = new maplibregl.LngLatBounds()
+      pts.forEach((p) => b.extend([p.lng, p.lat]))
+      m.fitBounds(b, { padding: 70, maxZoom: 15, duration: 0 })
+      // route lines + arrows need the map style, so they wait for 'load'
       m.on('load', () => {
         // route lines (directed: arrows drawn as rotated markers at each leg's middle)
         const coords = [[hotel.lng, hotel.lat], ...stops.map((s) => [s.p.lng!, s.p.lat!]), [hotel.lng, hotel.lat]]
@@ -77,22 +94,6 @@ export default function RouteMap({ day, food, places, photoUrls, onClose }: {
           el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none"><div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:12px solid #c8102e;transform:rotate(${ang}deg)"></div><span style="background:#fff;border-radius:999px;padding:1px 6px;font:600 11px Inter,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.2);white-space:nowrap">${times[i]}</span></div>`
           new maplibregl.Marker({ element: el }).setLngLat(mid).addTo(m)
         })
-        // other halal food nearby (faded), stations, prayer rooms
-        const usedIds = new Set(stops.map((s) => s.p.id))
-        const region = hotel.region
-        const others = stops.length ? foodNear(places, stops[0].p, region, 8).filter((p) => !usedIds.has(p.id) && near({ lat: p.lat!, lng: p.lng! }, 2)) : []
-        for (const p of others) add(round(photo(p), 34, '3px solid #fff', undefined, true), p.lat!, p.lng!, { key: p.id, name: p.name, lat: p.lat!, lng: p.lng!, sub: `Other halal food · ${p.halal}`, photo: photo(p) })
-        for (const st of STATIONS.filter((s) => near(s, 0.9))) add(small('🚉', '#0f766e', '6px'), st.lat, st.lng, { key: 'st' + st.name + st.lat, name: `${st.name} station`, lat: st.lat, lng: st.lng, sub: st.ja })
-        for (const mo of MOSQUES.filter((x) => near(x, 1.5))) add(small(mo.kind === 'mosque' ? '🕌' : '🤲', '#059669', '999px'), mo.lat, mo.lng, { key: 'mo' + mo.name, name: mo.name, lat: mo.lat, lng: mo.lng, sub: mo.kind === 'mosque' ? 'Mosque' : 'Prayer room' })
-        // hotel + numbered stops on top
-        const h = document.createElement('div'); h.textContent = '🏯'
-        Object.assign(h.style, { width: '44px', height: '44px', borderRadius: '999px', background: '#fff', border: '4px solid #c8102e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', cursor: 'pointer' })
-        add(h, hotel.lat, hotel.lng, { key: 'hotel', name: hotel.name, lat: hotel.lat, lng: hotel.lng, sub: `Start ${day.chain ? clock(day.chain.startMin) : ''} · back ${day.chain ? clock(day.chain.endMin) : ''}` })
-        stops.forEach((s, i) => add(round(photo(s.p), 60, s.role === 'food' ? '4px solid #1f1a17' : '4px solid #fff', String(i + 1)), s.p.lat!, s.p.lng!,
-          { key: s.p.id, name: `${i + 1} · ${s.p.name}`, lat: s.p.lat!, lng: s.p.lng!, sub: `${legText(s.leg)} · arrive ~${clock(s.arrive)}`, photo: photo(s.p) }))
-        const b = new maplibregl.LngLatBounds()
-        pts.forEach((p) => b.extend([p.lng, p.lat]))
-        m.fitBounds(b, { padding: 70, maxZoom: 15, duration: 0 })
       })
     })
     return () => { cancelled = true; map?.remove() }
