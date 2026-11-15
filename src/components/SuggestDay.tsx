@@ -27,7 +27,7 @@ export default function SuggestDay({ me, places, voteCount, photoUrls }: {
   if (!hotel) return (
     <div className="space-y-3 px-4 pb-6 pt-3">
       <h2 className="font-display text-2xl">Which hotel are you suggesting a day from?</h2>
-      {HOTEL_IDS.map((h) => {
+      {[...HOTEL_IDS].sort((a, b) => (stay(a)[0]?.date ?? '').localeCompare(stay(b)[0]?.date ?? '')).map((h) => {
         const s = stay(h), idea = mine(h), shut = locked(h)
         return (
           <button key={h} disabled={shut} onClick={() => { setHotel(h); setDate('') }}
