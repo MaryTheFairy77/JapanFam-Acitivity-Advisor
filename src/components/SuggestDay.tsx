@@ -40,7 +40,7 @@ export default function SuggestDay({ me, places, voteCount, photoUrls }: {
   const acts = picked.map((id) => byId.get(id)).filter((p): p is Place => !!p)
   const full = acts.length === 1 && acts[0].full_day
   const food = acts.length ? foodNear(places, acts[0], region, 1)[0] ?? null : null
-  const chain = acts.length ? chainFor(acts, full ? null : food, hotel, half) : null
+  const chain = acts.length ? chainFor(acts, full || half ? null : food, hotel, half) : null
   const dup = acts.length ? sameComboDay(days, picked) : null
   const locked = fullyLocked(hotel)
   const dates = openDates(days, hotel, half)

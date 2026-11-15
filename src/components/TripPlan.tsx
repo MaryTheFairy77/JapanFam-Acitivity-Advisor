@@ -230,7 +230,7 @@ function DaySheet({ day, me, members, places, votes, photoUrls, days, onClose, o
   const food = swap === 0 ? day.food : foodOptions.filter((f) => f.id !== day.food?.id)[(swap - 1) % Math.max(1, foodOptions.length - 1)] ?? day.food
   // swapping food changes the travel legs, so rebuild the chain with the new stop
   const chain = useMemo(() => (swap && day.acts.length && food)
-    ? chainFor(day.acts, day.acts.length === 1 && day.acts[0].full_day ? null : food, hotel, day.half)
+    ? chainFor(day.acts, food, hotel, day.half)
     : day.chain, [day, swap, food, hotel])
   const voters = (id: string) => votes.filter((v) => v.place_id === id).map((v) => members.find((m) => m.id === v.member_id)).filter((m): m is Member => !!m)
 

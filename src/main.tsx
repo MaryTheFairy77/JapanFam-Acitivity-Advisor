@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { installClickSounds } from './sound'
+// After a deploy, an old page can ask for a code file that no longer exists → reload once to get the new version.
+window.addEventListener('vite:preloadError', (e) => {
+  if (sessionStorage.getItem('jf-chunk-reload')) return
+  sessionStorage.setItem('jf-chunk-reload', '1'); e.preventDefault(); location.reload()
+})
+window.addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('jf-chunk-reload'), 10000))
 
 installClickSounds()
 

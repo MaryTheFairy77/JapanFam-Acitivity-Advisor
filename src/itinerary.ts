@@ -75,7 +75,8 @@ export function buildChain(order: { p: Place; role: 'activity' | 'food' }[], hot
 
 /** Activities + one food stop (after the 1st activity, or after the only one). Full-day: no lunch stop, supper after Maghrib. */
 export function chainFor(acts: Place[], food: Place | null, hotel: HotelId, half: boolean) {
-  const full = acts.length === 1 && acts[0].full_day
+  // half days (arrival / move days) start at 2 pm: no lunch stop, food becomes supper after Maghrib
+  const full = (acts.length === 1 && acts[0].full_day) || half
   const order: { p: Place; role: 'activity' | 'food' }[] = acts.map((p) => ({ p, role: 'activity' as const }))
   if (food && !full) order.splice(Math.min(1, order.length), 0, { p: food, role: 'food' })
   return buildChain(order, hotel, half ? HALF_START : FULL_START)
@@ -132,8 +133,8 @@ export function planTrip(places: Place[], votes: Record<string, number>, plans: 
     const anchor = acts[0] ?? HOTELS[hotel]
     const chosen = row?.food_id ? byId.get(row.food_id) ?? null : null
     const food = chosen ?? (acts.length ? foodNear(places, anchor, region, 1)[0] ?? null : null)
-    const full = acts.length === 1 && acts[0].full_day
-    const supper = full ? foodNear(places, HOTELS[hotel], region, 1)[0] ?? null : null
+    const full = (acts.length === 1 && acts[0].full_day) || base.half
+    const supper = full && acts.length ? (chosen ?? foodNear(places, HOTELS[hotel], region, 1)[0] ?? null) : null
     return { ...base, source, locked: !!row?.locked, acts, food: full ? null : food, supper, chain: acts.length ? chainFor(acts, full ? null : food, hotel, base.half) : null }
   })
 }
