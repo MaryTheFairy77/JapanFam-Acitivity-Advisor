@@ -311,7 +311,6 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
         )}
 
         {tl && <button onClick={() => setMap(true)} className="mt-4 h-12 rounded-2xl bg-ink text-base font-semibold text-white">🗺️ Show route</button>}
-        <button onClick={onClose} className="mt-2 h-12 rounded-2xl border border-stone-300 bg-white text-base font-medium">← All days</button>
       </div>
       {map && tl && (
         <Suspense fallback={null}>
