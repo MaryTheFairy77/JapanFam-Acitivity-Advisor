@@ -111,7 +111,8 @@ export function buildTimeline(steps: Place[][], hotel: HotelId, start: number, d
   }
   const back = prev ? legOf(hotelLeg(hotel, prev), km(prev, H), human(hotel, prev)) : { minutes: 0, walk: true }
   const backMin = back.minutes
-  if (!mg && maghrib > t && maghrib < t + backMin) mg = { at: maghrib, ok: false, where: 'moving', room: null }
+  // on the way home at Maghrib: fine if we reach the hotel within ~5 min of it
+  if (!mg && maghrib > t && maghrib < t + backMin) mg = t + backMin - maghrib <= 5 ? { at: maghrib, ok: true, where: 'hotel', room: null } : { at: maghrib, ok: false, where: 'moving', room: null }
   const end = t + backMin
   if (!mg) mg = { at: maghrib, ok: true, where: 'hotel', room: null }
   return { steps: out, back, start: t0, end, maghrib: mg }
