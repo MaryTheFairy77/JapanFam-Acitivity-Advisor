@@ -124,8 +124,9 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
           <h3 className="flex-1 font-display text-xl">{dayLabel(date, { weekday: 'short', day: 'numeric' })} · route</h3>
           <button onClick={onClose} aria-label="Close map" className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100"><X className="h-5 w-5" /></button>
         </div>
-        <div className="relative flex-1">
-          <div ref={box} className="absolute inset-0" />
+        <div className="relative min-h-0 flex-1">
+          {/* maplibre sets position:relative on its container, so the container can't be the absolute layer itself */}
+          <div className="absolute inset-0"><div ref={box} className="h-full w-full" /></div>
           <div className="pointer-events-none absolute left-2 top-2 flex gap-1.5 text-[11px]">
             <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1 font-semibold">🔴 Today's route</span>
             <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1">○ Other halal food</span>
