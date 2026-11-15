@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft } from 'lucide-react'
 import { HOTELS, HOTEL_IDS, avatarBg, displayName, supabase, type HotelId, type Member, type Place } from '../lib'
 import { buildTimeline, comboKey, ideaScore, isActivity, openDates, type IdeaRow, type Layout, type PlannedDay, type Timeline } from '../itinerary'
@@ -146,7 +147,7 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
     setMsg(ok ? `📌 Put on ${dayLabel(date, { weekday: 'short', day: 'numeric' })}` : null); reload()
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[700] overflow-y-auto bg-washi" role="dialog" aria-modal="true" aria-label="Top days">
       <div className="mx-auto max-w-2xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
         <header className="sticky top-0 z-10 -mx-4 flex items-center gap-2 bg-washi/95 px-4 pb-2 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
@@ -203,7 +204,6 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
           {!list.length && <p className="rounded-2xl border-2 border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">No days yet. 💡 Suggest one!</p>}
         </div>
       </div>
-    </div>
-  )
+    </div>, document.body)
 }
 

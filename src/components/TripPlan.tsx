@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, Loader2, X } from 'lucide-react'
 import { HOTELS, getPlannerCode, setPlannerCode, supabase, type HotelId, type Member, type Place, type Vote } from '../lib'
 import { activityIds, ideaScore, isActivity, planTrip, sameComboDay, type DayPlanRow, type IdeaRow, type Layout, type PlannedDay } from '../itinerary'
@@ -48,7 +49,7 @@ export function usePlannerCode() {
     if (c && await fn(c)) return true
     setPlannerCode(null); setPending(() => fn); return false
   }, [])
-  const box = pending && (
+  const box = pending && createPortal(
     <div className="fixed inset-x-3 bottom-24 z-[950] mx-auto max-w-md rounded-2xl border border-stone-300 bg-white p-3 shadow-xl">
       <label className="text-sm font-medium" htmlFor="pc">⭐ Trip-planner code</label>
       <div className="mt-1 flex gap-2">
@@ -59,8 +60,7 @@ export function usePlannerCode() {
         <button aria-label="Cancel" className="h-11 rounded-xl border border-stone-300 px-3" onClick={() => { setPending(null); setMsg(null) }}><X className="h-4 w-4" /></button>
       </div>
       {msg && <p className="mt-1 text-xs text-torii">{msg}</p>}
-    </div>
-  )
+    </div>, document.body)
   return { run, box }
 }
 
@@ -246,7 +246,7 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
   const dup = day.source === 'plan' ? sameComboDay(days, acts.map((p) => p.id), day.date) : null
   const act = async (fn: (c: string) => Promise<boolean>) => { setBusy(true); await run(fn); setBusy(false); reload() }
 
-  if (editing) return (
+  if (editing) return createPortal(
     <div className="fixed inset-0 z-[700] overflow-y-auto bg-washi">
       <div className="mx-auto max-w-2xl px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <DayBuilder title={dayLabel(day.date, { weekday: 'short', day: 'numeric', month: 'short' })} hotel={hotel} date={day.date} places={places} voteCount={voteCount}
@@ -257,10 +257,9 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
             return 'Not saved: enter the planner code and try again.'
           }} />
       </div>
-    </div>
-  )
+    </div>, document.body)
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[700] flex flex-col bg-washi" role="dialog" aria-modal="true" aria-label={`Plan for ${dayLabel(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}`}>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)]">
         <header className="sticky top-0 z-10 -mx-4 flex items-center gap-2 bg-washi/95 px-4 py-3 backdrop-blur">
@@ -317,6 +316,5 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
           <RouteMap date={day.date} hotelId={hotel} tl={tl} places={places} photoUrls={photoUrls} onClose={() => setMap(false)} />
         </Suspense>
       )}
-    </div>
-  )
+    </div>, document.body)
 }
