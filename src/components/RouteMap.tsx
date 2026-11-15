@@ -12,10 +12,24 @@ import { clock, legText } from './DayBuilder'
 
 /**
  * A3 · route map popup (Maryam's approved mockup, 15 Nov 2026).
- * The day's stops as numbered photo pins 🏯 ① ② ③ (straight route lines removed 15 Nov: they didn't follow real roads/trains); other halal food (faded),
+ * The day's stops as numbered photo pins 🏯 ① ② ③; 🚶/🚕 legs follow real roads (red), 🚆 legs a straight blue line; other halal food (faded) joined by faint grey MST lines;
  * 🚉 stations, 🕌 prayer rooms nearby. Tap a pin → card → "Directions": Apple Maps on iPhone, Google Maps elsewhere.
  */
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
+/** Road route between two points (OpenStreetMap routing, free, no key). null if it fails: caller draws a straight line. */
+const ROUTE_CACHE = new Map<string, [number, number][] | null>()
+async function roadRoute(a: [number, number], b: [number, number], mode: 'foot' | 'car') {
+  const k = `${mode}:${a.map((x) => x.toFixed(5))};${b.map((x) => x.toFixed(5))}`
+  if (ROUTE_CACHE.has(k)) return ROUTE_CACHE.get(k)!
+  let out: [number, number][] | null = null
+  try {
+    const r = await fetch(`https://routing.openstreetmap.de/routed-${mode}/route/v1/driving/${a[0]},${a[1]};${b[0]},${b[1]}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(6000) })
+    const j = r.ok ? await r.json() : null
+    out = j?.routes?.[0]?.geometry?.coordinates ?? null
+  } catch { out = null }
+  ROUTE_CACHE.set(k, out)
+  return out
+}
 type Pin = { key: string; name: string; lat: number; lng: number; sub: string; photo?: string | null }
 
 export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose }: {
@@ -81,7 +95,31 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
       const ro = new ResizeObserver(() => fit())
       if (box.current) ro.observe(box.current)
       stopResize = () => ro.disconnect()
-      m.on('load', fit)
+      m.on('load', async () => {
+        fit()
+        // 🚶/🚕 legs follow real roads (free OpenStreetMap routing, fallback: straight); 🚆 legs = straight blue line
+        const legs = [...stops.map((s, i) => ({ a: i === 0 ? hotel : stops[i - 1].p, b: s.p, leg: s.leg })), ...(stops.length ? [{ a: stops[stops.length - 1].p, b: hotel, leg: tl.back }] : [])]
+          .map((l) => ({ a: [l.a.lng!, l.a.lat!] as [number, number], b: [l.b.lng!, l.b.lat!] as [number, number], leg: l.leg }))
+        const road = await Promise.all(legs.map((l) => l.leg.walk || l.leg.car ? roadRoute(l.a, l.b, l.leg.walk ? 'foot' : 'car') : Promise.resolve(null)))
+        if (cancelled) return
+        const feat = (coords: [number, number][], kind: string) => ({ type: 'Feature' as const, properties: { kind }, geometry: { type: 'LineString' as const, coordinates: coords } })
+        const lines = legs.map((l, i) => feat(road[i] ?? [l.a, l.b], l.leg.walk || l.leg.car ? (road[i] ? 'road' : 'straight') : 'train'))
+        // other halal food joined to the route like a minimum spanning tree (Prim's, the route counts as already connected)
+        const tree: ReturnType<typeof feat>[] = []
+        const inTree: [number, number][] = [[hotel.lng, hotel.lat], ...stops.map((s) => [s.p.lng!, s.p.lat!] as [number, number])]
+        const left = others.map((p) => [p.lng!, p.lat!] as [number, number])
+        const d = (x: [number, number], y: [number, number]) => km({ lat: x[1], lng: x[0] }, { lat: y[1], lng: y[0] })
+        while (left.length) {
+          let bi = 0, bj = 0, bd = Infinity
+          left.forEach((q, i) => inTree.forEach((t, j) => { const dd = d(q, t); if (dd < bd) { bd = dd; bi = i; bj = j } }))
+          tree.push(feat([inTree[bj], left[bi]], 'mst')); inTree.push(left[bi]); left.splice(bi, 1)
+        }
+        m.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [...tree, ...lines] } })
+        const before = m.getStyle().layers?.find((l) => l.type === 'symbol')?.id
+        m.addLayer({ id: 'mst', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'mst'], paint: { 'line-color': '#a8a29e', 'line-width': 1.5, 'line-opacity': 0.55 } }, before)
+        m.addLayer({ id: 'train', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'train'], layout: { 'line-cap': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 4, 'line-opacity': 0.8 } }, before)
+        m.addLayer({ id: 'road', type: 'line', source: 'route', filter: ['in', ['get', 'kind'], ['literal', ['road', 'straight']]], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.85 } }, before)
+      })
     })
     return () => { cancelled = true; stopResize(); map?.remove() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,7 +136,7 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
           {/* maplibre sets position:relative on its container, so the container can't be the absolute layer itself */}
           <div className="absolute inset-0"><div ref={box} className="h-full w-full" /></div>
           <div className="pointer-events-none absolute left-2 top-2 flex gap-1.5 text-[11px]">
-            <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1 font-semibold">① ② ③ Today's stops in order</span>
+            <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1 font-semibold"><span className="text-torii">━</span> walk/taxi · <span className="text-blue-600">━</span> train</span>
             <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1">○ Other halal food</span>
           </div>
         </div>
