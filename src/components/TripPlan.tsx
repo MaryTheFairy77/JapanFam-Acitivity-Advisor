@@ -5,6 +5,7 @@ import { activityIds, ideaScore, isActivity, planTrip, sameComboDay, type DayPla
 import { DayBuilder, TimelineView, clock, legText } from './DayBuilder'
 import Thumb from './Thumb'
 import Face from './Face'
+import { Top3, TopDaysPage, useBoard } from './TopDays'
 
 const RouteMap = lazy(() => import('./RouteMap'))
 
@@ -91,6 +92,8 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   const [openIdeas, setOpenIdeas] = useState<HotelId | null>(null)
   const [holding, setHolding] = useState<IdeaRow | null>(null) // idea picked up by a planner (tap, then tap a day)
   const [open, setOpen] = useState<string | null>(null)
+  const [board, setBoard] = useState(false)
+  const lb = useBoard(me, members, places, ideas, days, voteCount)
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
   const membersById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
   const planner = !!me.is_admin
@@ -128,6 +131,9 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
           ))}
         </div>
       </div>
+
+      <Top3 me={me} board={lb} onAll={() => setBoard(true)} />
+      <div className="flex items-center gap-2 text-[11px] text-stone-400" aria-hidden="true"><span className="h-px flex-1 bg-stone-300" />🗓 The plan<span className="h-px flex-1 bg-stone-300" /></div>
 
       {holding && (
         <div className="sticky top-16 z-20 flex items-center gap-2 rounded-2xl bg-ink px-3 py-2 text-sm text-white shadow-lg">
@@ -218,6 +224,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
         <DaySheet day={day} me={me} members={members} places={places} votes={votes} voteCount={voteCount} photoUrls={photoUrls} days={days}
           onClose={() => setOpen(null)} onOpen={onOpen} run={run} reload={load} />
       )}
+      {board && <TopDaysPage me={me} board={lb} photoUrls={photoUrls} days={days} onClose={() => setBoard(false)} run={run} reload={load} />}
       {box}
     </div>
   )

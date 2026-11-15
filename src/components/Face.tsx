@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { displayName, type Member } from '../lib'
+import { avatarBg, displayName, type Member } from '../lib'
 
 /**
  * An emoji avatar you can tap: a see-through name bubble pops up above it for ~2.5 s.
@@ -35,13 +35,19 @@ export default function Face({ m, className = '', inButton = false }: { m: Membe
       {name}
     </span>
   )
-  const cls = `relative inline-flex items-center justify-center leading-none ${className}`
+  const cls = `relative inline-flex shrink-0 items-center justify-center rounded-full leading-none ${className}`
+  const style = { backgroundColor: avatarBg(m) }
   return inButton ? (
     <span role="button" tabIndex={0} aria-label={name} data-sound="tap" onClick={toggle}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggle(e) }} className={cls}>
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggle(e) }} className={cls} style={style}>
       {m.emoji}{bubble}
     </span>
   ) : (
-    <button type="button" aria-label={name} data-sound="tap" onClick={toggle} className={cls}>{m.emoji}{bubble}</button>
+    <button type="button" aria-label={name} data-sound="tap" onClick={toggle} className={cls} style={style}>{m.emoji}{bubble}</button>
   )
+}
+
+/** Avatar with no name bubble: for places where the name is already written right next to it. */
+export function Avatar({ m, className = '' }: { m: Pick<Member, 'id' | 'emoji' | 'avatar_bg'>; className?: string }) {
+  return <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full leading-none ${className}`} style={{ backgroundColor: avatarBg(m) }}>{m.emoji}</span>
 }

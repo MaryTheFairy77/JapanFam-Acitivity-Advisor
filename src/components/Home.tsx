@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Avatar } from './Face'
 import { CATEGORIES, CATEGORY_IDS, catOf, regionOf, type Region, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, km, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
@@ -199,7 +200,7 @@ export default function Home({ me, data, onLogout }: {
           </button>
           <button onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen}
             className="flex items-center gap-1.5 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-2.5 text-sm">
-            <span className="text-lg">{me.emoji}</span><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}
+            <Avatar m={me} className="h-7 w-7 text-base" /><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}
             <Menu className="ml-0.5 h-4 w-4 text-stone-500" />
           </button>
           </div>
@@ -370,7 +371,7 @@ export default function Home({ me, data, onLogout }: {
           <nav onClick={(e) => e.stopPropagation()} aria-label="Menu"
             className="flex h-full w-[82%] max-w-xs flex-col bg-washi p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl">
             <div className="flex items-center gap-3 rounded-2xl bg-white p-3">
-              <span className="text-3xl">{me.emoji}</span>
+              <Avatar m={me} className="h-12 w-12 text-2xl" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{displayName(me)}</p>
                 <p className="text-xs text-stone-500">{me.is_admin ? 'Trip planner ⭐' : 'Family member'}</p>

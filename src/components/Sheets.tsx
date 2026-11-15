@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { EMOJIS, GROUPS, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, resolveMapsLink, setPlannerCode, supabase, HOTELS, type Group, type Member, type Place } from '../lib'
+import { useEffect, useState } from 'react'
+import { Pencil } from 'lucide-react'
+import { Avatar } from './Face'
+import { EMOJIS, GROUPS, PASTELS, avatarBg, LIMITS, autoFillPlace, displayName, getPlannerCode, lookupPlace, resolveMapsLink, setPlannerCode, supabase, HOTELS, type Group, type Member, type Place } from '../lib'
 import Privacy from './Privacy'
 import { TRACKS, getPrefs, setPrefs, type Track } from '../sound'
 
@@ -17,48 +19,90 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   )
 }
 
-/** Edit your nickname + avatar, or switch person. */
+/** Profile (Maryam, 15 Nov 2026): big avatar in the middle + ✏️ badge on its edge → pick emoji, pastel background, nickname. */
 export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
   me: Member; places: Place[]; onClose: () => void; onSaved: () => void; onSwitch: () => void
 }) {
+  const [editing, setEditing] = useState(false)
   const [nickname, setNickname] = useState(me.nickname ?? '')
   const [emoji, setEmoji] = useState(me.emoji)
+  const [bg, setBg] = useState(avatarBg(me))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [stats, setStats] = useState<{ votes: number; ideas: number; hearts: number } | null>(null)
+  useEffect(() => {
+    (async () => {
+      const [v, i] = await Promise.all([
+        supabase.from('votes').select('place_id', { count: 'exact', head: true }).eq('member_id', me.id),
+        supabase.from('day_ideas').select('activity_ids').eq('member_id', me.id),
+      ])
+      const keys = (i.data ?? []).map((r: { activity_ids: string[] }) => [...new Set(r.activity_ids)].sort().join('+')).filter(Boolean)
+      const h = keys.length ? await supabase.from('day_hearts').select('member_id', { count: 'exact', head: true }).in('combo_key', keys) : { count: 0 }
+      setStats({ votes: v.count ?? 0, ideas: keys.length, hearts: h.count ?? 0 })
+    })()
+  }, [me.id])
 
   async function save() {
     setBusy(true); setErr(null)
-    const { error } = await supabase.from('members').update({ nickname: nickname.trim() || null, emoji }).eq('id', me.id)
+    const { error } = await supabase.from('members').update({ nickname: nickname.trim() || null, emoji, avatar_bg: bg }).eq('id', me.id)
     setBusy(false)
-    if (error) setErr(error.message); else onSaved()
+    if (error) setErr(error.message); else { setEditing(false); onSaved() }
   }
+  const view = { ...me, emoji, avatar_bg: bg }
 
   return (
-    <Sheet title="Your profile" onClose={onClose}>
-      <div className="flex items-center gap-3 rounded-2xl bg-white p-3">
-        <span className="text-4xl">{emoji}</span>
-        <div>
-          <p className="font-medium">{nickname.trim() || me.name}</p>
-          <p className="text-xs text-stone-500">{GROUPS.find((g) => g.key === me.grp)?.label.slice(0, -1)}{me.is_admin ? ' · trip planner ⭐' : ''}</p>
+    <Sheet title={editing ? 'Edit profile' : 'Your profile'} onClose={onClose}>
+      <div className="flex flex-col items-center pb-2">
+        <div className="relative">
+          <Avatar m={view} className="h-28 w-28 text-6xl shadow-sm" />
+          {!editing && (
+            <button onClick={() => setEditing(true)} aria-label="Edit profile"
+              className="absolute bottom-0.5 right-0.5 flex h-10 w-10 items-center justify-center rounded-full border-2 border-washi bg-ink text-white shadow">
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
         </div>
+        <p className="mt-3 font-display text-2xl">{nickname.trim() || me.name}</p>
+        <p className="text-sm text-stone-500">{GROUPS.find((g) => g.key === me.grp)?.label.slice(0, -1)}{me.is_admin ? ' · trip planner ⭐' : ''}</p>
       </div>
-      <label className="mt-4 block text-sm font-medium text-stone-700">Nickname
-        <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={me.name} maxLength={LIMITS.nickname}
-          className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii" />
-      </label>
-      <p className="mt-4 text-sm font-medium text-stone-700">Avatar</p>
-      <div className="mt-1 grid grid-cols-8 gap-1.5">
-        {EMOJIS.map((em) => (
-          <button key={em} onClick={() => setEmoji(em)}
-            className={`aspect-square rounded-xl text-xl ${emoji === em ? 'bg-torii/15 ring-2 ring-torii' : 'bg-white'}`}>{em}</button>
-        ))}
-      </div>
-      {err && <p className="mt-2 text-sm text-torii">{err}</p>}
-      <button onClick={save} disabled={busy} className="mt-5 w-full rounded-full bg-torii py-3 font-semibold text-white disabled:opacity-40">
-        {busy ? 'Saving…' : 'Save'}
-      </button>
-      <button onClick={onSwitch} className="mt-2 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Switch to someone else</button>
-      <SoundSettings />
+
+      {editing ? (
+        <>
+          <p className="mt-3 text-sm font-medium text-stone-700">Background</p>
+          <div className="mt-1 flex justify-between gap-1">
+            {PASTELS.map((c) => (
+              <button key={c} onClick={() => setBg(c)} aria-label={`Background ${c}`} aria-pressed={bg === c}
+                className={`h-10 w-10 rounded-full border ${bg === c ? 'border-transparent ring-[3px] ring-torii ring-offset-2 ring-offset-washi' : 'border-stone-200'}`} style={{ backgroundColor: c }} />
+            ))}
+          </div>
+          <p className="mt-4 text-sm font-medium text-stone-700">Avatar</p>
+          <div className="mt-1 grid grid-cols-6 gap-2">
+            {EMOJIS.map((em) => (
+              <button key={em} onClick={() => setEmoji(em)} aria-pressed={emoji === em}
+                className={`aspect-square rounded-full text-2xl ${emoji === em ? 'ring-[3px] ring-torii' : ''}`} style={{ backgroundColor: emoji === em ? bg : '#fff' }}>{em}</button>
+            ))}
+          </div>
+          <label className="mt-4 block text-sm font-medium text-stone-700">Nickname
+            <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={me.name} maxLength={LIMITS.nickname}
+              className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii" />
+          </label>
+          {err && <p className="mt-2 text-sm text-torii">{err}</p>}
+          <button onClick={save} disabled={busy} className="mt-5 w-full rounded-full bg-torii py-3 font-semibold text-white disabled:opacity-40">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => { setEditing(false); setEmoji(me.emoji); setBg(avatarBg(me)); setNickname(me.nickname ?? '') }} className="mt-2 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Cancel</button>
+        </>
+      ) : (
+        <>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {([['👍', 'votes', stats?.votes], ['💡', 'days suggested', stats?.ideas], ['❤️', 'hearts got', stats?.hearts]] as const).map(([i, l, n]) => (
+              <div key={l} className="rounded-2xl bg-white p-2.5 text-center">
+                <p className="text-xl font-bold">{n ?? '·'}</p><p className="text-[11px] text-stone-500">{i} {l}</p>
+              </div>
+            ))}
+          </div>
+          <SoundSettings />
+      <button onClick={onSwitch} className="mt-3 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Switch to someone else</button>
       {me.is_admin && <AddMember onAdded={onSaved} />}
       {me.is_admin && <FillGaps places={places} onDone={onSaved} />}
       {DEVS.includes(me.name) && (
@@ -69,6 +113,8 @@ export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
         </div>
       )}
       <Privacy className="mt-5" />
+        </>
+      )}
     </Sheet>
   )
 }

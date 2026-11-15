@@ -13,7 +13,11 @@ export type Region = 'kansai' | 'kanto'
 export type AutoField = 'pin' | 'nearest_hotels' | 'travel' | 'website_url' | 'halal' | 'price' | 'wait' | 'maps_url'
 
 export type Group = 'adult' | 'teen' | 'kid'
-export interface Member { id: string; name: string; nickname: string | null; emoji: string; grp: Group; is_admin: boolean; created_at: string }
+export interface Member { id: string; name: string; nickname: string | null; emoji: string; avatar_bg?: string | null; grp: Group; is_admin: boolean; created_at: string }
+/** Pastel circle behind each avatar emoji (members pick one on their profile). */
+export const PASTELS = ['#fde2e4', '#ffe5d0', '#fff1c1', '#d8f3dc', '#ccfbf1', '#dbeafe', '#e9d5ff', '#f5f5f4']
+export const avatarBg = (m: Pick<Member, 'id' | 'avatar_bg'>) => m.avatar_bg && PASTELS.includes(m.avatar_bg) ? m.avatar_bg
+  : PASTELS[[...m.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % (PASTELS.length - 1)]
 export interface Attendee { member_id: string; place_id: string }
 export const displayName = (m: Pick<Member, 'name' | 'nickname'>) => m.nickname?.trim() || m.name
 export const GROUPS: { key: Group; label: string; one: string; many: string }[] = [

@@ -1,4 +1,5 @@
 import { GROUPS, displayName, type Member } from '../lib'
+import { Avatar } from './Face'
 import { FujiScene, WaveBand } from './Art'
 import Privacy from './Privacy'
 
@@ -25,7 +26,7 @@ export default function Login({ members, onPick }: { members: Member[]; onPick: 
                 {list.map((m) => (
                   <button key={m.id} onClick={() => onPick(m.id)}
                     className="flex flex-col items-center gap-1 rounded-2xl border border-stone-200 bg-white px-2 py-3 shadow-sm transition active:scale-95 hover:border-torii">
-                    <span className="text-3xl">{m.emoji}</span>
+                    <Avatar m={m} className="h-14 w-14 text-3xl" />
                     <span className="w-full truncate text-center text-sm font-medium">{displayName(m)}</span>
                   </button>
                 ))}

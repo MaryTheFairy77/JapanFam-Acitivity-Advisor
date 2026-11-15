@@ -1,6 +1,6 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet, X } from 'lucide-react'
 import Thumb from './Thumb'
-import Face from './Face'
+import Face, { Avatar } from './Face'
 import { mosqueLink, mosquesNear } from '../mosques'
 import { CATEGORIES, HOTELS, catOf, estimateTravel, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type HotelId, type Member, type Place } from '../lib'
 
@@ -190,7 +190,7 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
             <div className="mt-4 flex flex-wrap items-center gap-1.5 text-xs text-stone-500">
               Idea by
               {owners.map((m) => (
-                <span key={m.id} className="inline-flex items-center gap-1 rounded-full bg-stone-100 py-0.5 pl-1 pr-2 text-stone-700"><span className="text-base leading-none">{m.emoji}</span>{displayName(m)}</span>
+                <span key={m.id} className="inline-flex items-center gap-1 rounded-full bg-stone-100 py-0.5 pl-1 pr-2 text-stone-700"><Avatar m={m} className="h-5 w-5 text-xs" />{displayName(m)}</span>
               ))}
             </div>
           )}

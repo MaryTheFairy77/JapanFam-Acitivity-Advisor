@@ -127,24 +127,29 @@ export function addCost(steps: Place[][], p: Place, hotel: HotelId, start: numbe
   return best!
 }
 
-/** Draft for an open day: most-voted unused activity combination that keeps Maghrib OK, food after the 1st activity. */
-function draftSteps(pool: Place[], votes: Record<string, number>, hotel: HotelId, start: number, date: string, half: boolean, usedCombos: Set<string>, usedActs: Set<string>, places: Place[]): Place[][] {
+/** Draft for an open day: most-voted unused activity combination, food after the 1st activity on full days.
+ *  Prefers combos that keep Maghrib OK (trying an earlier start too); if none fit, still drafts the best one (shown ⚠️). */
+function draftSteps(pool: Place[], votes: Record<string, number>, hotel: HotelId, start: number, date: string, half: boolean, usedCombos: Set<string>, usedActs: Set<string>, places: Place[]): { steps: Place[][]; start: number } {
   const region = HOTELS[hotel].region
   const score = (p: Place) => (votes[p.id] ?? 0) * 10 - (usedActs.has(p.id) ? 50 : 0) - hotelLeg(hotel, p) / 10
-  const ranked = [...pool].sort((a, b) => score(b) - score(a)).slice(0, 10)
+  const ranked = [...pool].sort((a, b) => score(b) - score(a)).slice(0, 16)
   const options: Place[][] = []
   if (!half) for (const a of ranked) if (a.full_day) options.push([a])
   if (!half) for (let i = 0; i < ranked.length; i++) for (let j = i + 1; j < ranked.length; j++) if (!ranked[i].full_day && !ranked[j].full_day) options.push([ranked[i], ranked[j]])
   for (const a of ranked) if (!a.full_day) options.push([a])
   const value = (o: Place[]) => o.reduce((s, p) => s + score(p), 0) + (o.length === 2 ? 5 : 0)
   options.sort((a, b) => value(b) - value(a))
-  for (const o of options) {
-    if (usedCombos.has(comboKey(o.map((p) => p.id)))) continue
+  const stepsFor = (o: Place[]) => {
     const lunch = !half && !o[0].full_day ? foodNear(places, o[0], region, 1)[0] : undefined
-    const steps = lunch ? [[o[0]], [lunch], ...o.slice(1).map((p) => [p])] : o.map((p) => [p])
-    if (fits(buildTimeline(steps, hotel, start, date))) return steps
+    return lunch ? [[o[0]], [lunch], ...o.slice(1).map((p) => [p])] : o.map((p) => [p])
   }
-  return []
+  const fresh = options.filter((o) => !usedCombos.has(comboKey(o.map((p) => p.id))))
+  for (const st of half ? [start] : [start, EARLIEST]) for (const o of fresh) {
+    const steps = stepsFor(o)
+    if (fits(buildTimeline(steps, hotel, st, date))) return { steps, start: st }
+  }
+  const pick = fresh.find((o) => o.length === 1 && !o[0].full_day) ?? fresh[0]
+  return pick ? { steps: stepsFor(pick), start } : { steps: [], start } // best single activity = shortest day
 }
 
 export function planTrip(places: Place[], votes: Record<string, number>, plans: DayPlanRow[], days = tripDays()): PlannedDay[] {
@@ -174,7 +179,8 @@ export function planTrip(places: Place[], votes: Record<string, number>, plans: 
       if (row.layout?.start) start = row.layout.start
     } else {
       const pool = places.filter((p) => isActivity(p) && !p.visited && p.lat != null && regionOf(p) === region)
-      steps = draftSteps(pool, votes, hotel, start, d.date, half, usedCombos, usedActs, places)
+      const dr = draftSteps(pool, votes, hotel, start, d.date, half, usedCombos, usedActs, places)
+      steps = dr.steps; start = dr.start
       source = steps.length ? 'draft' : 'none'
       const ids = activityIds(steps)
       if (ids.length) { usedCombos.add(comboKey(ids)); ids.forEach((x) => usedActs.add(x)) }
