@@ -12,7 +12,7 @@ import { clock, legText } from './DayBuilder'
 
 /**
  * A3 · route map popup (Maryam's approved mockup, 15 Nov 2026).
- * The day as a directed graph: 🏯 → ① → ② → ③ → 🏯 with arrows + leg times; photo pins; other halal food (faded),
+ * The day's stops as numbered photo pins 🏯 ① ② ③ (straight route lines removed 15 Nov: they didn't follow real roads/trains); other halal food (faded),
  * 🚉 stations, 🕌 prayer rooms nearby. Tap a pin → card → "Directions": Apple Maps on iPhone, Google Maps elsewhere.
  */
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
@@ -81,37 +81,7 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
       const ro = new ResizeObserver(() => fit())
       if (box.current) ro.observe(box.current)
       stopResize = () => ro.disconnect()
-      // route lines + arrows need the map style, so they wait for 'load'
-      m.on('load', () => {
-        fit()
-        const coords = [[hotel.lng, hotel.lat], ...stops.map((s) => [s.p.lng!, s.p.lat!]), [hotel.lng, hotel.lat]]
-        const legs = coords.slice(1).map((c, i) => ({ type: 'Feature' as const, properties: { home: i === coords.length - 2 ? 1 : 0 }, geometry: { type: 'LineString' as const, coordinates: [coords[i], c] } }))
-          .filter((f) => km({ lat: f.geometry.coordinates[0][1], lng: f.geometry.coordinates[0][0] }, { lat: f.geometry.coordinates[1][1], lng: f.geometry.coordinates[1][0] }) > 0.02)
-        m.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: legs } })
-        m.addLayer({ id: 'route', type: 'line', source: 'route', filter: ['==', ['get', 'home'], 0], layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.85 } })
-        // last leg back to the hotel: dashed (dasharray can't depend on data, so it's its own layer)
-        m.addLayer({ id: 'route-home', type: 'line', source: 'route', filter: ['==', ['get', 'home'], 1], layout: { 'line-cap': 'round' },
-          paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.7, 'line-dasharray': [0.5, 2] } })
-        // direction arrows drawn ON the lines by the map itself (always point the way you travel, at any zoom/rotation)
-        const c = document.createElement('canvas'); c.width = 24; c.height = 24
-        const g = c.getContext('2d')!
-        g.fillStyle = '#c8102e'; g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.lineJoin = 'round'
-        g.beginPath(); g.moveTo(5, 4); g.lineTo(20, 12); g.lineTo(5, 20); g.lineTo(9, 12); g.closePath(); g.stroke(); g.fill()
-        m.addImage('arrow', g.getImageData(0, 0, 24, 24), { pixelRatio: 2 })
-        m.addLayer({ id: 'route-arrows', type: 'symbol', source: 'route',
-          layout: { 'symbol-placement': 'line', 'symbol-spacing': 70, 'icon-image': 'arrow', 'icon-size': 1.6, 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } })
-        // leg times: a small chip at each leg's middle (not rotated)
-        const times = [...stops.map((s) => legText(s.leg)), legText(tl.back)]
-        coords.slice(1).forEach((c2, i) => {
-          const a = coords[i]
-          if (km({ lat: a[1], lng: a[0] }, { lat: c2[1], lng: c2[0] }) < 0.15) return // too short to label without covering the pins
-          const el = document.createElement('div')
-          el.textContent = times[i]
-          Object.assign(el.style, { background: '#fff', borderRadius: '999px', padding: '1px 7px', font: '600 11px Inter, sans-serif', boxShadow: '0 1px 3px rgba(0,0,0,.25)', whiteSpace: 'nowrap', pointerEvents: 'none' })
-          new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([(a[0] + c2[0]) / 2, (a[1] + c2[1]) / 2]).addTo(m)
-        })
-      })
+      m.on('load', fit)
     })
     return () => { cancelled = true; stopResize(); map?.remove() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +98,7 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
           {/* maplibre sets position:relative on its container, so the container can't be the absolute layer itself */}
           <div className="absolute inset-0"><div ref={box} className="h-full w-full" /></div>
           <div className="pointer-events-none absolute left-2 top-2 flex gap-1.5 text-[11px]">
-            <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1 font-semibold">🔴 Today's route</span>
+            <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1 font-semibold">① ② ③ Today's stops in order</span>
             <span className="rounded-full border border-stone-200 bg-white/95 px-2 py-1">○ Other halal food</span>
           </div>
         </div>
