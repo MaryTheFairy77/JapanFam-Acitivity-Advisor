@@ -167,7 +167,7 @@ export default function Home({ me, data, onLogout }: {
   }
 
   const chip = (on: boolean) =>
-    `shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`
+    `shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${on ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white text-stone-700'}`
 
   // Mount Fuji behind Food / Do / Plan / Compare (decorative, fixed to the bottom of the screen)
   const fujiBg = (
@@ -229,8 +229,8 @@ export default function Home({ me, data, onLogout }: {
           {fujiBg}
           <div className="relative z-10">
             <div className="mx-4 mt-4 flex rounded-full border border-stone-300 bg-white p-0.5 text-sm">
-              <button onClick={() => setPlanView('trip')} className={`flex-1 rounded-full py-1.5 ${planView === 'trip' ? 'bg-ink text-white' : 'text-stone-600'}`}>🗓 Trip plan</button>
-              <button onClick={() => setPlanView('idea')} className={`flex-1 rounded-full py-1.5 ${planView === 'idea' ? 'bg-ink text-white' : 'text-stone-600'}`}>💡 Suggest a day</button>
+              <button onClick={() => setPlanView('trip')} className={`flex-1 rounded-full py-1.5 ${planView === 'trip' ? 'bg-iris text-white' : 'text-stone-600'}`}>🗓 Trip plan</button>
+              <button onClick={() => setPlanView('idea')} className={`flex-1 rounded-full py-1.5 ${planView === 'idea' ? 'bg-iris text-white' : 'text-stone-600'}`}>💡 Suggest a day</button>
             </div>
             {planView === 'trip'
               ? <TripPlan me={me} members={members} places={effPlaces} votes={votes} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} />
@@ -253,7 +253,7 @@ export default function Home({ me, data, onLogout }: {
                   const n = places.filter((p) => p.kind === 'activity' && catOf(p) === c).length
                   return (
                     <button key={c} role="tab" aria-selected={cat === c} data-sound="tab" onClick={() => setCat(c)}
-                      className={`rounded-xl py-2 text-sm font-medium transition ${cat === c ? 'bg-ink text-white shadow' : 'text-stone-600'}`}>
+                      className={`rounded-xl py-2 text-sm font-medium transition ${cat === c ? 'bg-iris text-white shadow' : 'text-stone-600'}`}>
                       {CATEGORIES[c].emoji} {CATEGORIES[c].label} <span className="opacity-60">{n}</span>
                     </button>
                   )
@@ -269,7 +269,7 @@ export default function Home({ me, data, onLogout }: {
                   const n = places.filter((p) => p.kind === 'restaurant' && regionOf(p) === r).length
                   return (
                     <button key={r} role="tab" aria-selected={foodCity === r} data-sound="tab" onClick={() => setFoodCity(r)}
-                      className={`rounded-xl py-2 text-sm font-medium transition ${foodCity === r ? 'bg-ink text-white shadow' : 'text-stone-600'}`}>
+                      className={`rounded-xl py-2 text-sm font-medium transition ${foodCity === r ? 'bg-iris text-white shadow' : 'text-stone-600'}`}>
                       {label} <span className="opacity-60">{n}</span>
                     </button>
                   )
@@ -286,7 +286,7 @@ export default function Home({ me, data, onLogout }: {
                   className="w-full rounded-xl border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-torii" />
               </div>
               <button onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters} aria-label="Filters"
-                className={`relative inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-sm ${showFilters ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`}>
+                className={`relative inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-sm ${showFilters ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white text-stone-700'}`}>
                 <SlidersHorizontal className="h-4 w-4" />
                 {activeFilters > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-torii text-[10px] text-white">{activeFilters}</span>}
               </button>

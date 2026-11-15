@@ -54,7 +54,7 @@ export function usePlannerCode() {
       <label className="text-sm font-medium" htmlFor="pc">⭐ Trip-planner code</label>
       <div className="mt-1 flex gap-2">
         <input id="pc" value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="none" autoCorrect="off" className="h-11 min-w-0 flex-1 rounded-xl border border-stone-300 px-3" />
-        <button className="h-11 rounded-xl bg-ink px-4 text-sm font-medium text-white" onClick={async () => {
+        <button className="h-11 rounded-xl bg-iris px-4 text-sm font-medium text-white" onClick={async () => {
           if (await pending(code)) { setPlannerCode(code); setPending(null); setCode(''); setMsg(null) } else setMsg('Wrong code, or no internet.')
         }}>OK</button>
         <button aria-label="Cancel" className="h-11 rounded-xl border border-stone-300 px-3" onClick={() => { setPending(null); setMsg(null) }}><X className="h-4 w-4" /></button>
@@ -128,7 +128,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
         <div className="flex gap-1.5">
           {([['all', 'All'], ['kanto', '🗼'], ['kansai', '🦌']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setCity(k)} aria-pressed={city === k}
-              className={`h-9 min-w-9 rounded-full px-3 text-sm ${city === k ? 'bg-ink font-medium text-white' : 'border border-stone-300 bg-white'}`}>{l}</button>
+              className={`h-9 min-w-9 rounded-full px-3 text-sm ${city === k ? 'bg-iris font-medium text-white' : 'border border-stone-300 bg-white'}`}>{l}</button>
           ))}
         </div>
       </div>
@@ -137,7 +137,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
       <div className="flex items-center gap-2 text-[11px] text-stone-400" aria-hidden="true"><span className="h-px flex-1 bg-stone-300" />🗓 The plan<span className="h-px flex-1 bg-stone-300" /></div>
 
       {holding && (
-        <div className="sticky top-16 z-20 flex items-center gap-2 rounded-2xl bg-ink px-3 py-2 text-sm text-white shadow-lg">
+        <div className="sticky top-16 z-20 flex items-center gap-2 rounded-2xl bg-iris px-3 py-2 text-sm text-white shadow-lg">
           <span className="flex-1">👆 Tap an open {HOTELS[holding.hotel].short} day to place this idea</span>
           <button onClick={() => setHolding(null)} aria-label="Cancel" className="rounded-full bg-white/15 p-1.5"><X className="h-4 w-4" /></button>
         </div>
@@ -169,7 +169,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                       <div className="mt-1 flex items-center gap-1 text-xs">
                         {who && <Face m={who} inButton className="h-6 w-6 rounded-full bg-stone-100 text-sm" />}
                         <span className="flex-1">{i.layout ? `🚪 ${clock(i.layout.start)}` : i.half_day ? '🚄 ½' : ''}</span>
-                        <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] text-white">👍{ideaScore(i, voteCount)}</span>
+                        <span className="rounded-full bg-iris px-1.5 py-0.5 text-[10px] text-white">👍{ideaScore(i, voteCount)}</span>
                       </div>
                       {dup && <span className="absolute left-2 top-2 rounded-full bg-white px-1.5 text-[10px]">✓ {dayLabel(dup.date, { weekday: 'short' })}</span>}
                     </button>
@@ -301,7 +301,7 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
           <div className="mt-4 space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
             <p className="text-xs font-semibold text-stone-500">⭐ Planner</p>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={busy} onClick={() => setEditing(true)} className="h-11 rounded-xl bg-ink text-sm font-medium text-white">✏️ Edit day</button>
+              <button disabled={busy} onClick={() => setEditing(true)} className="h-11 rounded-xl bg-iris text-sm font-medium text-white">✏️ Edit day</button>
               <button disabled={busy || day.source !== 'plan'} onClick={() => act((c) => lockDay(c, day.date, !day.locked))} className="h-11 rounded-xl border border-stone-300 text-sm font-medium disabled:opacity-40">{day.locked ? '🔓 Unlock' : '🔒 Lock day'}</button>
               {day.source === 'draft' && <button disabled={busy} onClick={() => act((c) => setLayout(c, day.date, activityIds(day.steps), layout, false, null))} className="col-span-2 h-11 rounded-xl border border-stone-300 text-sm font-medium">📌 Keep this draft</button>}
               {day.source === 'plan' && !day.locked && <button disabled={busy} onClick={() => act((c) => clearDay(c, day.date))} className="col-span-2 h-10 rounded-xl text-xs text-stone-500 underline">Clear back to draft</button>}
@@ -310,7 +310,7 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
           </div>
         )}
 
-        {tl && <button onClick={() => setMap(true)} className="mt-4 h-12 rounded-2xl bg-ink text-base font-semibold text-white">🗺️ Show route</button>}
+        {tl && <button onClick={() => setMap(true)} className="mt-4 h-12 rounded-2xl bg-iris text-base font-semibold text-white">🗺️ Show route</button>}
       </div>
       {map && tl && (
         <Suspense fallback={null}>

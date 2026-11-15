@@ -297,7 +297,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
   }, [visible, voteCount, photoUrls, ready, mode, mosques, mosquesOn, pos, stations, layers.station])
 
   const chip = (on: boolean) =>
-    `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
+    `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
 
   return (
     <div className="relative h-[calc(100dvh-8rem)]">
@@ -313,7 +313,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
         <div className="pointer-events-auto flex rounded-full border border-stone-300 bg-white/95 p-0.5 text-sm shadow-sm">
           {([['kanto', '🗼 Tokyo'], ['kansai', '🦌 Osaka'], ['all', '🗾 All']] as const).map(([k, label]) => (
             <button key={k} data-sound="tab" onClick={() => setView(k)}
-              className={`rounded-full px-3 py-1 ${view === k ? 'bg-ink text-white' : 'text-stone-600'}`}>{label}</button>
+              className={`rounded-full px-3 py-1 ${view === k ? 'bg-iris text-white' : 'text-stone-600'}`}>{label}</button>
           ))}
         </div>
         {weather && view !== 'all' && (
@@ -346,7 +346,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
           ))}
           <button onClick={toggleEverything} aria-pressed={everything} data-sound="tap" title={everything ? 'Back to the usual view' : 'Show everything'}
             className={`flex min-w-[3rem] flex-col items-center gap-0.5 rounded-xl px-1 py-0.5 text-[11px] transition ${everything ? 'text-stone-800' : 'text-stone-500'}`}>
-            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${everything ? 'bg-ink text-white' : 'border-2 border-stone-300 bg-white'}`}>🎌</span>
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${everything ? 'bg-iris text-white' : 'border-2 border-stone-300 bg-white'}`}>🎌</span>
             Everything
           </button>
         </div>

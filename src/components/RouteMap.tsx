@@ -150,7 +150,7 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
             <>
               {sel.photo ? <img src={sel.photo} alt="" referrerPolicy="no-referrer" className="h-14 w-14 rounded-xl object-cover" /> : <span className="text-3xl">📍</span>}
               <div className="min-w-0 flex-1"><p className="truncate font-semibold">{sel.name}</p><p className="truncate text-xs text-stone-500">{sel.sub}</p></div>
-              <a href={directionsUrl(sel.lat, sel.lng, sel.name)} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-ink px-4 text-sm font-semibold text-white">Directions ↗</a>
+              <a href={directionsUrl(sel.lat, sel.lng, sel.name)} target="_blank" rel="noreferrer" className="flex h-11 items-center rounded-xl bg-iris px-4 text-sm font-semibold text-white">Directions ↗</a>
             </>
           ) : <p className="flex-1 py-2 text-center text-sm text-stone-500">Tap a picture for directions</p>}
         </div>

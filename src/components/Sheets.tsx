@@ -57,7 +57,7 @@ export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
           <Avatar m={view} className="h-28 w-28 text-6xl shadow-sm" />
           {!editing && (
             <button onClick={() => setEditing(true)} aria-label="Edit profile"
-              className="absolute bottom-0.5 right-0.5 flex h-10 w-10 items-center justify-center rounded-full border-2 border-washi bg-ink text-white shadow">
+              className="absolute bottom-0.5 right-0.5 flex h-10 w-10 items-center justify-center rounded-full border-2 border-washi bg-iris text-white shadow">
               <Pencil className="h-4 w-4" />
             </button>
           )}
@@ -148,7 +148,7 @@ function AddMember({ onAdded }: { onAdded: () => void }) {
       </select>
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
       {msg && <p className="text-sm text-torii">{msg}</p>}
-      <button onClick={add} disabled={busy || !name.trim()} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Adding…' : 'Add'}</button>
+      <button onClick={add} disabled={busy || !name.trim()} className="w-full rounded-full bg-iris py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Adding…' : 'Add'}</button>
     </div>
   )
 }
@@ -221,7 +221,7 @@ function FillGaps({ places, onDone, mode = 'gaps' }: { places: Place[]; onDone: 
       <p className="text-sm font-medium">{mode === 'all' ? '↻ Re-run auto-fill on everything' : '✨ Fill missing info'} ({todo.length} place{todo.length === 1 ? '' : 's'})</p>
       <p className="text-xs text-stone-600">Looks each one up on OpenStreetMap and fills the pin, nearest hotel and travel time (plus website or halal status if listed). Only blank or ✨ generated info is ever changed; anything a person typed is left alone.</p>
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
-      <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? `Looking up… (${log.length}/${todo.length})` : mode === 'all' ? 'Re-run on all places' : 'Fill missing info'}</button>
+      <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-iris py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? `Looking up… (${log.length}/${todo.length})` : mode === 'all' ? 'Re-run on all places' : 'Fill missing info'}</button>
       {log.length > 0 && <ul className="space-y-0.5 text-xs text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul>}
     </div>
   )

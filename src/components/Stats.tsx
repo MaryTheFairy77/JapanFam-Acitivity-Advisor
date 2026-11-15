@@ -72,7 +72,7 @@ export default function Stats({ places, raw, votes, members, voteCount, photoUrl
     : metric === 'value' ? (v >= 1000 ? `Free · ${v - 1000}👍` : `${v.toFixed(1)} /¥1k`) : String(v)
 
   const tab = (on: boolean) => `rounded-lg py-1.5 ${on ? 'bg-white shadow-sm' : 'text-stone-600'}`
-  const chip = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-stone-700'}`
+  const chip = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-sm ${on ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white text-stone-700'}`
 
   return (
     <div className="space-y-4 px-4 pt-4">

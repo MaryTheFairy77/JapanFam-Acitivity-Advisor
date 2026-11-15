@@ -71,7 +71,7 @@ export default function HotelSheet({ id, places, photoUrls, onClose, onOpenPlace
           <p className="mt-2 text-sm text-stone-700">{info.blurb}</p>
 
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <a href={h.maps} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-ink py-2.5 text-sm font-medium text-white"><Images className="h-4 w-4" />Photos & map</a>
+            <a href={h.maps} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-iris py-2.5 text-sm font-medium text-white"><Images className="h-4 w-4" />Photos & map</a>
             <a href={info.website ?? `https://www.google.com/search?q=${encodeURIComponent(h.name + ' official site')}`} target="_blank" rel="noreferrer"
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-300 bg-white py-2.5 text-sm"><Globe className="h-4 w-4" />Website</a>
           </div>

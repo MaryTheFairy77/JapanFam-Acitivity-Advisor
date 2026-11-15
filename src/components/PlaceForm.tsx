@@ -282,7 +282,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
               <div className="mt-1 flex flex-wrap gap-2">
                 {CATEGORY_IDS.map((c) => (
                   <button type="button" key={c} onClick={() => set('category', c)}
-                    className={`rounded-full border px-3 py-1.5 text-sm ${f.category === c ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white'}`}>
+                    className={`rounded-full border px-3 py-1.5 text-sm ${f.category === c ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white'}`}>
                     {CATEGORIES[c].emoji} {CATEGORIES[c].label}
                   </button>
                 ))}
@@ -303,7 +303,7 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
                 return (
                   <button type="button" key={h}
                     onClick={() => set('nearest_hotels', on ? f.nearest_hotels.filter((x) => x !== h) : [...f.nearest_hotels, h])}
-                    className={`rounded-full border px-3 py-1.5 text-sm ${on ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white'}`}>
+                    className={`rounded-full border px-3 py-1.5 text-sm ${on ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white'}`}>
                     {HOTELS[h].short} <span className="opacity-60">· {HOTELS[h].city}</span>
                   </button>
                 )

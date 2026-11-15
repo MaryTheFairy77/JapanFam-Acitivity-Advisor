@@ -160,7 +160,7 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
         <div className="mb-3 grid grid-cols-4 gap-1.5">
           {(['all', ...order] as const).map((h) => (
             <button key={h} onClick={() => setHotel(h)} aria-pressed={hotel === h}
-              className={`h-10 truncate rounded-full px-1 text-xs ${hotel === h ? 'border-2 border-ink bg-white font-semibold' : 'border border-stone-300 bg-white'}`}>{h === 'all' ? 'All' : HOTELS[h].short.split(' ')[0]}</button>
+              className={`h-10 truncate rounded-full px-1 text-xs ${hotel === h ? 'border-2 border-iris bg-white font-semibold' : 'border border-stone-300 bg-white'}`}>{h === 'all' ? 'All' : HOTELS[h].short.split(' ')[0]}</button>
           ))}
         </div>
         {msg && <p className="mb-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{msg}</p>}
@@ -175,7 +175,7 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
                 <button onClick={() => setPeek(e)} aria-label={`Open ${entryTitle(e, v)}`} className="relative flex h-24 w-full gap-1 text-left">
                   {acts.slice(0, 3).map((p, k) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className={`h-full ${k === 0 ? 'flex-[2]' : 'flex-1'} min-w-0 rounded-2xl`} />)}
                   {food && acts.length < 3 && <Thumb place={food} photoUrls={photoUrls} className="h-full min-w-0 flex-1 rounded-2xl" />}
-                  <span className="absolute left-1.5 top-1 text-xl">{i < 3 ? ['🥇', '🥈', '🥉'][i] : <span className="rounded-full bg-ink px-2 py-0.5 text-xs font-bold text-white">#{i + 1}</span>}</span>
+                  <span className="absolute left-1.5 top-1 text-xl">{i < 3 ? ['🥇', '🥈', '🥉'][i] : <span className="rounded-full bg-iris px-2 py-0.5 text-xs font-bold text-white">#{i + 1}</span>}</span>
                 </button>
                 <div className="mt-2 flex items-center gap-2">
                   <Cover e={e} v={v} className="h-11 w-11 text-2xl" />

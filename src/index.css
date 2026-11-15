@@ -7,6 +7,8 @@
   --color-ink: #1f1a17;
   --color-torii: #c8102e;
   --color-torii-dark: #9e0c24;
+  /* buttons + selected chips (Maryam 15 Nov: black felt jarring) — a softened #7049B3 that sits with washi cream + torii red */
+  --color-iris: #6a4cae;
 }
 
 html, body, #root { min-height: 100%; }

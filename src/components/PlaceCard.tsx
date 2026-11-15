@@ -168,7 +168,7 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
 
           {/* Links */}
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {safeUrl(p.maps_url) && <a href={safeUrl(p.maps_url)!} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-ink py-2.5 text-sm font-medium text-white"><MapPin className="h-4 w-4" />Google Maps</a>}
+            {safeUrl(p.maps_url) && <a href={safeUrl(p.maps_url)!} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-iris py-2.5 text-sm font-medium text-white"><MapPin className="h-4 w-4" />Google Maps</a>}
             {safeUrl(p.website_url) && <a href={safeUrl(p.website_url)!} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-300 bg-white py-2.5 text-sm"><Globe className="h-4 w-4" />Website</a>}
           </div>
 

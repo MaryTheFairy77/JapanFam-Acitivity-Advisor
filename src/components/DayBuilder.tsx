@@ -72,10 +72,10 @@ export function TimelineView({ tl, photoUrls, onOpen, edit }: {
                   <span>⏱ {dur(s.leave - s.arrive)}{s.places.length > 1 ? ' · 🔗 together' : ''}</span>
                   {edit && (
                     <span className="ml-auto flex gap-1.5">
-                      {i > 0 && <button aria-label="Move earlier" onClick={() => edit.move(i, -1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-lg font-bold text-white shadow">↑</button>}
-                      {i < tl.steps.length - 1 && <button aria-label="Move later" onClick={() => edit.move(i, 1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-lg font-bold text-white shadow">↓</button>}
+                      {i > 0 && <button aria-label="Move earlier" onClick={() => edit.move(i, -1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-iris text-lg font-bold text-white shadow">↑</button>}
+                      {i < tl.steps.length - 1 && <button aria-label="Move later" onClick={() => edit.move(i, 1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-iris text-lg font-bold text-white shadow">↓</button>}
                       <button aria-label="Add something to do at the same time" onClick={() => edit.together(i)}
-                        className={`flex h-10 items-center gap-1 rounded-full px-3 text-sm font-semibold shadow ${edit.active?.together && edit.active.index === i ? 'bg-torii text-white' : 'border-2 border-ink bg-white'}`}><Link2 className="h-4 w-4" />together</button>
+                        className={`flex h-10 items-center gap-1 rounded-full px-3 text-sm font-semibold shadow ${edit.active?.together && edit.active.index === i ? 'bg-torii text-white' : 'border-2 border-iris bg-white'}`}><Link2 className="h-4 w-4" />together</button>
                     </span>
                   )}
                 </div>
@@ -151,12 +151,12 @@ export function DayBuilder({ title, hotel, date, places, voteCount, photoUrls, i
       <div className="grid grid-cols-3 gap-1.5">
         {([['do', '🎢 Do'], ['food', '🍜 Food'], ['day', `📋 My day${steps.length ? ` · ${steps.flat().length}` : ''}`]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k}
-            className={`h-10 rounded-full text-sm ${tab === k ? 'border-2 border-ink bg-white font-semibold' : 'border border-stone-300 bg-white'}`}>{l}</button>
+            className={`h-10 rounded-full text-sm ${tab === k ? 'border-2 border-iris bg-white font-semibold' : 'border border-stone-300 bg-white'}`}>{l}</button>
         ))}
       </div>
 
       {label && tab !== 'day' && (
-        <div className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm text-white">
+        <div className="flex items-center gap-2 rounded-xl bg-iris px-3 py-2 text-sm text-white">
           <span className="flex-1 truncate">{label}</span>
           <button onClick={() => setAt(null)} aria-label="Any spot" className="rounded-full bg-white/15 p-1"><X className="h-4 w-4" /></button>
         </div>
@@ -175,7 +175,7 @@ export function DayBuilder({ title, hotel, date, places, voteCount, photoUrls, i
                 <span className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${used ? 'bg-white text-stone-600' : !c ? 'bg-red-100 text-red-800' : c.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-900'}`}>
                   {used ? '✓ in day' : !c ? '☀️ whole day' : `+${dur(Math.max(0, c.added))}${c.ok ? '' : ' ⚠️'}`}
                 </span>
-                {(voteCount[p.id] ?? 0) > 0 && <span className="absolute right-1.5 top-1.5 rounded-full bg-ink px-1.5 text-[10px] text-white">👍{voteCount[p.id]}</span>}
+                {(voteCount[p.id] ?? 0) > 0 && <span className="absolute right-1.5 top-1.5 rounded-full bg-iris px-1.5 text-[10px] text-white">👍{voteCount[p.id]}</span>}
                 {isActivity(p) && c?.together && <span className="absolute right-1.5 top-7 rounded-full bg-white/90 px-1.5 text-[10px]">🔗</span>}
               </button>
             )

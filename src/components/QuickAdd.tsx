@@ -101,7 +101,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   }
   const near = found?.lat != null ? travelFromPin({ lat: found.lat, lng: found.lng }) : null
   const big = 'flex min-h-16 w-full flex-col justify-center rounded-2xl border bg-white px-5 py-3 text-left text-[17px] font-semibold active:scale-[.99]'
-  const pick = (on: boolean) => `${big} ${on ? 'border-2 border-ink' : 'border-stone-300'}`
+  const pick = (on: boolean) => `${big} ${on ? 'border-2 border-iris' : 'border-stone-300'}`
   const sub = 'block text-[13px] font-normal text-stone-500'
 
   return (
@@ -132,9 +132,9 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
             <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a Google Maps or Instagram link, or type the name and area.</label>
             <input id="qa" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') find() }}
               placeholder="e.g. Ramen Ouka, Shinjuku" autoCapitalize="sentences" enterKeyHint="search"
-              className="h-14 rounded-2xl border-2 border-ink bg-white px-4 text-base outline-none" />
+              className="h-14 rounded-2xl border-2 border-iris bg-white px-4 text-base outline-none" />
             <button onClick={find} disabled={!q.trim() || !!busy}
-              className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-ink text-[17px] font-semibold text-white disabled:opacity-40">
+              className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-iris text-[17px] font-semibold text-white disabled:opacity-40">
               {busy ? <><Loader2 className="h-5 w-5 animate-spin" />{busy}</> : 'Find it'}
             </button>
             {msg && <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{msg} Type the place’s name and area instead, e.g. “Halal ramen, Asakusa”.</p>}
