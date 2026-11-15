@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, Loader2, X } from 'lucide-react'
-import { HOTELS, fmtYen, getPlannerCode, setPlannerCode, supabase, type HotelId, type Member, type Place, type Vote } from '../lib'
-import { mosquesNear } from '../mosques'
-import { chainFor, foodNear, ideaScore, planTrip, sameComboDay, type DayPlanRow, type IdeaRow, type PlannedDay } from '../itinerary'
+import { HOTELS, getPlannerCode, setPlannerCode, supabase, type HotelId, type Member, type Place, type Vote } from '../lib'
+import { activityIds, ideaScore, isActivity, planTrip, sameComboDay, type DayPlanRow, type IdeaRow, type Layout, type PlannedDay } from '../itinerary'
+import { DayBuilder, TimelineView, clock, legText } from './DayBuilder'
 import Thumb from './Thumb'
 import Face from './Face'
 
@@ -12,13 +12,8 @@ const RouteMap = lazy(() => import('./RouteMap'))
  * 🗓 Trip plan v2 (Maryam's approved mockups A1 overview + A2 one day, 15 Nov 2026).
  * Pictures first, few words. Same 👍 votes as Food / Do. Planners lock / place ideas / edit; everyone else views + suggests.
  */
-export const clock = (m: number) => {
-  const h = Math.floor(m / 60) % 24, mm = Math.round((m % 60) / 15) * 15
-  const hh = mm === 60 ? h + 1 : h
-  return `${((hh + 11) % 12) + 1}${mm % 60 ? `:${String(mm % 60).padStart(2, '0')}` : ''} ${hh < 12 ? 'am' : 'pm'}`
-}
+export { clock, legText }
 export const dayLabel = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', ...o })
-export const legText = (l: { minutes: number; walk: boolean }) => `${l.walk ? '🚶' : '🚆'} ${l.minutes} min`
 export const STAY_TINT: Record<HotelId, string> = { toranomon: 'bg-rose-100 text-rose-900', osaka: 'bg-sky-100 text-sky-900', jw_tokyo: 'bg-violet-100 text-violet-900' }
 
 /** day_plans + day_ideas, refreshed every 20 s while visible. */
@@ -28,8 +23,8 @@ export function usePlanData() {
   const [err, setErr] = useState(false)
   const load = useCallback(async () => {
     const [a, b] = await Promise.all([
-      supabase.from('day_plans').select('day, activity_ids, food_id, locked, idea_id'),
-      supabase.from('day_ideas').select('id, member_id, hotel, half_day, activity_ids, created_at'),
+      supabase.from('day_plans').select('day, activity_ids, food_id, locked, idea_id, layout'),
+      supabase.from('day_ideas').select('id, member_id, hotel, half_day, activity_ids, created_at, layout'),
     ])
     if (a.error || b.error) { setErr(true); return }
     setErr(false); setPlans(a.data as DayPlanRow[]); setIdeas(b.data as IdeaRow[])
@@ -72,6 +67,14 @@ export async function setDay(code: string, day: string, acts: string[], food: st
   const { data, error } = await supabase.rpc('planner_set_day', { on_day: day, acts, food, lock, idea, code })
   return !error && data === true
 }
+export async function setLayout(code: string, day: string, acts: string[], lay: Layout, lock: boolean, idea: string | null) {
+  const { data, error } = await supabase.rpc('planner_set_layout', { on_day: day, acts, lay, lock, idea, code })
+  return !error && data === true
+}
+async function lockDay(code: string, day: string, lock: boolean) {
+  const { data, error } = await supabase.rpc('planner_lock_day', { on_day: day, lock, code })
+  return !error && data === true
+}
 async function clearDay(code: string, day: string) {
   const { data, error } = await supabase.rpc('planner_clear_day', { on_day: day, code })
   return !error && data === true
@@ -92,7 +95,6 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   const membersById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
   const planner = !!me.is_admin
 
-  // stays = runs of consecutive days at the same hotel
   const stays = useMemo(() => {
     const out: { hotel: HotelId; days: PlannedDay[] }[] = []
     for (const d of days) {
@@ -107,7 +109,8 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   async function place(idea: IdeaRow, d: PlannedDay) {
     if (!planner || d.locked || d.hotel !== idea.hotel) return
     setHolding(null)
-    await run((c) => setDay(c, d.date, idea.activity_ids, null, false, idea.id))
+    const lay: Layout = idea.layout ?? { start: d.start, steps: idea.activity_ids.map((x) => [x]) }
+    await run((c) => setLayout(c, d.date, idea.activity_ids, lay, false, idea.id))
     load()
   }
 
@@ -155,10 +158,10 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                     <button key={i.id} draggable={planner} onDragStart={(e) => { e.dataTransfer.setData('text/plain', i.id); setHolding(i) }}
                       onClick={() => planner && setHolding(holding?.id === i.id ? null : i)}
                       className={`relative w-36 shrink-0 rounded-2xl bg-white p-1.5 text-left shadow-sm ${holding?.id === i.id ? 'ring-4 ring-torii' : ''} ${dup ? 'opacity-50' : ''}`}>
-                      <div className="flex h-16 gap-1">{acts.map((p) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className="h-full flex-1 rounded-xl" />)}</div>
+                      <div className="flex h-16 gap-1">{acts.slice(0, 3).map((p) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className="h-full flex-1 rounded-xl" />)}</div>
                       <div className="mt-1 flex items-center gap-1 text-xs">
                         {who && <Face m={who} inButton className="h-6 w-6 rounded-full bg-stone-100 text-sm" />}
-                        <span className="flex-1">{i.half_day ? '🚄 ½' : ''}</span>
+                        <span className="flex-1">{i.layout ? `🚪 ${clock(i.layout.start)}` : i.half_day ? '🚄 ½' : ''}</span>
                         <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] text-white">👍{ideaScore(i, voteCount)}</span>
                       </div>
                       {dup && <span className="absolute left-2 top-2 rounded-full bg-white px-1.5 text-[10px]">✓ {dayLabel(dup.date, { weekday: 'short' })}</span>}
@@ -170,7 +173,8 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
 
             {s.days.map((d) => {
               const target = holding && holding.hotel === d.hotel && !d.locked && d.kind !== 'flight'
-              const stops = d.chain?.stops ?? []
+              const actSteps = d.steps.filter((g) => g.some(isActivity))
+              const food = d.steps.flat().find((p) => p.kind === 'restaurant') ?? d.supper
               return (
                 <div key={d.date}
                   onDragOver={(e) => { if (planner && !d.locked) e.preventDefault() }}
@@ -186,15 +190,20 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                     {d.kind === 'flight' ? <span className="flex-1 py-3 text-sm text-stone-500">✈️ Fly home</span>
                       : d.source === 'none' ? <span className="flex-1 py-3 text-center text-sm text-stone-400">{target ? '👆 Place idea here' : 'Open · 💡 ideas welcome'}</span>
                       : (
-                        <div className={`flex flex-1 items-center gap-1.5 ${d.source === 'draft' ? 'opacity-55' : ''}`}>
-                          {stops.filter((x) => x.role === 'activity').map((x, k) => (
-                            <div key={x.p.id} className="relative">
-                              <Thumb place={x.p} photoUrls={photoUrls} className={`${k === 0 ? 'h-16 w-24' : 'h-16 w-16'} rounded-xl`} />
-                              {x.p.full_day && <span className="absolute bottom-1 left-1 rounded-full bg-white/90 px-1.5 text-[10px] font-semibold">☀️ all day</span>}
+                        <div className={`flex min-w-0 flex-1 items-center gap-1.5 ${d.source === 'draft' ? 'opacity-55' : ''}`}>
+                          {actSteps.slice(0, 3).map((g, k) => (
+                            <div key={k} className="relative flex shrink-0 gap-0.5">
+                              {g.filter(isActivity).slice(0, 2).map((p) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className={`${k === 0 && g.length === 1 ? 'w-24' : 'w-16'} h-16 rounded-xl`} />)}
+                              {g.length > 1 && <span className="absolute bottom-1 left-1 rounded-full bg-white/90 px-1 text-[10px]">🔗</span>}
+                              {g[0].full_day && <span className="absolute bottom-1 left-1 rounded-full bg-white/90 px-1.5 text-[10px] font-semibold">☀️ all day</span>}
                             </div>
                           ))}
-                          {(d.food ?? d.supper) && <Thumb place={(d.food ?? d.supper)!} photoUrls={photoUrls} className="h-12 w-12 shrink-0 rounded-full border-2 border-white shadow" />}
-                          {d.source === 'draft' && <span className="ml-auto self-start rounded-full bg-stone-100 px-1.5 text-[10px] text-stone-500">draft</span>}
+                          {actSteps.length > 3 && <span className="text-xs text-stone-500">+{actSteps.length - 3}</span>}
+                          {food && <Thumb place={food} photoUrls={photoUrls} className="h-12 w-12 shrink-0 rounded-full border-2 border-white shadow" />}
+                          <span className="ml-auto flex flex-col items-end gap-1 self-start">
+                            {d.source === 'draft' && <span className="rounded-full bg-stone-100 px-1.5 text-[10px] text-stone-500">draft</span>}
+                            {d.timeline && !d.timeline.maghrib.ok && <span className="text-xs" title="Out at Maghrib">⚠️</span>}
+                          </span>
                         </div>
                       )}
                   </button>
@@ -206,7 +215,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
       })}
 
       {day && (
-        <DaySheet day={day} me={me} members={members} places={places} votes={votes} photoUrls={photoUrls} days={days}
+        <DaySheet day={day} me={me} members={members} places={places} votes={votes} voteCount={voteCount} photoUrls={photoUrls} days={days}
           onClose={() => setOpen(null)} onOpen={onOpen} run={run} reload={load} />
       )}
       {box}
@@ -214,35 +223,35 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   )
 }
 
-function DaySheet({ day, me, members, places, votes, photoUrls, days, onClose, onOpen, run, reload }: {
-  day: PlannedDay; me: Member; members: Member[]; places: Place[]; votes: Vote[]; photoUrls: Record<string, string>; days: PlannedDay[]
+function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days, onClose, onOpen, run, reload }: {
+  day: PlannedDay; me: Member; members: Member[]; places: Place[]; votes: Vote[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; days: PlannedDay[]
   onClose: () => void; onOpen: (p: Place) => void; run: (fn: (c: string) => Promise<boolean>) => Promise<boolean>; reload: () => void
 }) {
   const planner = !!me.is_admin
   const hotel = day.hotel!
-  const region = HOTELS[hotel].region
-  const [swap, setSwap] = useState(0) // local 🔄 for everyone; planners can keep it
   const [busy, setBusy] = useState(false)
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [map, setMap] = useState(false)
-  const anchor = day.acts[0] ?? HOTELS[hotel]
-  const foodOptions = useMemo(() => foodNear(places, anchor, region, 6), [places, anchor, region])
-  const food = swap === 0 ? day.food : foodOptions.filter((f) => f.id !== day.food?.id)[(swap - 1) % Math.max(1, foodOptions.length - 1)] ?? day.food
-  // swapping food changes the travel legs, so rebuild the chain with the new stop
-  const chain = useMemo(() => (swap && day.acts.length && food)
-    ? chainFor(day.acts, food, hotel, day.half)
-    : day.chain, [day, swap, food, hotel])
+  const tl = day.timeline
+  const layout: Layout = { start: day.start, steps: day.steps.map((g) => g.map((p) => p.id)) }
+  const acts = day.acts
   const voters = (id: string) => votes.filter((v) => v.place_id === id).map((v) => members.find((m) => m.id === v.member_id)).filter((m): m is Member => !!m)
+  const dup = day.source === 'plan' ? sameComboDay(days, acts.map((p) => p.id), day.date) : null
+  const act = async (fn: (c: string) => Promise<boolean>) => { setBusy(true); await run(fn); setBusy(false); reload() }
 
-  async function save(acts: string[], lock: boolean, foodId: string | null = day.food?.id ?? null) {
-    setBusy(true)
-    await run((c) => setDay(c, day.date, acts, foodId, lock, null))
-    setBusy(false); reload()
-  }
-  const ids = day.acts.map((p) => p.id)
-  const move = (i: number, dir: -1 | 1) => { const a = [...ids]; const j = i + dir; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; save(a, day.locked) }
-  const addable = places.filter((p) => p.kind === 'activity' && (p.category ?? 'activity') !== 'shopping' && p.lat != null && !ids.includes(p.id) && (p.lng! < 137 ? 'kansai' : 'kanto') === region)
-  const dup = day.source === 'plan' ? sameComboDay(days, ids, day.date) : null
+  if (editing) return (
+    <div className="fixed inset-0 z-[700] overflow-y-auto bg-washi">
+      <div className="mx-auto max-w-2xl px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))]">
+        <DayBuilder title={dayLabel(day.date, { weekday: 'short', day: 'numeric', month: 'short' })} hotel={hotel} date={day.date} places={places} voteCount={voteCount}
+          photoUrls={photoUrls} initial={layout} days={days} saveLabel={`📌 Save ${dayLabel(day.date, { weekday: 'short', day: 'numeric' })}`} onBack={() => setEditing(false)}
+          onSave={async (lay, ids) => {
+            const ok = await run((c) => setLayout(c, day.date, ids, lay, day.locked, null))
+            if (ok) { reload(); setEditing(false); return null }
+            return 'Not saved: enter the planner code and try again.'
+          }} />
+      </div>
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 z-[700] flex flex-col bg-washi" role="dialog" aria-modal="true" aria-label={`Plan for ${dayLabel(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}`}>
@@ -256,68 +265,26 @@ function DaySheet({ day, me, members, places, votes, photoUrls, days, onClose, o
 
         {dup && <p className="mb-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">⚠️ Same activities as {dayLabel(dup.date, { weekday: 'short', day: 'numeric' })}</p>}
 
-        {chain ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-stone-600">
-              <span className="rounded-full border border-stone-200 bg-white px-3 py-1">🚪 {clock(chain.startMin)}</span>
+        {tl ? (
+          <>
+            <div className="mb-2 flex items-center gap-2 text-sm text-stone-600">
+              <span className="rounded-full border border-stone-200 bg-white px-3 py-1">🚪 {clock(tl.start)}</span>
               <span className="h-0.5 flex-1 bg-stone-200" />
-              <span className={`rounded-full border px-3 py-1 ${chain.fits ? 'border-stone-200 bg-white' : 'border-red-300 bg-red-50 text-red-800'}`}>🏯 back {clock(chain.endMin)}{chain.fits ? '' : ' ⚠️ after Maghrib'}</span>
+              <span className="rounded-full border border-stone-200 bg-white px-3 py-1">🏯 back {clock(tl.end)}</span>
             </div>
-            {chain.stops.map((s, k) => {
-              const isFood = s.role === 'food'
-              const p = isFood ? food ?? s.p : s.p
-              const ai = ids.indexOf(s.p.id)
-              const pray = s.prayers.length ? mosquesNear(p.lat != null ? { lat: p.lat, lng: p.lng! } : HOTELS[hotel], 1)[0] : null
-              return (
-                <div key={s.p.id + k}>
-                  <p className="py-1 pl-5 text-xs text-stone-500"><span className="mr-2 inline-block h-4 w-0.5 bg-stone-300 align-middle" />{legText(s.leg)}</p>
-                  {isFood ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => onOpen(p)} className="relative h-24 flex-1 overflow-hidden rounded-2xl">
-                        <Thumb place={p} photoUrls={photoUrls} className="h-full w-full rounded-2xl" />
-                        <span className="absolute inset-x-0 bottom-0 bg-ink/60 px-3 py-1.5 text-left text-sm font-semibold text-white">🍜 {p.name}</span>
-                      </button>
-                      {foodOptions.length > 1 && (
-                        <button onClick={() => setSwap(swap + 1)} aria-label="Swap for another nearby halal place"
-                          className="flex w-20 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-stone-300 bg-white text-xs font-semibold text-stone-700">
-                          <span className="text-2xl">🔄</span>Swap
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <button onClick={() => onOpen(p)} className="relative block h-40 w-full overflow-hidden rounded-3xl shadow-md">
-                        <Thumb place={p} photoUrls={photoUrls} className="h-full w-full rounded-3xl" />
-                        <span className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-ink/60 px-3 py-2 text-left text-white">
-                          <span className="flex-1 font-semibold">{p.name}</span>
-                          <span className="text-xs">{p.price_jpy == null ? '' : fmtYen(p.price_jpy)}</span>
-                        </span>
-                        {day.locked && <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold">📌</span>}
-                      </button>
-                      {planner && (
-                        <div className="absolute right-2 top-2 flex gap-1">
-                          {ai > 0 && <button aria-label="Move earlier" onClick={() => move(ai, -1)} className="h-9 w-9 rounded-full bg-white/90 text-sm shadow">↑</button>}
-                          {ai >= 0 && ai < ids.length - 1 && <button aria-label="Move later" onClick={() => move(ai, 1)} className="h-9 w-9 rounded-full bg-white/90 text-sm shadow">↓</button>}
-                          <button aria-label="Remove from this day" onClick={() => save(ids.filter((x) => x !== p.id), day.locked)} className="h-9 w-9 rounded-full bg-white/90 text-sm shadow">✕</button>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1 px-2 pt-1">{voters(p.id).slice(0, 6).map((m) => <Face key={m.id} m={m} className="h-7 w-7 rounded-full text-base" />)}</div>
-                    </div>
-                  )}
-                  {pray && s.prayers.map((pr) => (
-                    <p key={pr.name} className="mt-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs text-emerald-900">🕌 {pr.name} ~{clock(pr.at)} · {pray.name} ({pray.d < 1 ? `${Math.round(pray.d * 1000)} m` : `${pray.d.toFixed(1)} km`})</p>
-                  ))}
-                </div>
-              )
-            })}
-            <p className="py-1 pl-5 text-xs text-stone-500"><span className="mr-2 inline-block h-4 w-0.5 bg-stone-300 align-middle" />{legText(chain.back)} → 🏯</p>
+            <TimelineView tl={tl} photoUrls={photoUrls} onOpen={onOpen} />
+            {acts.some((p) => voters(p.id).length) && (
+              <div className="mt-3 flex flex-wrap items-center gap-1 rounded-2xl bg-white p-2 text-xs text-stone-500">
+                👍 {[...new Map(acts.flatMap((p) => voters(p.id)).map((m) => [m.id, m])).values()].map((m) => <Face key={m.id} m={m} className="h-7 w-7 rounded-full text-base" />)}
+              </div>
+            )}
             {day.supper && (
-              <button onClick={() => onOpen(day.supper!)} className="relative mt-2 block h-24 w-full overflow-hidden rounded-2xl">
+              <button onClick={() => onOpen(day.supper!)} className="relative mt-3 block h-24 w-full overflow-hidden rounded-2xl">
                 <Thumb place={day.supper} photoUrls={photoUrls} className="h-full w-full rounded-2xl" />
                 <span className="absolute inset-x-0 bottom-0 bg-ink/60 px-3 py-1.5 text-left text-sm font-semibold text-white">🌙 Supper after Maghrib · {day.supper.name}</span>
               </button>
             )}
-          </div>
+          </>
         ) : (
           <div className="rounded-2xl border-2 border-dashed border-stone-300 p-8 text-center text-sm text-stone-500">Nothing planned yet</div>
         )}
@@ -326,37 +293,23 @@ function DaySheet({ day, me, members, places, votes, photoUrls, days, onClose, o
           <div className="mt-4 space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
             <p className="text-xs font-semibold text-stone-500">⭐ Planner</p>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={busy} onClick={() => save(ids, !day.locked, (swap ? food?.id : day.food?.id) ?? null)} className="h-11 rounded-xl border border-stone-300 text-sm font-medium">{day.locked ? '🔓 Unlock' : '🔒 Lock day'}</button>
-              <button disabled={busy || ids.length >= 3} onClick={() => setAdding(!adding)} className="h-11 rounded-xl border border-stone-300 text-sm font-medium">＋ Add activity</button>
-              {day.source === 'draft' && <button disabled={busy} onClick={() => save(ids, false)} className="col-span-2 h-11 rounded-xl bg-ink text-sm font-medium text-white">📌 Keep this draft</button>}
-              {swap > 0 && food && <button disabled={busy} onClick={() => { save(ids, day.locked, food.id); setSwap(0) }} className="col-span-2 h-11 rounded-xl bg-ink text-sm font-medium text-white">Keep {food.name}</button>}
-              {day.source === 'plan' && !day.locked && <button disabled={busy} onClick={async () => { setBusy(true); await run((c) => clearDay(c, day.date)); setBusy(false); reload() }} className="col-span-2 h-10 rounded-xl text-xs text-stone-500 underline">Clear back to draft</button>}
+              <button disabled={busy} onClick={() => setEditing(true)} className="h-11 rounded-xl bg-ink text-sm font-medium text-white">✏️ Edit day</button>
+              <button disabled={busy || day.source !== 'plan'} onClick={() => act((c) => lockDay(c, day.date, !day.locked))} className="h-11 rounded-xl border border-stone-300 text-sm font-medium disabled:opacity-40">{day.locked ? '🔓 Unlock' : '🔒 Lock day'}</button>
+              {day.source === 'draft' && <button disabled={busy} onClick={() => act((c) => setLayout(c, day.date, activityIds(day.steps), layout, false, null))} className="col-span-2 h-11 rounded-xl border border-stone-300 text-sm font-medium">📌 Keep this draft</button>}
+              {day.source === 'plan' && !day.locked && <button disabled={busy} onClick={() => act((c) => clearDay(c, day.date))} className="col-span-2 h-10 rounded-xl text-xs text-stone-500 underline">Clear back to draft</button>}
             </div>
             {busy && <p className="flex items-center gap-2 text-xs text-stone-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</p>}
-            {adding && (
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                {addable.slice(0, 12).map((p) => (
-                  <button key={p.id} onClick={() => { setAdding(false); save([...ids, p.id], day.locked) }} className="relative h-20 overflow-hidden rounded-xl">
-                    <Thumb place={p} photoUrls={photoUrls} className="h-full w-full rounded-xl" />
-                    <span className="absolute inset-x-0 bottom-0 truncate bg-ink/60 px-1 text-[10px] text-white">{p.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
-        {chain && (
-          <button onClick={() => setMap(true)} className="mt-4 h-12 rounded-2xl bg-ink text-base font-semibold text-white">🗺️ Show route</button>
-        )}
+        {tl && <button onClick={() => setMap(true)} className="mt-4 h-12 rounded-2xl bg-ink text-base font-semibold text-white">🗺️ Show route</button>}
         <button onClick={onClose} className="mt-2 h-12 rounded-2xl border border-stone-300 bg-white text-base font-medium">← All days</button>
       </div>
-      {map && chain && (
+      {map && tl && (
         <Suspense fallback={null}>
-          <RouteMap day={day} food={food} places={places} photoUrls={photoUrls} onClose={() => setMap(false)} />
+          <RouteMap date={day.date} hotelId={hotel} tl={tl} places={places} photoUrls={photoUrls} onClose={() => setMap(false)} />
         </Suspense>
       )}
     </div>
   )
 }
-

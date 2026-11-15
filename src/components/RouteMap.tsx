@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { HOTELS, isStoragePhoto, km, safeUrl, type Place } from '../lib'
+import { HOTELS, isStoragePhoto, km, safeUrl, type HotelId, type Place } from '../lib'
 import { STATIONS } from '../stations'
 import { MOSQUES } from '../mosques'
-import { directionsUrl, foodNear, type PlannedDay } from '../itinerary'
+import { directionsUrl, foodNear, type Timeline } from '../itinerary'
 import { pastelize } from './MapView'
-import { clock, dayLabel, legText } from './TripPlan'
+import { dayLabel } from './TripPlan'
+import { clock, legText } from './DayBuilder'
 
 /**
  * A3 · route map popup (Maryam's approved mockup, 15 Nov 2026).
@@ -17,15 +18,15 @@ import { clock, dayLabel, legText } from './TripPlan'
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
 type Pin = { key: string; name: string; lat: number; lng: number; sub: string; photo?: string | null }
 
-export default function RouteMap({ day, food, places, photoUrls, onClose }: {
-  day: PlannedDay; food: Place | null; places: Place[]; photoUrls: Record<string, string>; onClose: () => void
+export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose }: {
+  date: string; hotelId: HotelId; tl: Timeline; places: Place[]; photoUrls: Record<string, string>; onClose: () => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   const [sel, setSel] = useState<Pin | null>(null)
-  const hotel = HOTELS[day.hotel!]
+  const hotel = HOTELS[hotelId]
   const photo = (p: Place) => isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url)
-  const stops = useMemo(() => (day.chain?.stops ?? []).map((s) => ({ ...s, p: s.role === 'food' && food ? food : s.p }))
-    .filter((s) => s.p.lat != null), [day, food])
+  const stops = useMemo(() => tl.steps.map((s) => ({ ...s, p: s.places[0], food: s.places.every((x) => x.kind === 'restaurant'), names: s.places.map((x) => x.name).join(' + ') }))
+    .filter((s) => s.p.lat != null), [tl])
 
   useEffect(() => {
     let map: maplibregl.Map | null = null
@@ -68,9 +69,9 @@ export default function RouteMap({ day, food, places, photoUrls, onClose }: {
       // hotel + numbered stops on top
       const h = document.createElement('div'); h.textContent = '🏯'
       Object.assign(h.style, { width: '44px', height: '44px', borderRadius: '999px', background: '#fff', border: '4px solid #c8102e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', cursor: 'pointer' })
-      add(h, hotel.lat, hotel.lng, { key: 'hotel', name: hotel.name, lat: hotel.lat, lng: hotel.lng, sub: `Start ${day.chain ? clock(day.chain.startMin) : ''} · back ${day.chain ? clock(day.chain.endMin) : ''}` })
-      stops.forEach((s, i) => add(round(photo(s.p), 60, s.role === 'food' ? '4px solid #1f1a17' : '4px solid #fff', String(i + 1)), s.p.lat!, s.p.lng!,
-        { key: s.p.id, name: `${i + 1} · ${s.p.name}`, lat: s.p.lat!, lng: s.p.lng!, sub: `${legText(s.leg)} · arrive ~${clock(s.arrive)}`, photo: photo(s.p) }))
+      add(h, hotel.lat, hotel.lng, { key: 'hotel', name: hotel.name, lat: hotel.lat, lng: hotel.lng, sub: `Start ${clock(tl.start)} · back ${clock(tl.end)}` })
+      stops.forEach((s, i) => add(round(photo(s.p), 60, s.food ? '4px solid #1f1a17' : '4px solid #fff', String(i + 1)), s.p.lat!, s.p.lng!,
+        { key: s.p.id, name: `${i + 1} · ${s.names}`, lat: s.p.lat!, lng: s.p.lng!, sub: `${legText(s.leg)} · arrive ~${clock(s.arrive)}`, photo: photo(s.p) }))
         const b = new maplibregl.LngLatBounds()
       pts.forEach((p) => b.extend([p.lng, p.lat]))
       m.fitBounds(b, { padding: 70, maxZoom: 15, duration: 0 })
@@ -85,7 +86,7 @@ export default function RouteMap({ day, food, places, photoUrls, onClose }: {
         // last leg back to the hotel: dashed (dasharray can't depend on data, so it's its own layer)
         m.addLayer({ id: 'route-home', type: 'line', source: 'route', filter: ['==', ['get', 'home'], 1], layout: { 'line-cap': 'round' },
           paint: { 'line-color': '#c8102e', 'line-width': 4, 'line-opacity': 0.7, 'line-dasharray': [0.5, 2] } })
-        const times = [...stops.map((s) => legText(s.leg)), day.chain ? legText(day.chain.back) : '']
+        const times = [...stops.map((s) => legText(s.leg)), legText(tl.back)]
         coords.slice(1).forEach((c, i) => {
           const a = coords[i]
           const mid: [number, number] = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2]
@@ -104,7 +105,7 @@ export default function RouteMap({ day, food, places, photoUrls, onClose }: {
     <div className="fixed inset-0 z-[1000] flex flex-col justify-end bg-ink/45" onClick={onClose}>
       <div className="mx-auto flex h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Route map">
         <div className="flex items-center gap-2 px-4 py-3">
-          <h3 className="flex-1 font-display text-xl">{dayLabel(day.date, { weekday: 'short', day: 'numeric' })} · route</h3>
+          <h3 className="flex-1 font-display text-xl">{dayLabel(date, { weekday: 'short', day: 'numeric' })} · route</h3>
           <button onClick={onClose} aria-label="Close map" className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100"><X className="h-5 w-5" /></button>
         </div>
         <div className="relative flex-1">
