@@ -8,7 +8,7 @@ import HotelSheet from './HotelSheet'
 import { tripToolsOn, useMyPosition } from '../geo'
 import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
-const Planner = lazy(() => import('./Planner'))
+const SuggestDay = lazy(() => import('./SuggestDay'))
 const TripPlan = lazy(() => import('./TripPlan'))
 import { ProfileSheet } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
@@ -64,7 +64,7 @@ export default function Home({ me, data, onLogout }: {
   const [music, setMusic] = useState(getPrefs().ambience)
   const [offlineTip, setOfflineTip] = useState(false)
   const [quickAdd, setQuickAdd] = useState(false)
-  const [planView, setPlanView] = useState<'trip' | 'day'>('trip')
+  const [planView, setPlanView] = useState<'trip' | 'idea'>('trip')
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
   const kidMode = isKid(me)
@@ -229,11 +229,11 @@ export default function Home({ me, data, onLogout }: {
           <div className="relative z-10">
             <div className="mx-4 mt-4 flex rounded-full border border-stone-300 bg-white p-0.5 text-sm">
               <button onClick={() => setPlanView('trip')} className={`flex-1 rounded-full py-1.5 ${planView === 'trip' ? 'bg-ink text-white' : 'text-stone-600'}`}>🗓 Trip plan</button>
-              <button onClick={() => setPlanView('day')} className={`flex-1 rounded-full py-1.5 ${planView === 'day' ? 'bg-ink text-white' : 'text-stone-600'}`}>🧮 Plan one day</button>
+              <button onClick={() => setPlanView('idea')} className={`flex-1 rounded-full py-1.5 ${planView === 'idea' ? 'bg-ink text-white' : 'text-stone-600'}`}>💡 Suggest a day</button>
             </div>
             {planView === 'trip'
-              ? <TripPlan me={me} places={effPlaces} voteCount={voteCount} onOpen={(p) => setViewingId(p.id)} />
-              : <Planner places={effPlaces} voteCount={voteCount} />}
+              ? <TripPlan me={me} members={members} places={effPlaces} votes={votes} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} />
+              : <SuggestDay me={me} places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} />}
           </div>
         </Suspense>
       ) : tab === 'stats' ? (
@@ -378,7 +378,7 @@ export default function Home({ me, data, onLogout }: {
               <button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="text-stone-400"><X className="h-5 w-5" /></button>
             </div>
             <div className="mt-4 space-y-1">
-              {([['plan', '🗓️', 'Trip plan', 'Day-by-day draft from votes, or plan one day'], ['stats', '📊', 'Compare', 'Rank places by price, travel, wait or votes']] as const).map(([k, icon, label, sub]) => (
+              {([['plan', '🗓️', 'Trip plan', 'The whole trip in pictures · 💡 suggest a day'], ['stats', '📊', 'Compare', 'Rank places by price, travel, wait or votes']] as const).map(([k, icon, label, sub]) => (
                 <button key={k} data-sound="tab" onClick={() => { setTab(k); setMenuOpen(false); window.scrollTo(0, 0) }}
                   className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ${tab === k ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-white'}`}>
                   <span className="text-2xl">{icon}</span>
