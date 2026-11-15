@@ -102,6 +102,7 @@ export function ProfileSheet({ me, places, onClose, onSaved, onSwitch }: {
             ))}
           </div>
           <SoundSettings />
+          <ExportAll />
       <button onClick={onSwitch} className="mt-3 w-full rounded-full border border-stone-300 bg-white py-3 text-sm">Switch to someone else</button>
       {me.is_admin && <AddMember onAdded={onSaved} />}
       {me.is_admin && <FillGaps places={places} onDone={onSaved} />}
@@ -223,6 +224,28 @@ function FillGaps({ places, onDone, mode = 'gaps' }: { places: Place[]; onDone: 
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
       <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-iris py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? `Looking up… (${log.length}/${todo.length})` : mode === 'all' ? 'Re-run on all places' : 'Fill missing info'}</button>
       {log.length > 0 && <ul className="space-y-0.5 text-xs text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+    </div>
+  )
+}
+
+/** 📥 Export everything to one spreadsheet (Food, Activities, Shopping, Trip plan, Day ideas, People). */
+function ExportAll() {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  return (
+    <div className="mt-3">
+      <button disabled={busy} onClick={async () => {
+        setBusy(true); setMsg(null)
+        try {
+          const { exportEverything } = await import('../exportAll')
+          const r = await exportEverything()
+          setMsg(`✓ Downloaded: ${r.food} food, ${r.acts} activities, ${r.shops} shops, the trip plan and ${r.ideas} day ideas`)
+        } catch (e) { setMsg((e as Error).message || 'Couldn’t export. Check your internet.') }
+        setBusy(false)
+      }} className="flex w-full items-center justify-center gap-2 rounded-full border border-stone-300 bg-white py-3 text-sm font-medium disabled:opacity-50">
+        {busy ? '⏳ Making the spreadsheet…' : '📥 Export everything (Excel / Google Sheets)'}
+      </button>
+      {msg && <p className="mt-1.5 text-center text-xs text-stone-600">{msg}</p>}
     </div>
   )
 }
