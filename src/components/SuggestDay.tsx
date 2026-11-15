@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { HOTELS, HOTEL_IDS, safeUrl, supabase, type HotelId, type Member, type Place } from '../lib'
-import { openDates, planTrip } from '../itinerary'
+import { comboKey, openDates, planTrip } from '../itinerary'
+import ConfirmDelete, { deleteIdea, ideaImpact } from './ConfirmDelete'
+import { Trash2 } from 'lucide-react'
 import { HOTEL_INFO } from './HotelSheet'
 import { DayBuilder } from './DayBuilder'
 import { dayLabel, usePlanData } from './TripPlan'
@@ -10,12 +12,15 @@ import { dayLabel, usePlanData } from './TripPlan'
  * Then the shared DayBuilder: free order, 🔗 together, start ≥ 8 am, Maghrib at hotel or near a prayer room, +time badges.
  * One idea per person per hotel (day_ideas). Same screen for planners (they pin ideas to dates from the Trip plan / 🏆 Top days).
  */
-export default function SuggestDay({ me, places, voteCount, photoUrls }: {
-  me: Member; places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>
+export default function SuggestDay({ me, members, places, voteCount, photoUrls }: {
+  me: Member; members: Member[]; places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>
 }) {
   const { plans, ideas, err, load } = usePlanData()
   const days = useMemo(() => planTrip(places, voteCount, plans), [places, voteCount, plans])
   const [hotel, setHotel] = useState<HotelId | null>(null)
+  const [del, setDel] = useState(false)
+  const [hearts, setHearts] = useState<string[]>([])
+  useEffect(() => { if (del) supabase.from('day_hearts').select('combo_key').then(({ data }) => setHearts((data ?? []).map((h) => h.combo_key))) }, [del])
   const mine = (h: HotelId) => ideas.find((i) => i.member_id === me.id && i.hotel === h) ?? null
   const stay = (h: HotelId) => days.filter((d) => d.hotel === h && d.kind !== 'flight')
   const locked = (h: HotelId) => stay(h).every((d) => d.locked)
@@ -57,7 +62,20 @@ export default function SuggestDay({ me, places, voteCount, photoUrls }: {
           load()
           return '✓ Sent! Planners will see it on the Trip plan.'
         }}
+        extra={idea && (
+          <button type="button" onClick={() => setDel(true)} className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-white/95 text-sm text-torii shadow-sm">
+            <Trash2 className="h-4 w-4" />Delete my idea
+          </button>
+        )}
         />
+      {del && idea && (() => {
+        const k = comboKey(idea.activity_ids)
+        const planned = days.find((d) => d.source === 'plan' && d.acts.length && comboKey(d.acts.map((p) => p.id)) === k)
+        const others = ideas.some((x) => x.id !== idea.id && comboKey(x.activity_ids) === k) || !!planned
+        const { lines, keeps } = ideaImpact([idea], members, places, hearts.filter((h) => h === k).length, others, planned?.date ?? null)
+        return <ConfirmDelete title="Delete your day idea?" lines={lines} keeps={keeps} onClose={() => setDel(false)}
+          onDone={() => { setDel(false); load(); setHotel(null) }} onConfirm={() => deleteIdea(idea.id, null)} />
+      })()}
     </div>
   )
 }

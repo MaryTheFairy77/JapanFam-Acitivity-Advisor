@@ -2,11 +2,13 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { createPortal } from 'react-dom'
 import { ChevronLeft, Loader2, X } from 'lucide-react'
 import { HOTELS, getPlannerCode, setPlannerCode, supabase, type HotelId, type Member, type Place, type Vote } from '../lib'
-import { activityIds, ideaScore, isActivity, planTrip, sameComboDay, type DayPlanRow, type IdeaRow, type Layout, type PlannedDay } from '../itinerary'
+import { activityIds, comboKey, ideaScore, isActivity, planTrip, sameComboDay, type DayPlanRow, type IdeaRow, type Layout, type PlannedDay } from '../itinerary'
 import { DayBuilder, TimelineView, clock, legText } from './DayBuilder'
 import Thumb from './Thumb'
 import Face from './Face'
 import { DayPeek, Top3, TopDaysPage, useBoard, type Entry } from './TopDays'
+import ConfirmDelete, { deleteIdea, ideaImpact, planImpact } from './ConfirmDelete'
+import { Trash2 } from 'lucide-react'
 
 const RouteMap = lazy(() => import('./RouteMap'))
 
@@ -94,6 +96,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   const [open, setOpen] = useState<string | null>(null)
   const [board, setBoard] = useState(false)
   const [peek, setPeek] = useState<Entry | null>(null)
+  const [delIdea, setDelIdea] = useState<IdeaRow | null>(null)
   const lb = useBoard(me, members, places, ideas, days, voteCount)
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
   const membersById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
@@ -161,8 +164,10 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                   const who = membersById.get(i.member_id)
                   const acts = i.activity_ids.map((id) => byId.get(id)).filter((p): p is Place => !!p)
                   const dup = sameComboDay(days, i.activity_ids)
+                  const canDel = planner || i.member_id === me.id
                   return (
-                    <button key={i.id} draggable={planner} onDragStart={(e) => { e.dataTransfer.setData('text/plain', i.id); setHolding(i) }}
+                    <div key={i.id} className="relative shrink-0">
+                    <button draggable={planner} onDragStart={(e) => { e.dataTransfer.setData('text/plain', i.id); setHolding(i) }}
                       onClick={() => planner && setHolding(holding?.id === i.id ? null : i)}
                       className={`relative w-36 shrink-0 rounded-2xl bg-white p-1.5 text-left shadow-sm ${holding?.id === i.id ? 'ring-4 ring-torii' : ''} ${dup ? 'opacity-50' : ''}`}>
                       <div className="flex h-16 gap-1">{acts.slice(0, 3).map((p) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className="h-full flex-1 rounded-xl" />)}</div>
@@ -173,6 +178,9 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                       </div>
                       {dup && <span className="absolute left-2 top-2 rounded-full bg-white px-1.5 text-[10px]">✓ {dayLabel(dup.date, { weekday: 'short' })}</span>}
                     </button>
+                    {canDel && <button onClick={() => setDelIdea(i)} aria-label={`Delete ${who ? who.name + '’s' : 'this'} idea`}
+                      className="absolute right-0.5 top-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-torii shadow"><Trash2 className="h-3.5 w-3.5" /></button>}
+                    </div>
                   )
                 })}
               </div>
@@ -223,20 +231,33 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
 
       {day && (
         <DaySheet day={day} me={me} members={members} places={places} votes={votes} voteCount={voteCount} photoUrls={photoUrls} days={days}
-          onClose={() => setOpen(null)} onOpen={onOpen} run={run} reload={load} />
+          onClose={() => setOpen(null)} onOpen={onOpen} run={run} reload={load}
+          hearts={lb.entries.find((e) => e.hotel === day.hotel && e.key === comboKey(day.acts.map((p) => p.id)))?.hearts.length ?? 0}
+          ideaHasIt={ideas.some((i) => comboKey(i.activity_ids) === comboKey(day.acts.map((p) => p.id)))} />
       )}
       {peek && <DayPeek me={me} board={lb} e={peek} photoUrls={photoUrls} onClose={() => setPeek(null)} />}
-      {board && <TopDaysPage me={me} board={lb} photoUrls={photoUrls} days={days} onClose={() => setBoard(false)} run={run} reload={load} />}
+      {board && <TopDaysPage me={me} board={lb} photoUrls={photoUrls} days={days} ideas={ideas} members={members} places={places} onClose={() => setBoard(false)} run={run} reload={load} />}
+      {delIdea && (() => {
+        const k = comboKey(delIdea.activity_ids)
+        const e = lb.entries.find((x) => x.hotel === delIdea.hotel && x.key === k)
+        const others = ideas.some((x) => x.id !== delIdea.id && comboKey(x.activity_ids) === k) || !!e?.onDate
+        const { lines, keeps } = ideaImpact([delIdea], members, places, e?.hearts.length ?? 0, others, e?.onDate ?? null)
+        return <ConfirmDelete title={delIdea.member_id === me.id ? 'Delete your day idea?' : 'Delete this day idea?'} lines={lines} keeps={keeps}
+          needsCode={delIdea.member_id !== me.id} onClose={() => setDelIdea(null)} onDone={() => { setDelIdea(null); load() }}
+          onConfirm={(c) => deleteIdea(delIdea.id, delIdea.member_id === me.id ? null : c)} />
+      })()}
       {box}
     </div>
   )
 }
 
-function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days, onClose, onOpen, run, reload }: {
+function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days, onClose, onOpen, run, reload, hearts, ideaHasIt }: {
   day: PlannedDay; me: Member; members: Member[]; places: Place[]; votes: Vote[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; days: PlannedDay[]
   onClose: () => void; onOpen: (p: Place) => void; run: (fn: (c: string) => Promise<boolean>) => Promise<boolean>; reload: () => void
+  hearts: number; ideaHasIt: boolean
 }) {
   const planner = !!me.is_admin
+  const [confirmClear, setConfirmClear] = useState(false)
   const hotel = day.hotel!
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -304,7 +325,7 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
               <button disabled={busy} onClick={() => setEditing(true)} className="h-11 rounded-xl bg-iris text-sm font-medium text-white">✏️ Edit day</button>
               <button disabled={busy || day.source !== 'plan'} onClick={() => act((c) => lockDay(c, day.date, !day.locked))} className="h-11 rounded-xl border border-stone-300 text-sm font-medium disabled:opacity-40">{day.locked ? '🔓 Unlock' : '🔒 Lock day'}</button>
               {day.source === 'draft' && <button disabled={busy} onClick={() => act((c) => setLayout(c, day.date, activityIds(day.steps), layout, false, null))} className="col-span-2 h-11 rounded-xl border border-stone-300 text-sm font-medium">📌 Keep this draft</button>}
-              {day.source === 'plan' && !day.locked && <button disabled={busy} onClick={() => act((c) => clearDay(c, day.date))} className="col-span-2 h-10 rounded-xl text-xs text-stone-500 underline">Clear back to draft</button>}
+              {day.source === 'plan' && <button disabled={busy} onClick={() => setConfirmClear(true)} className="col-span-2 flex h-11 items-center justify-center gap-1.5 rounded-xl text-sm font-medium text-torii hover:bg-torii/10"><Trash2 className="h-4 w-4" />Delete this plan</button>}
             </div>
             {busy && <p className="flex items-center gap-2 text-xs text-stone-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</p>}
           </div>
@@ -312,6 +333,12 @@ function DaySheet({ day, me, members, places, votes, voteCount, photoUrls, days,
 
         {tl && <button onClick={() => setMap(true)} className="mt-4 h-12 rounded-2xl bg-iris text-base font-semibold text-white">🗺️ Show route</button>}
       </div>
+      {confirmClear && (() => {
+        const { lines, keeps } = planImpact(day, hearts, ideaHasIt)
+        return <ConfirmDelete title={`Delete the plan for ${dayLabel(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}?`} lines={lines} keeps={keeps} needsCode
+          label="Delete plan" onClose={() => setConfirmClear(false)} onDone={() => { setConfirmClear(false); reload() }}
+          onConfirm={async (c) => (c && await clearDay(c, day.date) ? 'ok' : 'denied')} />
+      })()}
       {map && tl && (
         <Suspense fallback={null}>
           <RouteMap date={day.date} hotelId={hotel} tl={tl} places={places} photoUrls={photoUrls} onClose={() => setMap(false)} />

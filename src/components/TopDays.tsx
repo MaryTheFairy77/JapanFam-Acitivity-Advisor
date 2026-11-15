@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, X } from 'lucide-react'
+import { ChevronLeft, Trash2, X } from 'lucide-react'
+import ConfirmDelete, { deleteIdea, ideaImpact } from './ConfirmDelete'
 import { HOTELS, HOTEL_IDS, avatarBg, displayName, supabase, type HotelId, type Member, type Place } from '../lib'
 import { buildTimeline, comboKey, ideaScore, isActivity, openDates, type IdeaRow, type Layout, type PlannedDay, type Timeline } from '../itinerary'
 import Thumb from './Thumb'
@@ -134,13 +135,17 @@ export function Top3({ me, board, onAll, onPeek }: { me: Member; board: Board; o
 }
 
 /** Full ranked list ("See all"). */
-export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }: {
-  me: Member; board: Board; photoUrls: Record<string, string>; days: PlannedDay[]
+export function TopDaysPage({ me, board, photoUrls, days, ideas, members, places, onClose, run, reload }: {
+  me: Member; board: Board; photoUrls: Record<string, string>; days: PlannedDay[]; ideas: IdeaRow[]; members: Member[]; places: Place[]
   onClose: () => void; run: (fn: (c: string) => Promise<boolean>) => Promise<boolean>; reload: () => void
 }) {
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [msg, setMsg] = useState<string | null>(null)
   const [peek, setPeek] = useState<Entry | null>(null)
+  const [del, setDel] = useState<Entry | null>(null)
+  const ideasOf = (e: Entry) => ideas.filter((i) => i.hotel === e.hotel && comboKey(i.activity_ids) === e.key)
+  // planners delete every idea on the card; everyone else only their own
+  const deletable = (e: Entry) => ideasOf(e).filter((i) => me.is_admin || i.member_id === me.id)
   const list = board.entries.filter((e) => hotel === 'all' || e.hotel === hotel)
   const order = [...HOTEL_IDS].sort((a, b) => (days.find((d) => d.hotel === a)?.date ?? '').localeCompare(days.find((d) => d.hotel === b)?.date ?? ''))
 
@@ -194,6 +199,11 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
                   {e.onDate && <span className="font-semibold text-emerald-700">· ✓ on {dayLabel(e.onDate, { weekday: 'short', day: 'numeric' })}</span>}
                 </div>
                 {!e.tl.maghrib.ok && <p className="mt-1.5 rounded-xl bg-orange-50 px-2 py-1 text-[11px] text-orange-900">⚠️ Out at Maghrib: needs a swap</p>}
+                {deletable(e).length > 0 && (
+                  <button onClick={() => setDel(e)} className="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm text-torii hover:bg-torii/10">
+                    <Trash2 className="h-4 w-4" />{deletable(e).every((i) => i.member_id === me.id) ? 'Delete my idea' : deletable(e).length > 1 ? `Delete these ${deletable(e).length} ideas` : 'Delete this idea'}
+                  </button>
+                )}
                 {me.is_admin && !e.onDate && open.length > 0 && (
                   <select value="" onChange={(ev) => ev.target.value && put(e, ev.target.value)} aria-label="Put this day on a date"
                     className="mt-2 h-10 w-full rounded-xl border border-stone-300 bg-white px-2 text-sm">
@@ -208,6 +218,18 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
         </div>
       </div>
       {peek && <DayPeek me={me} board={board} e={peek} photoUrls={photoUrls} onClose={() => setPeek(null)} />}
+      {del && (() => {
+        const go = deletable(del), ids = new Set(go.map((i) => i.id))
+        const others = ideasOf(del).some((i) => !ids.has(i.id)) || !!del.onDate
+        const { lines, keeps } = ideaImpact(go, members, places, del.hearts.length, others, del.onDate)
+        const notMine = go.some((i) => i.member_id !== me.id)
+        return <ConfirmDelete title={notMine ? (go.length > 1 ? 'Delete these day ideas?' : 'Delete this day idea?') : 'Delete your day idea?'} lines={lines} keeps={keeps}
+          needsCode={notMine} onClose={() => setDel(null)} onDone={() => { setDel(null); reload() }}
+          onConfirm={async (c) => {
+            for (const i of go) { const r = await deleteIdea(i.id, i.member_id === me.id ? null : c); if (r !== 'ok' && r !== 'gone') return r }
+            return 'ok'
+          }} />
+      })()}
     </div>, document.body)
 }
 

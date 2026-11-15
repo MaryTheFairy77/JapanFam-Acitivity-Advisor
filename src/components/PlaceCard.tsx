@@ -1,4 +1,4 @@
-import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, TrainFront, Users, Wallet, X } from 'lucide-react'
+import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, TrainFront, Trash2, Users, Wallet, X } from 'lucide-react'
 import Thumb from './Thumb'
 import Face, { Avatar } from './Face'
 import { mosqueLink, mosquesNear } from '../mosques'
@@ -109,10 +109,10 @@ export function PlaceTile({ place: p, votes, mine, photoUrls, nearKm, onVote, on
 }
 
 /** DETAILS ON DEMAND: everything about one place, read-first. Editing is one tap away. */
-export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, photoUrls, ranks, est, kidMode, onClose, onVote, onVisited, onEdit, onHotel }: {
+export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, photoUrls, ranks, est, kidMode, onClose, onVote, onVisited, onEdit, onHotel, onDelete }: {
   place: Place; votes: number; mine: boolean; voters: Member[]; owners: Member[]; canEdit: boolean; photoUrls: Record<string, string>
   ranks: Ranks; est: Estimates; kidMode: boolean
-  onClose: () => void; onVote: () => void; onVisited: () => void; onEdit: () => void; onHotel: (id: HotelId) => void
+  onClose: () => void; onVote: () => void; onVisited: () => void; onEdit: () => void; onHotel: (id: HotelId) => void; onDelete?: () => void
 }) {
   const f = facts(p, est)
   const missing = canEdit ? missingFields(p) : []
@@ -198,6 +198,11 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
           {!kidMode && (
             <button onClick={onEdit} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-stone-300 bg-white py-3 text-sm">
               <Pencil className="h-4 w-4" />{canEdit ? 'Edit' : 'All details & sources'}
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={onDelete} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-full py-3 text-sm text-torii hover:bg-torii/10">
+              <Trash2 className="h-4 w-4" />Delete
             </button>
           )}
         </div>

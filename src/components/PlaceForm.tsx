@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import Thumb from './Thumb'
 import { CATEGORIES, CATEGORY_IDS, catOf, type Category, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, mapsSearchLink, travelFromPin, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
-export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, kind, place, defaultCategory = 'activity', onClose, onSaved }: {
-  me: Member; canDelete: boolean; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
+export default function PlaceForm({ me, canDelete, onDelete, canEdit, creator, photoUrls, kind, place, defaultCategory = 'activity', onClose, onSaved }: {
+  me: Member; canDelete: boolean; onDelete?: () => void; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
   kind: Kind; place: Place | null; defaultCategory?: Category; onClose: () => void; onSaved: () => void
 }) {
   const [f, setF] = useState({
@@ -180,19 +180,6 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
     if (error) setErr(/0 rows|PGRST116/.test(error.message + error.code) ? 'Only the person who added this (or a trip planner) can change it.' : friendly(error.message)); else onSaved()
   }
 
-  async function remove() {
-    if (!place) return
-    const c = getPlannerCode() ?? (askCode ? code : null)
-    if (!c) { setAskCode(true); return }
-    if (!confirm(`Delete "${place.name}" for everyone?`)) return
-    setBusy(true); setErr(null)
-    const { data, error } = await supabase.rpc('planner_delete_place', { place: place.id, code: c })
-    setBusy(false)
-    if (error) setErr(friendly(error.message))
-    else if (data !== true) { setPlannerCode(null); setErr('Wrong trip-planner code.') }
-    else { setPlannerCode(c); onSaved() }
-  }
-
   const input = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 outline-none focus:border-torii'
   const label = 'block text-sm font-medium text-stone-700'
 
@@ -332,13 +319,13 @@ export default function PlaceForm({ me, canDelete, canEdit, creator, photoUrls, 
           <label className={label}>Long line? / notes<input maxLength={LIMITS.longLine} className={input} value={f.long_line} onChange={(e) => set('long_line', e.target.value)} placeholder="e.g. Yes – go before 11am" /></label>
         </fieldset>
         {askCode && !getPlannerCode() && (
-          <label className="mt-4 block rounded-xl bg-white p-3 text-sm font-medium text-stone-700">⭐ Trip-planner code (needed to delete)
+          <label className="mt-4 block rounded-xl bg-white p-3 text-sm font-medium text-stone-700">⭐ Trip-planner code 
             <input type="password" autoFocus value={code} onChange={(e) => setCode(e.target.value)} className={input} />
           </label>
         )}
         {err && <p className="mt-3 text-sm text-torii">{err}</p>}
         <div className="mt-5 flex gap-2">
-          {place && canDelete && <button type="button" onClick={remove} className="rounded-xl px-4 py-3 text-sm text-torii hover:bg-torii/10">Delete</button>}
+          {place && canDelete && <button type="button" onClick={onDelete} className="rounded-xl px-4 py-3 text-sm text-torii hover:bg-torii/10">Delete</button>}
           {!readOnly && <button disabled={busy || uploading || !f.name.trim()} className="ml-auto flex-1 rounded-xl bg-torii py-3 font-medium text-white disabled:opacity-40 sm:flex-none sm:px-8">
             {busy ? 'Saving…' : 'Save'}
           </button>}

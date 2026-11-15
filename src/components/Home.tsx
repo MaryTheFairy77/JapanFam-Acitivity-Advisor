@@ -5,6 +5,7 @@ import type { useData } from '../useData'
 import PlaceCard, { PlaceDetail, PlaceTile } from './PlaceCard'
 import PlaceForm from './PlaceForm'
 import QuickAdd from './QuickAdd'
+import { DeletePlace } from './ConfirmDelete'
 import HotelSheet from './HotelSheet'
 import { tripToolsOn, useMyPosition } from '../geo'
 import Stats from './Stats'
@@ -65,6 +66,7 @@ export default function Home({ me, data, onLogout }: {
   const [music, setMusic] = useState(getPrefs().ambience)
   const [offlineTip, setOfflineTip] = useState(false)
   const [quickAdd, setQuickAdd] = useState(false)
+  const [deleting, setDeleting] = useState<Place | null>(null)
   const [planView, setPlanView] = useState<'trip' | 'idea'>('trip')
   // link this phone to the person who picked their name (used for 'only the creator can edit')
   useEffect(() => { claimMember(me.id) }, [me.id])
@@ -234,7 +236,7 @@ export default function Home({ me, data, onLogout }: {
             </div>
             {planView === 'trip'
               ? <TripPlan me={me} members={members} places={effPlaces} votes={votes} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} />
-              : <SuggestDay me={me} places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} />}
+              : <SuggestDay me={me} members={members} places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} />}
           </div>
         </Suspense>
       ) : tab === 'stats' ? (
@@ -415,7 +417,8 @@ export default function Home({ me, data, onLogout }: {
           owners={[viewing.created_by, ...(viewing.co_owners ?? [])].map((id) => members.find((m) => m.id === id)).filter((m): m is Member => !!m)}
           canEdit={canEdit(viewing)} photoUrls={photoUrls} ranks={ranks[viewing.id] ?? { price: null, travel: null, wait: null }} est={est} kidMode={kidMode}
           onClose={() => setViewingId(null)} onVote={() => toggleVote(viewing)} onVisited={() => toggleVisited(viewing)}
-          onEdit={() => setEditing(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }} />
+          onEdit={() => setEditing(viewing)} onHotel={(h) => { setViewingId(null); setHotelOpen(h) }}
+          onDelete={canEdit(viewing) ? () => setDeleting(viewing) : undefined} />
       )}
       {quickAdd && (
         <QuickAdd me={me} defaultKind={tab === 'activity' ? 'activity' : 'restaurant'} defaultCategory={cat}
@@ -424,10 +427,14 @@ export default function Home({ me, data, onLogout }: {
           onSaved={async (id) => { setQuickAdd(false); await refresh(); setViewingId(id) }} />
       )}
       {editing && (
-        <PlaceForm me={me} canDelete={me.is_admin} photoUrls={photoUrls}
+        <PlaceForm me={me} canDelete={editing !== 'new' && canEdit(editing)} onDelete={() => editing !== 'new' && setDeleting(editing)} photoUrls={photoUrls}
           canEdit={editing === 'new' || canEdit(editing)} creator={editing === 'new' ? undefined : members.find((m) => m.id === editing.created_by)} kind={editing === 'new' ? (tab === 'activity' ? 'activity' : 'restaurant') : editing.kind}
           place={editing === 'new' ? null : editing} defaultCategory={cat}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />
+      )}
+      {deleting && (
+        <DeletePlace place={deleting} me={me} members={members} onClose={() => setDeleting(null)}
+          onDone={() => { setPlaces(places.filter((x) => x.id !== deleting.id)); setVotes(votes.filter((v) => v.place_id !== deleting.id)); setDeleting(null); setEditing(null); setViewingId(null); refresh() }} />
       )}
     </div>
   )
