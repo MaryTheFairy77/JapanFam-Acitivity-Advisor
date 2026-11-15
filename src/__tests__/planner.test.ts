@@ -207,7 +207,7 @@ describe('hopLeg', () => {
   it('caps a long hop at place → hotel → place', () => {
     const kyoto = place({ id: 'k', lat: 34.9947, lng: 135.7847, travel_minutes: 60, nearest_hotels: ['osaka'], auto_fields: [] })
     const osakaFood = place({ id: 'm', kind: 'restaurant', lat: 34.6676, lng: 135.5045, travel_minutes: 23, nearest_hotels: ['osaka'], auto_fields: [] })
-    expect(hopLeg('osaka', kyoto, osakaFood)).toBe(83)
+    expect(hopLeg('osaka', kyoto, osakaFood)).toBeLessThanOrEqual(83) // capped via the hotel, or the station-hub train estimate if faster
   })
   it('leaves short city hops alone', () => {
     const a = place({ id: 'a', ...tokyo }), b = place({ id: 'b', lat: 35.67, lng: 139.755 })

@@ -199,3 +199,15 @@ describe('do sub-tabs + prices', () => {
     expect(fmtYen(0)).toBe('Free'); expect(fmtYen(null)).toBe('—'); expect(fmtYen(1500)).toBe('¥1,500')
   })
 })
+
+import { travelBetween } from '../lib'
+describe('travelBetween (station hubs)', () => {
+  it('Osaka Station hotel → Kiyomizu is about an hour by train, not 2h+', () => {
+    const t = travelBetween({ lat: 34.7025, lng: 135.4959 }, { lat: 34.9947, lng: 135.7847 })
+    expect(t.minutes).toBeGreaterThan(40); expect(t.minutes).toBeLessThan(75)
+  })
+  it('Tokyo → Kawaguchiko goes via Shinjuku (~2.5h)', () => {
+    const t = travelBetween({ lat: 35.6672, lng: 139.7495 }, { lat: 35.5045, lng: 138.764 })
+    expect(t.minutes).toBeGreaterThan(120); expect(t.minutes).toBeLessThan(180)
+  })
+})

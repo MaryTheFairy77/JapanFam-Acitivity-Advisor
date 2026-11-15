@@ -188,6 +188,37 @@ export function estimateTravel(distKm: number): { minutes: number; text: string 
   return { minutes: m, text: `~${fmtMin(m)} by train/car (est., ${distKm.toFixed(1)} km)` }
 }
 
+/**
+ * Long trips go by train between big stations, so a straight-line guess is far too slow (Osaka → Kiyomizu came out 2h12).
+ * For trips over 20 km: local leg to the nearest hub + the real train time + local leg at the other end (whichever is fastest).
+ * Train times (Nov 2026): Osaka–Kyoto JR Special Rapid 29 min, Osaka–Nara JR 50, Kyoto–Nara Kintetsu 45,
+ * Shinjuku–Kawaguchiko Fuji Excursion 1h55, Tokyo–Shinjuku 15; +8 min for buying tickets / waiting.
+ */
+const HUBS = {
+  osaka: { lat: 34.7025, lng: 135.4959 }, kyoto: { lat: 34.9858, lng: 135.7588 }, nara: { lat: 34.6809, lng: 135.8197 },
+  shinjuku: { lat: 35.6896, lng: 139.7006 }, tokyo: { lat: 35.6812, lng: 139.7671 }, kawaguchiko: { lat: 35.4985, lng: 138.769 },
+} as const
+type Hub = keyof typeof HUBS
+const RAIL: [Hub, Hub, number][] = [['osaka', 'kyoto', 29], ['osaka', 'nara', 50], ['kyoto', 'nara', 45], ['shinjuku', 'kawaguchiko', 115], ['tokyo', 'shinjuku', 15], ['tokyo', 'kawaguchiko', 130]]
+const railMin = (a: Hub, b: Hub) => a === b ? 0 : RAIL.find(([x, y]) => (x === a && y === b) || (x === b && y === a))?.[2]
+export function travelBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): { minutes: number; text: string } {
+  const d = km(a, b)
+  const direct = estimateTravel(d)
+  if (d <= 20) return direct
+  let best = direct.minutes
+  const hubs = Object.keys(HUBS) as Hub[]
+  for (const ha of hubs) {
+    const da = km(a, HUBS[ha]); if (da > 15) continue
+    for (const hb of hubs) {
+      const db = km(b, HUBS[hb]); if (db > 15) continue
+      const r = railMin(ha, hb); if (r == null) continue
+      const t = estimateTravel(da).minutes + r + 8 + estimateTravel(db).minutes
+      if (t < best) best = t
+    }
+  }
+  return best < direct.minutes ? { minutes: best, text: `~${fmtMin(best)} by train (est., ${d.toFixed(0)} km)` } : direct
+}
+
 export function nearestHotel(p: { lat: number | null; lng: number | null }) {
   if (p.lat == null || p.lng == null) return null
   return HOTEL_IDS
@@ -455,6 +486,6 @@ export function travelFromPin(p: { lat: number | null; lng: number | null; neare
   if (p.lat == null || p.lng == null) return null
   const pool = p.nearest_hotels?.length ? p.nearest_hotels : HOTEL_IDS
   const best = pool.map((id) => ({ id, km: km({ lat: p.lat!, lng: p.lng! }, HOTELS[id]) })).sort((a, b) => a.km - b.km)[0]
-  const e = estimateTravel(best.km)
+  const e = travelBetween({ lat: p.lat, lng: p.lng }, HOTELS[best.id])
   return { hotel: best.id, km: best.km, minutes: e.minutes, text: e.text }
 }

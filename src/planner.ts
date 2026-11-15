@@ -1,4 +1,4 @@
-import { HOTELS, catOf, estimateTravel, km, regionOf, type HotelId, type Place } from './lib'
+import { HOTELS, catOf, km, travelBetween, regionOf, type HotelId, type Place } from './lib'
 
 export type Goal = 'votes' | 'cheap' | 'time'
 /** Day shape: 2 activities, 1 activity + shopping, or a ☀️ full-day activity (+ supper), or let the planner pick. */
@@ -69,7 +69,7 @@ type Pt = { lat: number | null; lng: number | null; travel_minutes?: number | nu
 /** Travel minutes between two points: distance estimate if both pinned, else the place's own travel time, else 30. */
 export function leg(a: Pt, b: Pt): number {
   if (a.lat != null && a.lng != null && b.lat != null && b.lng != null)
-    return estimateTravel(km({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng })).minutes
+    return travelBetween({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }).minutes
   return b.travel_minutes ?? a.travel_minutes ?? 30
 }
 

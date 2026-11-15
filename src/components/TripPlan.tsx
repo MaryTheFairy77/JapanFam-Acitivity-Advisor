@@ -6,7 +6,7 @@ import { activityIds, ideaScore, isActivity, planTrip, sameComboDay, type DayPla
 import { DayBuilder, TimelineView, clock, legText } from './DayBuilder'
 import Thumb from './Thumb'
 import Face from './Face'
-import { Top3, TopDaysPage, useBoard } from './TopDays'
+import { DayPeek, Top3, TopDaysPage, useBoard, type Entry } from './TopDays'
 
 const RouteMap = lazy(() => import('./RouteMap'))
 
@@ -93,6 +93,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   const [holding, setHolding] = useState<IdeaRow | null>(null) // idea picked up by a planner (tap, then tap a day)
   const [open, setOpen] = useState<string | null>(null)
   const [board, setBoard] = useState(false)
+  const [peek, setPeek] = useState<Entry | null>(null)
   const lb = useBoard(me, members, places, ideas, days, voteCount)
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
   const membersById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
@@ -132,7 +133,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
         </div>
       </div>
 
-      <Top3 me={me} board={lb} onAll={() => setBoard(true)} />
+      <Top3 me={me} board={lb} onAll={() => setBoard(true)} onPeek={setPeek} />
       <div className="flex items-center gap-2 text-[11px] text-stone-400" aria-hidden="true"><span className="h-px flex-1 bg-stone-300" />🗓 The plan<span className="h-px flex-1 bg-stone-300" /></div>
 
       {holding && (
@@ -224,6 +225,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
         <DaySheet day={day} me={me} members={members} places={places} votes={votes} voteCount={voteCount} photoUrls={photoUrls} days={days}
           onClose={() => setOpen(null)} onOpen={onOpen} run={run} reload={load} />
       )}
+      {peek && <DayPeek me={me} board={lb} e={peek} photoUrls={photoUrls} onClose={() => setPeek(null)} />}
       {board && <TopDaysPage me={me} board={lb} photoUrls={photoUrls} days={days} onClose={() => setBoard(false)} run={run} reload={load} />}
       {box}
     </div>

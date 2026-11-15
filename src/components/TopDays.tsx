@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, X } from 'lucide-react'
 import { HOTELS, HOTEL_IDS, avatarBg, displayName, supabase, type HotelId, type Member, type Place } from '../lib'
 import { buildTimeline, comboKey, ideaScore, isActivity, openDates, type IdeaRow, type Layout, type PlannedDay, type Timeline } from '../itinerary'
 import Thumb from './Thumb'
 import Face, { Avatar } from './Face'
 import { clock, dayLabel, setLayout } from './TripPlan'
+import { TimelineView } from './DayBuilder'
 
 /**
  * 🏆 Day leaderboard (Maryam, 15 Nov 2026): every suggested day (💡 ideas + 🤖 AI drafts + planned days) ranked by ❤️.
@@ -13,7 +14,7 @@ import { clock, dayLabel, setLayout } from './TripPlan'
  * Named after whoever made it ("Maryam's Tokyo lights"); the word + vibe line come from Gemini once (day-vibe, cached).
  * Trip plan shows the top 3 as square covers in their own box; "See all" opens the full list.
  */
-type Vibe = { word: string; emoji: string; vibe: string }
+type Vibe = { word: string; emoji: string; vibe: string; story?: string | null }
 export type Entry = {
   key: string; hotel: HotelId; steps: Place[][]; start: number; makers: Member[]; ai: boolean; planner: boolean
   onDate: string | null; tl: Timeline; hearts: string[]; score: number
@@ -62,21 +63,22 @@ export function useBoard(me: Member, members: Member[], places: Place[], ideas: 
   }, [ideas, days, byId, memberById, hearts, voteCount])
 
   const load = useCallback(async () => {
-    const [h, v] = await Promise.all([supabase.from('day_hearts').select('member_id, combo_key'), supabase.from('day_vibes').select('combo_key, word, emoji, vibe')])
+    const [h, v] = await Promise.all([supabase.from('day_hearts').select('member_id, combo_key'), supabase.from('day_vibes').select('combo_key, word, emoji, vibe, story')])
     if (h.data) setHearts(h.data)
-    if (v.data) setVibes(Object.fromEntries(v.data.map((r) => [r.combo_key, { word: r.word, emoji: r.emoji, vibe: r.vibe }])))
+    if (v.data) setVibes(Object.fromEntries(v.data.map((r) => [r.combo_key, { word: r.word, emoji: r.emoji, vibe: r.vibe, story: r.story }])))
   }, [])
   useEffect(() => { load() }, [load])
 
   // name the top days that have no vibe yet (sequential, max 4 per visit: free tier friendly)
-  const missing = entries.slice(0, 12).filter((e) => !vibes[e.key]).slice(0, 4).map((e) => e.key).join(',')
+  const missing = entries.slice(0, 12).filter((e) => !vibes[e.key]?.story).slice(0, 4).map((e) => e.key + '|' + e.steps.flat().map((p) => p.id).join(',')).join(';')
   useEffect(() => {
     if (!missing) return
     let stop = false
     ;(async () => {
-      for (const key of missing.split(',')) {
+      for (const item of missing.split(';')) {
         if (stop) return
-        const { data } = await supabase.functions.invoke('day-vibe', { body: { ids: key.split('+') } })
+        const [key, order] = item.split('|')
+        const { data } = await supabase.functions.invoke('day-vibe', { body: { ids: [...new Set(order.split(','))].slice(0, 12), key } })
         if (data && !data.error && !stop) setVibes((v) => ({ ...v, [key]: data as Vibe }))
         else return // busy: try again next visit
       }
@@ -104,7 +106,7 @@ function Cover({ e, v, className = '' }: { e: Entry; v?: Vibe; className?: strin
 }
 
 /** 🏆 Top 3 box at the top of the trip plan: square covers (avatar emoji on its pastel, title, ❤️). */
-export function Top3({ me, board, onAll }: { me: Member; board: Board; onAll: () => void }) {
+export function Top3({ me, board, onAll, onPeek }: { me: Member; board: Board; onAll: () => void; onPeek: (e: Entry) => void }) {
   const top = board.entries.slice(0, 3)
   if (!top.length) return null
   return (
@@ -117,7 +119,7 @@ export function Top3({ me, board, onAll }: { me: Member; board: Board; onAll: ()
         {top.map((e, i) => {
           const v = board.vibes[e.key], mine = e.hearts.includes(me.id)
           return (
-            <button key={e.hotel + e.key} onClick={onAll} className="relative flex aspect-square flex-col items-center justify-center rounded-2xl p-1.5 text-center"
+            <button key={e.hotel + e.key} onClick={() => onPeek(e)} className="relative flex aspect-square flex-col items-center justify-center rounded-2xl p-1.5 text-center"
               style={{ backgroundColor: e.makers[0] ? avatarBg(e.makers[0]) : '#e7e5e4' }}>
               <span className="absolute left-1.5 top-1 text-base">{['🥇', '🥈', '🥉'][i]}</span>
               <span className={`absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${mine ? 'bg-torii text-white' : 'bg-white text-torii'}`}>❤️ {e.hearts.length}</span>
@@ -138,6 +140,7 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
 }) {
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [msg, setMsg] = useState<string | null>(null)
+  const [peek, setPeek] = useState<Entry | null>(null)
   const list = board.entries.filter((e) => hotel === 'all' || e.hotel === hotel)
   const order = [...HOTEL_IDS].sort((a, b) => (days.find((d) => d.hotel === a)?.date ?? '').localeCompare(days.find((d) => d.hotel === b)?.date ?? ''))
 
@@ -169,11 +172,11 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
             const open = openDates(days, e.hotel).filter((d) => d.date !== e.onDate)
             return (
               <article key={e.hotel + e.key} className="rounded-3xl bg-white p-2 shadow-sm">
-                <div className="relative flex h-24 gap-1">
+                <button onClick={() => setPeek(e)} aria-label={`Open ${entryTitle(e, v)}`} className="relative flex h-24 w-full gap-1 text-left">
                   {acts.slice(0, 3).map((p, k) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className={`h-full ${k === 0 ? 'flex-[2]' : 'flex-1'} min-w-0 rounded-2xl`} />)}
                   {food && acts.length < 3 && <Thumb place={food} photoUrls={photoUrls} className="h-full min-w-0 flex-1 rounded-2xl" />}
                   <span className="absolute left-1.5 top-1 text-xl">{i < 3 ? ['🥇', '🥈', '🥉'][i] : <span className="rounded-full bg-ink px-2 py-0.5 text-xs font-bold text-white">#{i + 1}</span>}</span>
-                </div>
+                </button>
                 <div className="mt-2 flex items-center gap-2">
                   <Cover e={e} v={v} className="h-11 w-11 text-2xl" />
                   <div className="min-w-0 flex-1">
@@ -204,6 +207,47 @@ export function TopDaysPage({ me, board, photoUrls, days, onClose, run, reload }
           {!list.length && <p className="rounded-2xl border-2 border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">No days yet. 💡 Suggest one!</p>}
         </div>
       </div>
+      {peek && <DayPeek me={me} board={board} e={peek} photoUrls={photoUrls} onClose={() => setPeek(null)} />}
     </div>, document.body)
 }
 
+
+/** Small day overview popup (Maryam, 15 Nov 2026): name, longer AI description, everything on the day, ❤️. Close with ✕ or tap outside. */
+export function DayPeek({ me, board, e, photoUrls, onClose }: { me: Member; board: Board; e: Entry; photoUrls: Record<string, string>; onClose: () => void }) {
+  const live = board.entries.find((x) => x.hotel === e.hotel && x.key === e.key) ?? e
+  const v = board.vibes[e.key], mine = live.hearts.includes(me.id)
+  useEffect(() => {
+    const k = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onClose() }
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
+  }, [onClose])
+  return createPortal(
+    <div className="fixed inset-0 z-[760] flex items-end justify-center bg-ink/45 sm:items-center" onClick={onClose}>
+      <div onClick={(ev) => ev.stopPropagation()} role="dialog" aria-modal="true" aria-label={entryTitle(live, v)}
+        className="max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+        <div className="flex items-start gap-3">
+          <Cover e={live} v={v} className="h-14 w-14 text-3xl" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-xl leading-tight">{entryTitle(live, v)}</h3>
+            <p className="text-sm text-stone-600">{v ? `${v.emoji} ${v.vibe}` : HOTELS[live.hotel].short}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mt-3 rounded-2xl bg-white p-3 text-[15px] leading-relaxed text-stone-800">
+          {v?.story ?? <span className="text-stone-400">✨ Writing a description…</span>}
+        </p>
+        <div className="mt-3 flex items-center gap-2 text-sm text-stone-600">
+          <span className="rounded-full border border-stone-200 bg-white px-3 py-1">🚪 {clock(live.tl.start)}</span>
+          <span className="h-0.5 flex-1 bg-stone-200" />
+          <span className="rounded-full border border-stone-200 bg-white px-3 py-1">🏯 back {clock(live.tl.end)}</span>
+        </div>
+        <div className="mt-2"><TimelineView tl={live.tl} photoUrls={photoUrls} /></div>
+        <div className="mt-3 flex items-center gap-2">
+          <div className="flex flex-1 flex-wrap items-center gap-1">
+            {live.hearts.map((id) => board.memberById.get(id)).filter((m): m is Member => !!m).map((m) => <Face key={m.id} m={m} className="h-7 w-7 text-sm" />)}
+          </div>
+          <button onClick={() => board.heart(live.key)} aria-pressed={mine}
+            className={`h-12 min-w-[5rem] rounded-full px-4 text-base font-bold ${mine ? 'bg-torii text-white' : 'border border-rose-200 bg-rose-50 text-torii'}`}>❤️ {live.hearts.length}</button>
+        </div>
+      </div>
+    </div>, document.body)
+}

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
-import { ChevronLeft, Link2, Loader2, Plus, X } from 'lucide-react'
+import { ChevronLeft, Link2, Loader2, X } from 'lucide-react'
 import { HOTELS, catOf, regionOf, type HotelId, type Place } from '../lib'
 import { EARLIEST, activityIds, addCost, buildTimeline, isActivity, type Layout, type PlannedDay, type Timeline } from '../itinerary'
 import Thumb from './Thumb'
 
 /**
  * B (mix) · the day builder (Maryam picked "Mix" 15 Nov 2026): picture tray with "+time" badges (B4) and a
- * day bar on top; tap the bar → full photo timeline (B3) with ＋ Add here / 🔗 together / ✕.
+ * day bar on top; tap the bar → full photo timeline with big ↑ ↓ to shuffle, 🔗 together, ✕ (no "Add here": Maryam 15 Nov).
  * Used by 💡 Suggest a day (everyone) and by planners editing a day.
  */
 export const clock = (m: number) => {
@@ -15,7 +15,7 @@ export const clock = (m: number) => {
   return `${((h + 11) % 12) + 1}${mm ? `:${String(mm).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`
 }
 export const dur = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${String(m % 60).padStart(2, '0')}` : ''}`)
-export const legText = (l: { minutes: number; walk: boolean }) => `${l.walk ? '🚶' : '🚆'} ${l.minutes} min`
+export const legText = (l: { minutes: number; walk: boolean; car?: boolean }) => `${l.walk ? '🚶' : l.car ? '🚕' : '🚆'} ${l.minutes} min`
 
 /** Thin coloured day bar: stops, travel stripes, 🌅 Maghrib tick. Tap to open the full timeline. */
 export function DayBar({ tl, onClick }: { tl: Timeline | null; onClick?: () => void }) {
@@ -47,20 +47,14 @@ export function DayBar({ tl, onClick }: { tl: Timeline | null; onClick?: () => v
 /** Full photo timeline (read-only, or editable with ＋ Add here / 🔗 / ✕). */
 export function TimelineView({ tl, photoUrls, onOpen, edit }: {
   tl: Timeline; photoUrls: Record<string, string>; onOpen?: (p: Place) => void
-  edit?: { addAt: (index: number) => void; together: (index: number) => void; remove: (index: number, id: string) => void; move: (index: number, dir: -1 | 1) => void; active?: { index: number; together?: boolean } | null }
+  edit?: { together: (index: number) => void; remove: (index: number, id: string) => void; move: (index: number, dir: -1 | 1) => void; active?: { index: number; together?: boolean } | null }
 }) {
-  const addBtn = (i: number) => edit && (
-    <button onClick={() => edit.addAt(i)} className={`ml-12 flex h-9 w-[calc(100%-3rem)] items-center justify-center gap-1 rounded-xl border-2 border-dashed text-xs font-semibold ${edit.active && !edit.active.together && edit.active.index === i ? 'border-torii bg-rose-50 text-torii' : 'border-stone-300 text-stone-500'}`}>
-      <Plus className="h-3.5 w-3.5" /> Add here
-    </button>
-  )
   return (
     <div className="space-y-1">
       {tl.steps.map((s, i) => {
         const big = s.places.some((p) => p.kind !== 'restaurant')
         return (
           <div key={i} className="space-y-1">
-            {addBtn(i)}
             <p className="ml-12 text-xs text-stone-500">{i === 0 ? '🏯 ' : ''}{legText(s.leg)}</p>
             <div className="flex gap-2">
               <span className="w-10 shrink-0 pt-1 text-right text-[11px] text-stone-500">{clock(s.arrive)}</span>
@@ -77,10 +71,11 @@ export function TimelineView({ tl, photoUrls, onOpen, edit }: {
                 <div className="mt-0.5 flex items-center gap-2 text-[11px] text-stone-500">
                   <span>⏱ {dur(s.leave - s.arrive)}{s.places.length > 1 ? ' · 🔗 together' : ''}</span>
                   {edit && (
-                    <span className="ml-auto flex gap-1">
-                      {i > 0 && <button aria-label="Earlier" onClick={() => edit.move(i, -1)} className="h-7 w-7 rounded-full border border-stone-300 bg-white">↑</button>}
-                      {i < tl.steps.length - 1 && <button aria-label="Later" onClick={() => edit.move(i, 1)} className="h-7 w-7 rounded-full border border-stone-300 bg-white">↓</button>}
-                      <button onClick={() => edit.together(i)} className={`flex h-7 items-center gap-1 rounded-full border px-2 ${edit.active?.together && edit.active.index === i ? 'border-torii bg-rose-50 text-torii' : 'border-stone-300 bg-white'}`}><Link2 className="h-3 w-3" />together</button>
+                    <span className="ml-auto flex gap-1.5">
+                      {i > 0 && <button aria-label="Move earlier" onClick={() => edit.move(i, -1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-lg font-bold text-white shadow">↑</button>}
+                      {i < tl.steps.length - 1 && <button aria-label="Move later" onClick={() => edit.move(i, 1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-lg font-bold text-white shadow">↓</button>}
+                      <button aria-label="Add something to do at the same time" onClick={() => edit.together(i)}
+                        className={`flex h-10 items-center gap-1 rounded-full px-3 text-sm font-semibold shadow ${edit.active?.together && edit.active.index === i ? 'bg-torii text-white' : 'border-2 border-ink bg-white'}`}><Link2 className="h-4 w-4" />together</button>
                     </span>
                   )}
                 </div>
@@ -94,7 +89,6 @@ export function TimelineView({ tl, photoUrls, onOpen, edit }: {
           </div>
         )
       })}
-      {addBtn(tl.steps.length)}
       <p className="ml-12 text-xs text-stone-500">{legText(tl.back)} → 🏯 {clock(tl.end)}</p>
       <p className={`ml-12 rounded-lg px-2 py-1 text-[11px] ${tl.maghrib.ok ? 'bg-orange-50 text-orange-900' : 'bg-red-50 text-red-800'}`}>
         🌅 Maghrib {clock(tl.maghrib.at)} · {tl.maghrib.where === 'hotel' ? 'at the hotel ✓' : tl.maghrib.where === 'room' ? `${tl.maghrib.room?.name} ✓` : tl.maghrib.where === 'moving' ? '⚠️ on the train' : '⚠️ no prayer room nearby'}
@@ -134,7 +128,6 @@ export function DayBuilder({ title, hotel, date, places, voteCount, photoUrls, i
   }
   const edit = {
     active: at,
-    addAt: (index: number) => { setAt(at && !at.together && at.index === index ? null : { index }); setTab('do') },
     together: (index: number) => { setAt(at?.together && at.index === index ? null : { index, together: true }); setTab('do') },
     remove: (i: number, id: string) => setSteps(steps.map((g, k) => (k === i ? g.filter((p) => p.id !== id) : g)).filter((g) => g.length)),
     move: (i: number, dir: -1 | 1) => { const s = [...steps]; const j = i + dir; [s[i], s[j]] = [s[j], s[i]]; setSteps(s) },

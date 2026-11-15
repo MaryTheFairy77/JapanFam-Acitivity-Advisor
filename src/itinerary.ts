@@ -15,7 +15,7 @@ export type Layout = { start: number; steps: string[][] }
 export type DayPlanRow = { day: string; activity_ids: string[]; food_id: string | null; locked: boolean; idea_id: string | null; layout?: Layout | null }
 export type IdeaRow = { id: string; member_id: string; hotel: HotelId; half_day: boolean; activity_ids: string[]; created_at: string; layout?: Layout | null }
 
-export type Leg = { minutes: number; walk: boolean }
+export type Leg = { minutes: number; walk: boolean; car?: boolean }
 export type Pray = { name: PrayerName | 'Maghrib'; at: number; room: (Mosque & { d: number }) | null }
 export type Step = { places: Place[]; leg: Leg; arrive: number; leave: number; prayers: Pray[] }
 export type Timeline = {
@@ -41,6 +41,14 @@ export const LATEST_END = 22 * 60
 export const ROOM_KM = 0.4
 const WALK_KM = 1.2
 const MAGHRIB_MIN = 10
+/** 🚕 Taxi / car estimate (city ~27 km/h + 6 min to get one). Used when it beats the train guess by 5+ min (Maryam: "a 50 min walk could be a 10 min drive"). */
+export const carMinutes = (d: number) => Math.round(6 + d * 2.2)
+const human = (hotel: HotelId, p: Place) => p.travel_minutes != null && !(p.auto_fields ?? []).includes('travel') && (p.nearest_hotels ?? []).includes(hotel)
+function legOf(minutes: number, d: number, fixed: boolean): Leg {
+  if (d <= WALK_KM) return { minutes, walk: true }
+  const car = carMinutes(d)
+  return !fixed && d <= 15 && car <= minutes - 5 ? { minutes: car, walk: false, car: true } : { minutes, walk: false }
+}
 
 export const isActivity = (p: Place) => p.kind === 'activity' && catOf(p) === 'activity'
 const isHalalFood = (p: Place) => p.kind === 'restaurant' && (p.halal === 'Halal certified' || p.halal === 'Muslim friendly') && p.lat != null
@@ -77,8 +85,8 @@ export function buildTimeline(steps: Place[][], hotel: HotelId, start: number, d
   let mg: Timeline['maghrib'] | null = maghrib <= t ? { at: maghrib, ok: true, where: 'hotel', room: null } : null
   for (const group of steps.filter((g) => g.length)) {
     const lead = group[0]
-    const minutes = prev ? hopLeg(hotel, prev, lead) : hotelLeg(hotel, lead)
-    const walk = (prev ? km(prev, lead) : km(H, lead)) <= WALK_KM
+    const leg = legOf(prev ? hopLeg(hotel, prev, lead) : hotelLeg(hotel, lead), prev ? km(prev, lead) : km(H, lead), !prev && human(hotel, lead))
+    const minutes = leg.minutes
     const legStart = t
     t += minutes
     const arrive = t
@@ -98,11 +106,11 @@ export function buildTimeline(steps: Place[][], hotel: HotelId, start: number, d
       mg = { at: maghrib, ok: !!r, where: r ? 'room' : 'away', room: r }
       if (r) { prayers.push({ name: 'Maghrib', at: maghrib, room: r }); t += MAGHRIB_MIN }
     }
-    out.push({ places: group, leg: { minutes, walk }, arrive, leave: t, prayers })
+    out.push({ places: group, leg, arrive, leave: t, prayers })
     prev = lead
   }
-  const backMin = prev ? hotelLeg(hotel, prev) : 0
-  const back = { minutes: backMin, walk: prev ? km(prev, H) <= WALK_KM : true }
+  const back = prev ? legOf(hotelLeg(hotel, prev), km(prev, H), human(hotel, prev)) : { minutes: 0, walk: true }
+  const backMin = back.minutes
   if (!mg && maghrib > t && maghrib < t + backMin) mg = { at: maghrib, ok: false, where: 'moving', room: null }
   const end = t + backMin
   if (!mg) mg = { at: maghrib, ok: true, where: 'hotel', room: null }
