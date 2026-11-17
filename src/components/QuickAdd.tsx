@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, ChevronLeft, Loader2, X } from 'lucide-react'
 import {
   HOTELS, autoFillPlace, isInstagramLink, lookupPlace, normalizeUrl, readInstagram, resolveMapsLink, searchBranches, supabase, travelFromPin,
-  type Branch, type Category, type Kind, type Lookup, type Member, type Place,
+  type Branch, type Category, type PlaceBranch, type Kind, type Lookup, type Member, type Place,
 } from '../lib'
 
 /**
@@ -12,11 +12,27 @@ import {
  * Everything found automatically is ✨ (auto_fields) so a person can confirm or overwrite it later. Price is never guessed.
  */
 type Found = { name: string; lat: number | null; lng: number | null; exactPin: boolean; area: string | null
-  mapsUrl: string | null; description: string | null; kind: Kind | 'shopping' | null; halal: string | null; source: string | null; website?: string }
+  mapsUrl: string | null; description: string | null; kind: Kind | 'shopping' | null; halal: string | null; source: string | null; website?: string
+  brand?: string; branches?: PlaceBranch[] }
 type Step = 'find' | 'kind' | 'halal' | 'taste'
 
 const isMapsLink = (s: string) => /^https?:\/\/([a-z.]*google\.[a-z.]+\/maps|maps\.google\.|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(s.trim())
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * Ticked branches → place cards (Maryam, 17 Nov 2026): votes are for the place, not the branch, so one card per city
+ * (Tokyo / Osaka-Kyoto), max two. The card's pin = its branch closest to a hotel (picks are already sorted that way);
+ * every branch is kept in `branches` and gets its own map pin.
+ */
+export function cardsFor<T extends { name: string; lat: number | null; lng: number | null; area: string | null; brand?: string; branches?: PlaceBranch[] }>(picks: T[]): T[] {
+  const city = (p: T) => ((p.lng ?? 0) > 137 ? 'Tokyo' : 'Osaka/Kyoto')
+  const groups = new Map<string, T[]>()
+  for (const p of picks) groups.set(city(p), [...(groups.get(city(p)) ?? []), p])
+  return [...groups].map(([c, g]) => g.length === 1 ? g[0] : {
+    ...g[0], name: `${g[0].brand ?? g[0].name} (${c})`,
+    branches: g.filter((x) => x.lat != null && x.lng != null).map((x) => ({ lat: x.lat!, lng: x.lng!, area: x.area ?? c })),
+  })
+}
 
 export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, onSaved, onManual }: {
   me: Member; defaultKind: Kind; defaultCategory: Category
@@ -135,7 +151,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
         {step !== 'find' && found && (
           <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{picks.length > 1 ? `${picks.length} places: ${picks[0].name}` : found.name}</p>
+              <p className="truncate font-semibold">{picks.length > 1 ? `${picks[0].brand ?? picks[0].name} · ${picks.length} branches` : found.name}</p>
               <p className="truncate text-[13px] text-stone-500">{picks.length > 1 ? picks.map((x) => x.area).join(' · ') : near ? `~${near.text} from ${HOTELS[near.hotel].short}` : 'Not on the map yet'}</p>
             </div>
           </div>
@@ -194,10 +210,10 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
                   <button onClick={() => { setBranches(null); setQ('') }} className="h-12 rounded-xl border border-stone-300 bg-white font-medium">Search again</button>
                   <button disabled={!chosen.size} onClick={() => {
                     const ps: Found[] = branches.filter((b) => chosen.has(b.id)).map((b) => ({ name: `${b.name} (${b.area})`, lat: b.lat, lng: b.lng, exactPin: true,
-                      area: b.area, mapsUrl: null, description: null, kind: null, halal: b.halal ?? null, source: null, website: b.website }))
+                      area: b.area, mapsUrl: null, description: null, kind: null, halal: b.halal ?? null, source: null, website: b.website, brand: b.name }))
                     setPicks(ps); setFound(ps[0]); setStep('kind')
                   }} className="h-12 rounded-xl bg-torii font-semibold text-white disabled:opacity-40">
-                    {chosen.size ? `Add ${chosen.size} place${chosen.size === 1 ? '' : 's'}` : 'Tick some first'}
+                    {chosen.size ? `Add ${chosen.size} branch${chosen.size === 1 ? '' : 'es'}` : 'Tick some first'}
                   </button>
                 </div>
               </div>
@@ -248,7 +264,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   /** Save with the kind passed in (React state updates are async, so the tapped kind is passed directly). */
   async function saveAs(k: Kind | 'shopping', taste: Place['taste']) {
     if (!found) return
-    const all = picks.length ? picks : [found]
+    const all = picks.length > 1 ? cardsFor(picks) : [found]
     setBusy(all.length > 1 ? `Adding ${all.length} places…` : 'Adding…'); setMsg(null)
     let first: string | null = null
     for (const f of all) {
@@ -268,7 +284,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
       nearest_hotels: [], travel_text: null, travel_minutes: null, wait_text: null, wait_minutes: null, long_line: null,
       maps_url: f.mapsUrl, website_url: null, lat: null, lng: null, visit_minutes: null, image_url: null,
       category: kk === 'activity' ? (k === 'shopping' ? 'shopping' : 'activity') : null, full_day: false,
-      auto_fields: [], auto_sources: f.source,
+      auto_fields: [], auto_sources: f.source, branches: f.branches ?? null,
     } as unknown as Place
     if (f.lat != null && f.lng != null) {
       row = autoFillPlace(row, { lat: f.lat, lng: f.lng, label: f.area ?? '', website: f.website }).row

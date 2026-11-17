@@ -78,6 +78,8 @@ export interface Place {
   created_by: string | null
   /** people who suggested the same idea: credited + can edit like the creator */
   co_owners: string[]
+  /** 📍 extra locations of the same place (a chain): every one gets a map pin; lat/lng = the one closest to a hotel */
+  branches?: PlaceBranch[] | null
   created_at: string
 }
 
@@ -366,6 +368,7 @@ export async function lookupPlace(name: string, cityHint?: string): Promise<Look
   return null
 }
 
+export interface PlaceBranch { lat: number; lng: number; area: string }
 /** Trip areas for multi-branch search (Maryam, 17 Nov 2026): only Tokyo and Osaka/Kyoto. viewbox = left,top,right,bottom. */
 export const SEARCH_AREAS = [
   { id: 'tokyo', label: 'Tokyo', box: '139.55,35.85,139.95,35.55' },

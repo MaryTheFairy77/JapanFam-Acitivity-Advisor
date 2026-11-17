@@ -166,6 +166,24 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
             )
           })()}
 
+          {(p.branches?.length ?? 0) > 1 && (
+            <div className="mt-4 rounded-2xl bg-white p-3">
+              <p className="text-sm font-semibold">📍 {p.branches!.length} branches <span className="font-normal text-stone-500">· all on the map, one vote</span></p>
+              <ul className="mt-1.5 space-y-1">
+                {p.branches!.map((b, i) => {
+                  const t = travelFromPin({ lat: b.lat, lng: b.lng })
+                  return (
+                    <li key={i}><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name.replace(/\s*\([^)]*\)$/, ''))}%20${b.lat.toFixed(6)},${b.lng.toFixed(6)}`}
+                      target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-stone-50">
+                      <span className="truncate">{b.area}</span>
+                      <span className="shrink-0 text-xs text-stone-500">{t ? `🏯 ${HOTELS[t.hotel].short} · ~${t.text}` : ''} <span className="text-iris underline">Map</span></span>
+                    </a></li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+
           {/* Links */}
           <div className="mt-4 grid grid-cols-2 gap-2">
             {safeUrl(p.maps_url) && <a href={safeUrl(p.maps_url)!} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-iris py-2.5 text-sm font-medium text-white"><MapPin className="h-4 w-4" />Google Maps</a>}

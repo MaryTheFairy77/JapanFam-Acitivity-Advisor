@@ -29,3 +29,15 @@ describe('searchBranches', () => {
     expect(r[2].area).toBe('Toshima') // Japanese-only suburb skipped
   }, 20000)
 })
+
+describe('cardsFor', async () => {
+  const { cardsFor } = await import('../components/QuickAdd')
+  const b = (area: string, lat: number, lng: number): { name: string; brand: string; area: string; lat: number; lng: number; branches?: { lat: number; lng: number; area: string }[] } => ({ name: `ROUND1 (${area})`, brand: 'ROUND1', area, lat, lng })
+  it('one card per city, pin = first (closest) branch, all branches kept', () => {
+    const cards = cardsFor([b('Kita Ward', 34.7034, 135.5011), b('Chūō Ward', 34.6676, 135.5028), b('Toshima', 35.7301, 139.7151), b('Fushimi', 34.9361, 135.746)])
+    expect(cards.map((c) => c.name)).toEqual(['ROUND1 (Osaka/Kyoto)', 'ROUND1 (Toshima)'])
+    expect(cards[0].lat).toBe(34.7034)
+    expect(cards[0].branches?.map((x) => x.area)).toEqual(['Kita Ward', 'Chūō Ward', 'Fushimi'])
+    expect(cards[1].branches).toBeUndefined()
+  })
+})

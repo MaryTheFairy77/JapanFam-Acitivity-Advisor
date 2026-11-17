@@ -276,6 +276,14 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
       add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34,
         voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
         p.lat!, p.lng!, popup)
+      // 📍 other branches of the same place: smaller pins, same card (one set of votes)
+      for (const b of p.branches ?? []) {
+        if (km(b, { lat: p.lat!, lng: p.lng! }) < 0.05) continue
+        const bp = new maplibregl.Popup({ offset: 14, closeButton: false })
+        bp.setDOMContent(popupFor({ ...p, name: `${p.name.replace(/\s*\([^)]*\)$/, '')} · ${b.area}` }, voteCount[p.id] ?? 0,
+          isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { bp.remove(); openRef.current(p) }))
+        add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 26, undefined, p.visited), b.lat, b.lng, bp)
+      }
     }
     for (const id of HOTEL_IDS) { // hotels are always shown
       const h = HOTELS[id]

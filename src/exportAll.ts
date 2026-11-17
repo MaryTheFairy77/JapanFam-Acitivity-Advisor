@@ -40,14 +40,14 @@ export async function exportEverything() {
   const placeCols = (food: boolean) => ['Name', 'Specialty / Description', 'City', 'Price per person (¥)',
     ...(food ? ['Halal-ness', 'Sweet / Savoury'] : []), 'Nearest hotel', 'Distance from nearest hotel', 'Travel (min)',
     'Estimated wait', 'Wait (min)', 'Time there (min)', 'Long line / notes', ...(food ? [] : ['Full day?']),
-    '👍 Votes', 'Voted by', 'I’m in', 'Visited', 'Added by', 'Google Maps pin', 'Website', 'Lat', 'Lng']
+    '👍 Votes', 'Voted by', 'I’m in', 'Visited', 'Added by', 'Google Maps pin', 'Website', 'Lat', 'Lng', 'Branches']
   const placeRow = (x: Place, food: boolean): Cell[] => [x.name, x.description, city(x), x.price_jpy,
     ...(food ? [x.halal, x.taste === 'savory' ? 'Savoury' : x.taste === 'sweet' ? 'Sweet' : x.taste === 'both' ? 'Both' : null] : []),
     hotels(x.nearest_hotels), x.travel_text, x.travel_minutes, x.wait_text, x.wait_minutes, x.visit_minutes, x.long_line,
     ...(food ? [] : [x.full_day ? 'Yes' : 'No']),
     voteCount[x.id] ?? 0, names(votes.filter((y) => y.place_id === x.id).map((y) => y.member_id)),
     names(going.filter((y) => y.place_id === x.id).map((y) => y.member_id)), x.visited ? 'Yes' : 'No',
-    who.get(x.created_by ?? '') ?? '', x.maps_url, x.website_url, x.lat, x.lng]
+    who.get(x.created_by ?? '') ?? '', x.maps_url, x.website_url, x.lat, x.lng, (x.branches ?? []).map((b) => b.area).join('; ')]
   const placeSheet = (xs: Place[], food: boolean) => clean([head(placeCols(food)), ...byVotes(xs).map((x) => placeRow(x, food))])
 
   const food = places.filter((x) => x.kind === 'restaurant')
@@ -91,8 +91,8 @@ export async function exportEverything() {
     votes.filter((y) => y.member_id === x.id).length, places.filter((y) => y.created_by === x.id).length, ideas.filter((y) => y.member_id === x.id).length])
 
   const w = (...ns: number[]) => ns.map((width) => ({ width }))
-  const foodW = w(28, 50, 14, 10, 16, 11, 34, 22, 9, 18, 9, 9, 28, 8, 30, 24, 8, 14, 40, 40, 10, 10)
-  const doW = w(28, 50, 14, 10, 34, 22, 9, 18, 9, 9, 28, 9, 8, 30, 24, 8, 14, 40, 40, 10, 10)
+  const foodW = w(28, 50, 14, 10, 16, 11, 34, 22, 9, 18, 9, 9, 28, 8, 30, 24, 8, 14, 40, 40, 10, 10, 40)
+  const doW = w(28, 50, 14, 10, 34, 22, 9, 18, 9, 9, 28, 9, 8, 30, 24, 8, 14, 40, 40, 10, 10, 40)
   const { default: writeXlsxFile } = await import('write-excel-file/browser')
   type S = Parameters<typeof writeXlsxFile>[0]
   const sheets = [
