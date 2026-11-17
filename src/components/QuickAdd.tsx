@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ChevronLeft, Loader2, X } from 'lucide-react'
+import { Check, ChevronLeft, Loader2, X } from 'lucide-react'
 import {
-  HOTELS, autoFillPlace, isInstagramLink, lookupPlace, normalizeUrl, readInstagram, resolveMapsLink, supabase, travelFromPin,
-  type Category, type Kind, type Lookup, type Member, type Place,
+  HOTELS, autoFillPlace, isInstagramLink, lookupPlace, normalizeUrl, readInstagram, resolveMapsLink, searchBranches, supabase, travelFromPin,
+  type Branch, type Category, type Kind, type Lookup, type Member, type Place,
 } from '../lib'
 
 /**
@@ -29,6 +29,10 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   const [found, setFound] = useState<Found | null>(null)
   const [kind, setKind] = useState<Kind | 'shopping'>(defaultKind === 'activity' ? defaultCategory : 'restaurant')
   const [halal, setHalal] = useState<string | null>(null)
+  // 🔎 several branches found (e.g. "Round1"): tick the ones to add, closest to a hotel first (17 Nov 2026)
+  const [branches, setBranches] = useState<Branch[] | null>(null)
+  const [chosen, setChosen] = useState<Set<string>>(new Set())
+  const [picks, setPicks] = useState<Found[]>([])
 
   const food = kind === 'restaurant'
   const total = food ? 4 : 2
@@ -44,7 +48,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   async function find() {
     const text = q.trim()
     if (!text) return
-    setMsg(null); setFound(null)
+    setMsg(null); setFound(null); setBranches(null); setChosen(new Set()); setPicks([])
     try {
       if (isInstagramLink(text)) {
         setBusy('Opening the Instagram post…')
@@ -78,7 +82,18 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
         setMsg('We can read Google Maps and Instagram links. For other sites, type the place’s name and area.')
         setBusy(null); return
       } else {
-        setBusy('Looking it up…')
+        setBusy(text.includes(',') ? 'Looking it up…' : 'Searching Tokyo and Osaka/Kyoto…')
+        if (!text.includes(',')) {
+          const list = await searchBranches(text).catch(() => [])
+          if (list.length > 1) { setBranches(list); setBusy(null); return }
+          if (list.length === 1) {
+            const b = list[0]
+            setFound({ name: b.name, lat: b.lat, lng: b.lng, exactPin: true, area: b.area, mapsUrl: null, description: null, kind: null,
+              halal: b.halal ?? null, source: null, website: b.website })
+            if (b.halal) setHalal(b.halal)
+            setBusy(null); return
+          }
+        }
         const [name, ...rest] = text.split(',')
         const area = rest.join(',').trim() || null
         const pin = await pinFor(name.trim(), area)
@@ -95,7 +110,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   const back = () => {
     setMsg(null)
     if (step === 'find') onClose()
-    else if (step === 'kind') setStep('find')
+    else if (step === 'kind') { setStep('find'); if (picks.length) { setFound(null); setPicks([]) } }
     else if (step === 'halal') setStep('kind')
     else setStep('halal')
   }
@@ -120,8 +135,8 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
         {step !== 'find' && found && (
           <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{found.name}</p>
-              <p className="truncate text-[13px] text-stone-500">{near ? `~${near.text} from ${HOTELS[near.hotel].short}` : 'Not on the map yet'}</p>
+              <p className="truncate font-semibold">{picks.length > 1 ? `${picks.length} places: ${picks[0].name}` : found.name}</p>
+              <p className="truncate text-[13px] text-stone-500">{picks.length > 1 ? picks.map((x) => x.area).join(' · ') : near ? `~${near.text} from ${HOTELS[near.hotel].short}` : 'Not on the map yet'}</p>
             </div>
           </div>
         )}
@@ -129,7 +144,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
         {step === 'find' && (
           <div className="mt-6 flex flex-col gap-3">
             <h1 className="font-display text-3xl leading-tight">What's the place?</h1>
-            <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a Google Maps or Instagram link, or type the name and area.</label>
+            <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a Google Maps or Instagram link, or type the name and area. For a chain (like “Round1”), type just its name to see every branch in Tokyo and Osaka/Kyoto.</label>
             <input id="qa" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') find() }}
               placeholder="e.g. Ramen Ouka, Shinjuku" autoCapitalize="sentences" enterKeyHint="search"
               className="h-14 rounded-2xl border-2 border-iris bg-white px-4 text-base outline-none" />
@@ -156,7 +171,38 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
                 </div>
               </div>
             )}
-            {!found && <button onClick={onManual} className="mt-4 text-sm text-stone-500 underline">Fill in everything myself</button>}
+            {branches && !found && (
+              <div className="mt-2 flex flex-col gap-2">
+                <p className="text-[15px] font-semibold">✨ Found {branches.length} in Tokyo and Osaka/Kyoto. Tick the ones to add:</p>
+                <p className="-mt-1 text-[13px] text-stone-500">Closest to one of our hotels first.</p>
+                {branches.map((b) => {
+                  const on = chosen.has(b.id), t = travelFromPin({ lat: b.lat, lng: b.lng })
+                  return (
+                    <button key={b.id} onClick={() => { const n = new Set(chosen); if (on) n.delete(b.id); else n.add(b.id); setChosen(n) }} aria-pressed={on}
+                      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 text-left ${on ? 'border-2 border-iris' : 'border-stone-300'}`}>
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 ${on ? 'border-iris bg-iris text-white' : 'border-stone-300'}`}>{on && <Check className="h-4 w-4" />}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{b.name} <span className="font-normal text-stone-600">({b.area})</span></span>
+                        <span className="block text-[13px] text-stone-500">🏯 {HOTELS[b.hotel].short} · {b.km < 1 ? `${Math.round(b.km * 1000)} m` : `${b.km.toFixed(1)} km`}{t ? ` · 🚆 ~${t.text}` : ''}</span>
+                      </span>
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${b.lat},${b.lng}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                        className="shrink-0 rounded-full px-2 py-1 text-xs text-iris underline">Map</a>
+                    </button>
+                  )
+                })}
+                <div className="sticky bottom-0 grid grid-cols-2 gap-2 bg-washi pt-2">
+                  <button onClick={() => { setBranches(null); setQ('') }} className="h-12 rounded-xl border border-stone-300 bg-white font-medium">Search again</button>
+                  <button disabled={!chosen.size} onClick={() => {
+                    const ps: Found[] = branches.filter((b) => chosen.has(b.id)).map((b) => ({ name: `${b.name} (${b.area})`, lat: b.lat, lng: b.lng, exactPin: true,
+                      area: b.area, mapsUrl: null, description: null, kind: null, halal: b.halal ?? null, source: null, website: b.website }))
+                    setPicks(ps); setFound(ps[0]); setStep('kind')
+                  }} className="h-12 rounded-xl bg-torii font-semibold text-white disabled:opacity-40">
+                    {chosen.size ? `Add ${chosen.size} place${chosen.size === 1 ? '' : 's'}` : 'Tick some first'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {!found && !branches && <button onClick={onManual} className="mt-4 text-sm text-stone-500 underline">Fill in everything myself</button>}
           </div>
         )}
 
@@ -202,24 +248,35 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   /** Save with the kind passed in (React state updates are async, so the tapped kind is passed directly). */
   async function saveAs(k: Kind | 'shopping', taste: Place['taste']) {
     if (!found) return
-    setBusy('Adding…'); setMsg(null)
+    const all = picks.length ? picks : [found]
+    setBusy(all.length > 1 ? `Adding ${all.length} places…` : 'Adding…'); setMsg(null)
+    let first: string | null = null
+    for (const f of all) {
+      const r = await saveOne(f, k, taste)
+      if ('error' in r) { setBusy(null); setMsg(r.error); return }
+      first ??= r.id
+    }
+    setBusy(null)
+    onSaved(first!)
+  }
+
+  async function saveOne(f: Found, k: Kind | 'shopping', taste: Place['taste']): Promise<{ id: string } | { error: string }> {
     const kk: Kind = k === 'restaurant' ? 'restaurant' : 'activity'
     let row = {
-      kind: kk, name: found.name.trim(), description: found.description, price_jpy: null,
-      halal: kk === 'restaurant' ? (halal ?? 'Unknown') : null, taste: kk === 'restaurant' ? taste : null,
+      kind: kk, name: f.name.trim(), description: f.description, price_jpy: null,
+      halal: kk === 'restaurant' ? (picks.length > 1 ? f.halal ?? halal ?? 'Unknown' : halal ?? 'Unknown') : null, taste: kk === 'restaurant' ? taste : null,
       nearest_hotels: [], travel_text: null, travel_minutes: null, wait_text: null, wait_minutes: null, long_line: null,
-      maps_url: found.mapsUrl, website_url: null, lat: null, lng: null, visit_minutes: null, image_url: null,
+      maps_url: f.mapsUrl, website_url: null, lat: null, lng: null, visit_minutes: null, image_url: null,
       category: kk === 'activity' ? (k === 'shopping' ? 'shopping' : 'activity') : null, full_day: false,
-      auto_fields: [], auto_sources: found.source,
+      auto_fields: [], auto_sources: f.source,
     } as unknown as Place
-    if (found.lat != null && found.lng != null) {
-      row = autoFillPlace(row, { lat: found.lat, lng: found.lng, label: found.area ?? '', website: found.website }).row
-      if (found.exactPin && found.mapsUrl) row.auto_fields = row.auto_fields.filter((f) => f !== 'pin')
+    if (f.lat != null && f.lng != null) {
+      row = autoFillPlace(row, { lat: f.lat, lng: f.lng, label: f.area ?? '', website: f.website }).row
+      if (f.exactPin && f.mapsUrl) row.auto_fields = row.auto_fields.filter((x) => x !== 'pin')
     }
     const { id: _i, created_at: _c, visited: _v, visited_at: _va, created_by: _cb, co_owners: _co, ...insert } = row as Place
     const { data, error } = await supabase.from('places').insert({ ...insert, created_by: me.id }).select('id').single()
-    setBusy(null)
-    if (error) setMsg(/permission denied|row-level/i.test(error.message) ? 'Not allowed. Re-open the app and enter the family code.' : 'Couldn’t save. Check your internet and try again.')
-    else onSaved(data.id as string)
+    if (error) return { error: /permission denied|row-level/i.test(error.message) ? 'Not allowed. Re-open the app and enter the family code.' : 'Couldn’t save. Check your internet and try again.' }
+    return { id: data.id as string }
   }
 }

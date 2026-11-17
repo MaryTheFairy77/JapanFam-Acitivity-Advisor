@@ -366,6 +366,52 @@ export async function lookupPlace(name: string, cityHint?: string): Promise<Look
   return null
 }
 
+/** Trip areas for multi-branch search (Maryam, 17 Nov 2026): only Tokyo and Osaka/Kyoto. viewbox = left,top,right,bottom. */
+export const SEARCH_AREAS = [
+  { id: 'tokyo', label: 'Tokyo', box: '139.55,35.85,139.95,35.55' },
+  { id: 'kansai', label: 'Osaka / Kyoto', box: '135.25,35.1,135.85,34.55' },
+] as const
+export interface Branch extends Lookup { id: string; name: string; area: string; hotel: HotelId; km: number }
+
+const latin = (x?: string) => (x && /^[\x00-\u024f\s.'’-]+$/.test(x) ? x : undefined)
+/**
+ * 🔎 Every branch of a chain (e.g. "Round1") in Tokyo + Osaka/Kyoto, closest to one of our hotels first.
+ * Extra words that stop OpenStreetMap matching ("round1 gaming arena") are dropped from the end until something is found.
+ * Nominatim's free-use rule: max 1 request a second, so searches are spaced out.
+ */
+export async function searchBranches(text: string): Promise<Branch[]> {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  for (let n = words.length; n >= 1; n--) {
+    const q = words.slice(0, n).join(' ')
+    if (n < words.length && q.length < 3) break
+    const hits: Branch[] = []
+    for (const [i, a] of SEARCH_AREAS.entries()) {
+      if (i || n < words.length) await new Promise((r) => setTimeout(r, 1100))
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=40&countrycodes=jp&bounded=1&viewbox=${a.box}` +
+        `&namedetails=1&addressdetails=1&extratags=1&accept-language=en&q=${encodeURIComponent(q)}`)
+      if (!res.ok) continue
+      for (const h of await res.json()) {
+        if (['highway', 'boundary', 'place', 'landuse', 'railway', 'waterway', 'natural'].includes(h.category)) continue
+        const ad = h.address ?? {}, nd = h.namedetails ?? {}, tags: Record<string, string> = h.extratags ?? {}
+        const area = [ad.city_district, ad.suburb, ad.quarter, ad.neighbourhood, ad.city, ad.town].map(latin).find(Boolean) ?? a.label
+        const at = { lat: +h.lat, lng: +h.lon }
+        const best = HOTEL_IDS.map((id) => ({ id, km: km(at, HOTELS[id]) })).sort((x, y) => x.km - y.km)[0]
+        const diet = tags['diet:halal']
+        hits.push({ id: `${h.osm_type}${h.osm_id}`, name: latin(nd['name:en']) ?? latin(h.name) ?? latin(nd.brand_en ?? nd['brand:en']) ?? h.name ?? q,
+          area, ...at, label: area, hotel: best.id, km: best.km, website: safeUrl(tags.website ?? tags['contact:website']),
+          halal: diet === 'only' ? 'Halal certified' : diet === 'yes' ? 'Muslim friendly' : undefined,
+          building: h.category === 'building' } as Branch & { building: boolean })
+      }
+    }
+    // the same place is often in OpenStreetMap twice (the building + the business): keep one within 150 m
+    const out: Branch[] = []
+    for (const b of hits.sort((x, y) => Number((x as { building?: boolean }).building) - Number((y as { building?: boolean }).building)))
+      if (!out.some((o) => km(o, b) < 0.15)) out.push(b)
+    if (out.length) return out.sort((x, y) => x.km - y.km)
+  }
+  return []
+}
+
 // ── Estimates for empty numbers (never stored; shown yellow) ──
 export interface Estimates { price: Record<Kind, number>; wait: Record<Kind, number>; visit: Record<Kind, number> }
 const median = (xs: number[]) => {
