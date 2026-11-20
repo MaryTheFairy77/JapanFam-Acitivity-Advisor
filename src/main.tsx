@@ -12,6 +12,9 @@ window.addEventListener('load', () => setTimeout(() => sessionStorage.removeItem
 
 installClickSounds()
 
+// 20 Nov: the old 'photos' cache could keep a failed photo for 45 days. Photos now live in photos-own / photos-web.
+if ('caches' in window) caches.delete('photos').catch(() => {})
+
 // Offline app updates: when a new version has been downloaded in the background, switch to it
 // the next time the app comes back to the screen (never mid-tap, so nobody loses what they were typing).
 if ('serviceWorker' in navigator) {

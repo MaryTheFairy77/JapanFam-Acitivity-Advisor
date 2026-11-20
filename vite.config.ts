@@ -33,10 +33,15 @@ export default defineConfig({
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'map', expiration: { maxEntries: 3000, maxAgeSeconds: 60 * 60 * 24 * 45, purgeOnQuotaError: true }, cacheableResponse: { statuses: [0, 200] } },
           },
-          { // place + hotel photos (any site)
-            urlPattern: ({ request }) => request.destination === 'image',
+          { // our own photos (private bucket, signed links): a link's photo never changes, so keep it
+            urlPattern: ({ url, request }) => request.destination === 'image' && url.pathname.includes('/storage/v1/object/sign/'),
             handler: 'CacheFirst',
-            options: { cacheName: 'photos', expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 45, purgeOnQuotaError: true }, cacheableResponse: { statuses: [0, 200] } },
+            options: { cacheName: 'photos-own', expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 45, purgeOnQuotaError: true }, cacheableResponse: { statuses: [0, 200] } },
+          },
+          { // other sites' photos: show the saved copy, but re-check each time online so a failed load can't get stuck (20 Nov)
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'photos-web', expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 45, purgeOnQuotaError: true }, cacheableResponse: { statuses: [0, 200] } },
           },
           { // Google fonts
             urlPattern: ({ url }) => url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com',
