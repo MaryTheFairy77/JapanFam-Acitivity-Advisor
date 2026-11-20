@@ -146,10 +146,13 @@ function meDot() {
   return outer
 }
 
-export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel }: {
+export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel, onHome }: {
   me: Member; members: Member[]
   places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>; onOpen: (p: Place) => void; onHotel: (id: HotelId) => void
+  /** 🏠 back to Home (the map has no tab bar since Phase 2) */
+  onHome?: () => void
 }) {
+  const [credits, setCredits] = useState(false)
   const { pos, busy, err: posErr, locate } = useMyPosition()
   const mode = 'places' as const
   const [nearOpen, setNearOpen] = useState(false)
@@ -211,11 +214,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
         container: box.current, style: pastelize(style),
         center: ll(...start.center), zoom: start.zoom - 0.5, attributionControl: false,
       })
-      // compact ⓘ credit (OpenStreetMap licence requires visible credit; full list is in T&Cs → References)
-      m.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-right')
-      // start collapsed as a small ⓘ (MapLibre opens it on first load)
-      const collapse = () => box.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show')
-      m.once('idle', collapse); setTimeout(collapse, 50)
+      // map credits: our own ⓘ button + card (below), drawn above the city switch and weather so it never overlaps them (20 Nov)
       m.on('load', () => {
         m.addSource('strings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
         m.addLayer({ id: 'strings', type: 'line', source: 'strings',
@@ -308,7 +307,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
     `shrink-0 rounded-full border px-3 py-1.5 text-sm shadow-sm ${on ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white/95 text-stone-700'}`
 
   return (
-    <div className="relative h-[calc(100dvh-8rem)]">
+    <div className="relative h-[calc(100dvh-4.5rem)]">
       <div ref={box} className="japan-map h-full w-full" />
       {failed && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-stone-500">
@@ -316,13 +315,31 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel 
         </div>
       )}
 
-      {/* Top: one small city switch */}
+      {/* ⓘ map credits (OpenStreetMap licence: visible credit). Opens as a card on top of everything. */}
+      <button onClick={() => setCredits((v) => !v)} aria-expanded={credits} aria-label="Map credits"
+        className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full border border-stone-300 bg-white/95 text-sm font-semibold text-stone-600 shadow-sm">i</button>
+      {credits && (
+        <div role="note" className="absolute right-3 top-12 z-30 w-64 rounded-2xl bg-white p-3 text-xs leading-relaxed text-stone-600 shadow-lg">
+          Map: <a className="underline" href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> ·{' '}
+          <a className="underline" href="https://www.openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a> · Data{' '}
+          <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+          <button onClick={() => setCredits(false)} className="mt-2 block w-full rounded-lg bg-stone-100 py-1.5 font-medium">Close</button>
+        </div>
+      )}
+
+      {/* Top: 🏠 Home + one small city switch */}
       <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-2">
-        <div className="pointer-events-auto flex rounded-full border border-stone-300 bg-white/95 p-0.5 text-sm shadow-sm">
+        <div className="pointer-events-auto flex items-center gap-2">
+        {onHome && (
+          <button onClick={onHome} data-sound="tab" aria-label="Home"
+            className="flex h-12 w-12 flex-col items-center justify-center rounded-full border border-stone-300 bg-white/95 text-[10px] font-semibold leading-none text-stone-700 shadow-sm"><span className="text-xl leading-none">🏠</span>Home</button>
+        )}
+        <div className="flex rounded-full border border-stone-300 bg-white/95 p-0.5 text-sm shadow-sm">
           {([['kanto', '🗼 Tokyo'], ['kansai', '🦌 Osaka'], ['all', '🗾 All']] as const).map(([k, label]) => (
             <button key={k} data-sound="tab" onClick={() => setView(k)}
-              className={`rounded-full px-3 py-1 ${view === k ? 'bg-iris text-white' : 'text-stone-600'}`}>{label}</button>
+              className={`rounded-full px-3 py-1.5 ${view === k ? 'bg-iris text-white' : 'text-stone-600'}`}>{label}</button>
           ))}
+        </div>
         </div>
         {weather && view !== 'all' && (
           <div aria-label={`${view === 'kanto' ? 'Tokyo' : 'Osaka'} today: ${weather.rain ?? '?'}% chance of rain, high ${weather.max}°, low ${weather.min}°`}

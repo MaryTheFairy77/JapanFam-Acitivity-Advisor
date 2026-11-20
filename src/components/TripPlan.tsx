@@ -83,9 +83,11 @@ async function clearDay(code: string, day: string) {
   return !error && data === true
 }
 
-export default function TripPlan({ me, members, places, votes, voteCount, photoUrls, onOpen }: {
+export default function TripPlan({ me, members, places, votes, voteCount, photoUrls, onOpen, initialDay }: {
   me: Member; members: Member[]; places: Place[]; votes: Vote[]; voteCount: Record<string, number>
   photoUrls: Record<string, string>; onOpen: (p: Place) => void
+  /** open this day's sheet straight away (from Home's "✨ Suggested for today") */
+  initialDay?: string | null
 }) {
   const { plans, ideas, err, load } = usePlanData()
   const { run, box } = usePlannerCode()
@@ -93,7 +95,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   const [city, setCity] = useState<'all' | 'kanto' | 'kansai'>('all')
   const [openIdeas, setOpenIdeas] = useState<HotelId | null>(null)
   const [holding, setHolding] = useState<IdeaRow | null>(null) // idea picked up by a planner (tap, then tap a day)
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(initialDay ?? null)
   const [board, setBoard] = useState(false)
   const [peek, setPeek] = useState<Entry | null>(null)
   const [delIdea, setDelIdea] = useState<IdeaRow | null>(null)

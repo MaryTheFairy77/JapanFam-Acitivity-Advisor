@@ -8,25 +8,25 @@ import QuickAdd from './QuickAdd'
 import { DeletePlace } from './ConfirmDelete'
 import HotelSheet from './HotelSheet'
 import { tripToolsOn, useMyPosition } from '../geo'
-import Stats from './Stats'
 const MapView = lazy(() => import('./MapView'))
+const HomeScreen = lazy(() => import('./HomeScreen'))
 const SuggestDay = lazy(() => import('./SuggestDay'))
 const TripPlan = lazy(() => import('./TripPlan'))
 import { ProfileSheet } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
-import { ArrowUpDown, ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Menu, Music2, Search, WifiOff, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
+import { ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Music2, Search, WifiOff, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
 
-type Tab = Kind | 'stats' | 'map' | 'plan'
-
-/** bottom bar = the everyday browsing tabs; Plan + Compare live in the ☰ menu */
-const BOTTOM: Tab[] = ['map', 'restaurant', 'activity']
-const TABS: { key: Tab; icon: string; label: string }[] = [
-  { key: 'map', icon: '🗾', label: 'Map' },
+/**
+ * Navigation (Phase 2, 20 Nov 2026, Maryam picked "H1"): 🏠 Home is the centre with 4 big doors.
+ * Map and Plan have no tab bar (a 🏠 button instead); Food and Do share a small Home · Food · Do bar (same layout, easy to flip).
+ * ☰ is gone: tap your face for profile, settings, music and switching person. Compare's page is replaced by 🏆 on Home.
+ */
+type Tab = Kind | 'home' | 'map' | 'plan'
+const BAR: { key: Tab; icon: string; label: string }[] = [
+  { key: 'home', icon: '🏠', label: 'Home' },
   { key: 'restaurant', icon: '🍜', label: 'Food' },
   { key: 'activity', icon: '🎢', label: 'Do' },
-  { key: 'plan', icon: '🗓️', label: 'Trip plan' },
-  { key: 'stats', icon: '📊', label: 'Compare' },
 ]
 type SortKey = 'votes' | 'near' | 'price' | 'travel' | 'wait' | 'newest'
 
@@ -43,7 +43,9 @@ export default function Home({ me, data, onLogout }: {
   me: Member; data: ReturnType<typeof useData>; onLogout: () => void
 }) {
   const { members, places, votes, photoUrls, refresh, setPlaces, setVotes } = data
-  const [tab, setTab] = useState<Tab>('map')
+  const [tab, setTabRaw] = useState<Tab>('home')
+  const [planDay, setPlanDay] = useState<string | null>(null)
+  const setTab = (k: Tab) => { setTabRaw(k); if (k !== 'plan') setPlanDay(null); window.scrollTo(0, 0) }
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [halalOnly, setHalalOnly] = useState(false)
@@ -181,11 +183,11 @@ export default function Home({ me, data, onLogout }: {
   )
 
   return (
-    <div className={`mx-auto max-w-2xl ${tab === 'map' ? '' : 'pb-40'}`}>
+    <div className={`mx-auto max-w-2xl ${tab === 'map' ? '' : tab === 'restaurant' || tab === 'activity' ? 'pb-40' : 'pb-10'}`}>
       {/* Header */}
       <header className="sticky top-0 z-[600] bg-washi/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl">JapanFam <span className="text-torii">●</span></h1>
+          <h1 className="font-display text-2xl"><button onClick={() => setTab('home')} aria-label="JapanFam: go to Home">JapanFam <span className="text-torii">●</span></button></h1>
           <div className="flex items-center gap-2">
           {data.offlineSince && (
             <button onClick={() => setOfflineTip((v) => !v)} aria-label="Offline: showing saved data"
@@ -198,54 +200,55 @@ export default function Home({ me, data, onLogout }: {
               )}
             </button>
           )}
-          <button data-sound="none" onClick={() => setPrefs({ ambience: !music })} aria-label={music ? 'Turn off background music' : 'Turn on background music'}
-            className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg ${music ? 'border-torii bg-torii/10' : 'border-stone-300 bg-white grayscale'}`}>
-            {music ? <Music2 className="h-4 w-4 text-torii" /> : <VolumeX className="h-4 w-4 text-stone-500" />}
-          </button>
-          <button onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen}
-            className="flex items-center gap-1.5 rounded-full border border-stone-300 bg-white py-1 pl-1.5 pr-2.5 text-sm">
-            <Avatar m={me} className="h-7 w-7 text-base" /><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}
-            <Menu className="ml-0.5 h-4 w-4 text-stone-500" />
+          <button onClick={() => setMenuOpen(true)} aria-label={`${displayName(me)}: profile and settings`} aria-expanded={menuOpen}
+            className="flex items-center gap-1.5 rounded-full border border-stone-300 bg-white py-1 pl-1 pr-3 text-sm">
+            <Avatar m={me} className="h-9 w-9 text-xl" /><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}
           </button>
           </div>
         </div>
       </header>
       <WaveBand />
 
-      {/* Bottom tab bar */}
+      {/* Food / Do only: Home · Food · Do (same tile layout, so flipping between them is easy) */}
+      {(tab === 'restaurant' || tab === 'activity') && (
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto grid max-w-2xl grid-cols-3">
-          {TABS.filter((t) => BOTTOM.includes(t.key)).map((t) => (
-            <button key={t.key} data-sound="tab" onClick={() => setTab(t.key)}
-              className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${tab === t.key ? 'text-torii' : 'text-stone-500'}`}>
-              <span className={`text-xl transition ${tab === t.key ? 'scale-110' : 'grayscale-[60%]'}`}>{t.icon}</span>{t.label}
+          {BAR.map((t) => (
+            <button key={t.key} data-sound="tab" onClick={() => setTab(t.key)} aria-current={tab === t.key ? 'page' : undefined}
+              className={`flex min-h-[60px] flex-col items-center justify-center gap-0.5 text-[13px] font-medium ${tab === t.key ? 'text-torii' : 'text-stone-500'}`}>
+              <span className={`text-2xl transition ${tab === t.key ? 'scale-110' : ''}`}>{t.icon}</span>{t.label}
             </button>
           ))}
         </div>
       </nav>
+      )}
 
-      {tab === 'map' ? (
-        <Suspense fallback={<div className="h-[calc(100dvh-8rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} />
+      {tab === 'home' ? (
+        <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading…</div>}>
+          {fujiBg}
+          <HomeScreen places={effPlaces} voteCount={voteCount} photoUrls={photoUrls}
+            onGo={(d) => setTab(d)} onOpen={(p) => setViewingId(p.id)} onOpenDay={(date) => { setTab('plan'); setPlanView('trip'); setPlanDay(date) }} />
+        </Suspense>
+      ) : tab === 'map' ? (
+        <Suspense fallback={<div className="h-[calc(100dvh-4.5rem)] animate-pulse bg-[#fbf3e6]" />}>
+          <MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} onHome={() => setTab('home')} />
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
           {fujiBg}
           <div className="relative z-10">
-            <div className="mx-4 mt-4 flex rounded-full border border-stone-300 bg-white p-0.5 text-sm">
+            <div className="mx-4 mt-4 flex items-center gap-2">
+            <button onClick={() => setTab('home')} className="flex h-11 shrink-0 items-center gap-1 rounded-full border border-stone-300 bg-white px-3 text-sm font-medium"><span className="text-lg">🏠</span>Home</button>
+            <div className="flex flex-1 rounded-full border border-stone-300 bg-white p-0.5 text-sm">
               <button onClick={() => setPlanView('trip')} className={`flex-1 rounded-full py-1.5 ${planView === 'trip' ? 'bg-iris text-white' : 'text-stone-600'}`}>🗓 Trip plan</button>
               <button onClick={() => setPlanView('idea')} className={`flex-1 rounded-full py-1.5 ${planView === 'idea' ? 'bg-iris text-white' : 'text-stone-600'}`}>💡 Suggest a day</button>
             </div>
+            </div>
             {planView === 'trip'
-              ? <TripPlan me={me} members={members} places={effPlaces} votes={votes} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} />
+              ? <TripPlan key={planDay ?? 'plan'} me={me} members={members} places={effPlaces} votes={votes} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} initialDay={planDay} />
               : <SuggestDay me={me} members={members} places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} />}
           </div>
         </Suspense>
-      ) : tab === 'stats' ? (
-        <>
-          {fujiBg}
-          <div className="relative z-10"><Stats places={effPlaces} raw={places} votes={votes} members={members} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} /></div>
-        </>
       ) : (
         <>
           {fujiBg}
@@ -287,27 +290,27 @@ export default function Home({ me, data, onLogout }: {
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search"
-                  className="w-full rounded-xl border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-torii" />
+                  className="h-10 w-full rounded-xl border border-stone-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-torii" />
               </div>
-              <button onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters} aria-label="Filters"
-                className={`relative inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-sm ${showFilters ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white text-stone-700'}`}>
+              <select value={sort} aria-label="Sort by" onChange={(e) => { const k = e.target.value as SortKey; setSort(k); if (k === 'near') locate() }}
+                className={`h-10 shrink-0 rounded-xl border border-iris bg-iris px-2 text-sm font-medium text-white outline-none ${sort === 'near' && locating ? 'animate-pulse' : ''}`}>
+                {SORTS.filter((s) => s.key !== 'near' || tripToolsOn()).map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+              <button onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters} aria-label="Filters and view"
+                className={`relative inline-flex h-10 items-center gap-1 rounded-xl border px-2.5 text-sm ${showFilters ? 'border-iris bg-iris text-white' : 'border-stone-300 bg-white text-stone-700'}`}>
                 <SlidersHorizontal className="h-4 w-4" />
                 {activeFilters > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-torii text-[10px] text-white">{activeFilters}</span>}
               </button>
-              <div className="flex rounded-xl border-2 border-indigo-300 bg-indigo-50 p-0.5 shadow-sm shadow-indigo-200" role="group" aria-label="View">
-                <button onClick={() => setView('grid')} aria-pressed={view === 'grid'} aria-label="Tiles view" title="Tiles" className={`rounded-lg p-1.5 transition ${view === 'grid' ? 'bg-indigo-500 text-white' : 'text-indigo-400'}`}><LayoutGrid className="h-4 w-4" /></button>
-                <button onClick={() => setView('list')} aria-pressed={view === 'list'} aria-label="List view" title="List" className={`rounded-lg p-1.5 transition ${view === 'list' ? 'bg-indigo-500 text-white' : 'text-indigo-400'}`}><List className="h-4 w-4" /></button>
-              </div>
-            </div>
-            <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
-              <ArrowUpDown className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
-              {SORTS.filter((s) => s.key !== 'near' || tripToolsOn()).map((s) => (
-                <button key={s.key} className={chip(sort === s.key) + (s.key === 'near' && locating ? ' animate-pulse' : '')}
-                  onClick={() => { setSort(s.key); if (s.key === 'near') locate() }}>{s.label}</button>
-              ))}
             </div>
             {showFilters && (
               <div className="space-y-2 rounded-2xl border border-stone-200 bg-white/90 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-stone-600">Show as</span>
+                  <div className="flex rounded-xl border border-stone-300 bg-white p-0.5" role="group" aria-label="View">
+                    <button onClick={() => setView('grid')} aria-pressed={view === 'grid'} className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm ${view === 'grid' ? 'bg-iris text-white' : 'text-stone-600'}`}><LayoutGrid className="h-4 w-4" />Tiles</button>
+                    <button onClick={() => setView('list')} aria-pressed={view === 'list'} className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm ${view === 'list' ? 'bg-iris text-white' : 'text-stone-600'}`}><List className="h-4 w-4" />List</button>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button className={chip(hotel === 'all')} onClick={() => setHotel('all')}>All hotels</button>
                   {HOTEL_IDS.map((h) => (
@@ -371,36 +374,30 @@ export default function Home({ me, data, onLogout }: {
       )}
 
       {menuOpen && (
-        <div className="fixed inset-0 z-[900] flex justify-end bg-black/40" onClick={() => setMenuOpen(false)}>
-          <nav onClick={(e) => e.stopPropagation()} aria-label="Menu"
-            className="flex h-full w-[82%] max-w-xs flex-col bg-washi p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl">
-            <div className="flex items-center gap-3 rounded-2xl bg-white p-3">
-              <Avatar m={me} className="h-12 w-12 text-2xl" />
+        <div className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40" onClick={() => setMenuOpen(false)}>
+          <nav onClick={(e) => e.stopPropagation()} aria-label="You and settings"
+            className="w-full max-w-2xl rounded-t-3xl bg-washi p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl">
+            <span className="mx-auto mb-3 block h-1.5 w-10 rounded-full bg-stone-300" aria-hidden />
+            <div className="flex items-center gap-3">
+              <Avatar m={me} className="h-14 w-14 text-3xl" />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{displayName(me)}</p>
-                <p className="text-xs text-stone-500">{me.is_admin ? 'Trip planner ⭐' : 'Family member'}</p>
+                <p className="truncate text-lg font-semibold">{displayName(me)}</p>
+                <p className="text-sm text-stone-500">{me.is_admin ? '⭐ Trip planner' : 'Family member'} · {votes.filter((v) => v.member_id === me.id).length} 👍</p>
               </div>
-              <button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="text-stone-400"><X className="h-5 w-5" /></button>
+              <button onClick={() => setMenuOpen(false)} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full bg-white"><X className="h-5 w-5" /></button>
             </div>
-            <div className="mt-4 space-y-1">
-              {([['plan', '🗓️', 'Trip plan', 'The whole trip in pictures · 💡 suggest a day'], ['stats', '📊', 'Compare', 'Rank places by price, travel, wait or votes']] as const).map(([k, icon, label, sub]) => (
-                <button key={k} data-sound="tab" onClick={() => { setTab(k); setMenuOpen(false); window.scrollTo(0, 0) }}
-                  className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ${tab === k ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-white'}`}>
-                  <span className="text-2xl">{icon}</span>
-                  <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block text-xs text-stone-500">{sub}</span></span>
-                  <ChevronRight className="h-4 w-4 text-stone-400" />
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 space-y-1 border-t border-stone-200 pt-4">
-              <button onClick={() => { setMenuOpen(false); setProfileOpen(true) }} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white">
-                <UserRound className="h-5 w-5 text-stone-500" /><span className="flex-1">Profile & settings</span><ChevronRight className="h-4 w-4 text-stone-400" />
+            <div className="mt-4 overflow-hidden rounded-2xl bg-white">
+              <button onClick={() => { setMenuOpen(false); setProfileOpen(true) }} className="flex min-h-[60px] w-full items-center gap-3 border-b border-stone-100 px-4 text-left">
+                <UserRound className="h-5 w-5 text-iris" /><span className="flex-1 font-medium">Profile & settings<span className="block text-xs font-normal text-stone-500">Emoji, colour, nickname, export</span></span><ChevronRight className="h-4 w-4 text-stone-400" />
               </button>
-              <button onClick={() => { setMenuOpen(false); onLogout() }} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white">
-                <LogOut className="h-5 w-5 text-stone-500" /><span className="flex-1">Switch person / sign out</span>
+              <button data-sound="none" onClick={() => setPrefs({ ambience: !music })} aria-pressed={music} className="flex min-h-[60px] w-full items-center gap-3 border-b border-stone-100 px-4 text-left">
+                {music ? <Music2 className="h-5 w-5 text-torii" /> : <VolumeX className="h-5 w-5 text-stone-500" />}<span className="flex-1 font-medium">Background music</span>
+                <span className={`relative h-7 w-12 rounded-full transition ${music ? 'bg-iris' : 'bg-stone-300'}`}><span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${music ? 'left-[22px]' : 'left-0.5'}`} /></span>
+              </button>
+              <button onClick={() => { setMenuOpen(false); onLogout() }} className="flex min-h-[60px] w-full items-center gap-3 px-4 text-left">
+                <LogOut className="h-5 w-5 text-stone-500" /><span className="flex-1 font-medium">Switch person</span>
               </button>
             </div>
-            <p className="mt-auto pt-4 text-center text-[11px] text-stone-400">JapanFam · Osaka · Kyoto · Tokyo</p>
           </nav>
         </div>
       )}
