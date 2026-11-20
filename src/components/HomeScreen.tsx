@@ -26,7 +26,7 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen,
 }) {
   const t = tripToday()
   const H = HOTELS[t.hotel]
-  const weather = useWeather(H.region)
+  const weather = useWeather(H.region) // today's forecast: only shown during the trip (before it, it isn't that day's weather)
   const { plans } = usePlanData()
   const today = useMemo(() => planTrip(places, voteCount, plans).find((d) => d.date === t.day.date) ?? null, [places, voteCount, plans, t.day.date])
   const [tool, setTool] = useState<'prayer' | 'money' | 'taxi' | null>(null)
@@ -72,7 +72,7 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen,
           </span>
           <span className="block font-display text-lg leading-tight">{H.short}</span>
           <span className="block text-sm text-stone-600">
-            {H.region === 'kanto' ? '🗼' : '🦌'} {H.city}{weather && <> · {weather.rain != null ? (weather.rain >= 50 ? '☔' : '☀️') : '🌤️'} {weather.max}° / {weather.min}°</>}
+            {H.region === 'kanto' ? '🗼' : '🦌'} {H.city}{t.phase === 'during' && weather && <> · {weather.rain != null ? (weather.rain >= 50 ? '☔' : '☀️') : '🌤️'} {weather.max}° / {weather.min}°</>}
           </span>
         </span>
       </button>
@@ -129,7 +129,7 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen,
       {/* 🏆 Family favourites (replaces Compare) */}
       <section className="rounded-3xl bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2">
-          <h2 className="flex-1 font-semibold">🏆 Family favourites</h2>
+          <h2 className="flex-1 font-semibold">🏆 Favourites</h2>
           <div className="flex rounded-full bg-stone-100 p-0.5 text-sm" role="tablist">
             {([['kanto', '🗼 Tokyo'], ['kansai', '🦌 Osaka']] as const).map(([r, label]) => (
               <button key={r} role="tab" aria-selected={area === r} onClick={() => setArea(r)}
