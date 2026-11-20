@@ -512,15 +512,70 @@ export async function resolveMapsLink(url: string): Promise<{ lat: number; lng: 
   return null
 }
 
-// ── Instagram links (read on the server; Gemini FREE tier finds the place in the caption) ──
+// ── TikTok + Instagram links (read on the server by "read-post"; Gemini FREE tier finds the place(s) in the caption) ──
 export const isInstagramLink = (u: string) => /^https?:\/\/(www\.)?instagram\.com\//i.test(u.trim())
-export type InstaResult = { name?: string; area?: string | null; kind?: Kind | 'shopping' | null; description?: string | null; halal?: string | null; source?: string; error?: string }
-export async function readInstagram(url: string): Promise<InstaResult> {
-  // never spin forever: give up after 30 s (the server itself stops at ~6 s for Instagram + ~15 s for Gemini)
-  const timeout = new Promise<InstaResult>((r) => setTimeout(() => r({ error: 'timeout' }), 30000))
-  const call = supabase.functions.invoke('read-instagram', { body: { url: url.trim() } })
-    .then(({ data, error }) => (error || !data ? { error: 'failed' } : data as InstaResult), () => ({ error: 'failed' }))
+export const isTikTokLink = (u: string) => /^https?:\/\/((www|m|vm|vt)\.)?tiktok\.com\//i.test(u.trim())
+export const isMapsLinkText = (s: string) => /^https?:\/\/([a-z.]*google\.[a-z.]+\/maps|maps\.google\.|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(s.trim())
+export const isSocialLink = (u: string) => isInstagramLink(u) || isTikTokLink(u)
+/** The first web link in pasted text ("Check this out! https://vm.tiktok.com/abc/ 😋" → the link), else null. */
+export const firstUrl = (text: string) => text.match(/https?:\/\/[^\s<>"“”]+/i)?.[0]?.replace(/[)\].,!?;:]+$/, '') ?? null
+
+export type PostPlace = { name: string; area: string | null; kind: Kind | 'shopping' | null; description: string | null; halal: string | null }
+export type PostResult = {
+  platform?: 'tiktok' | 'instagram'; source?: string; creator?: string | null
+  /** cover picture, already copied into our storage ("storage:covers/…") */
+  image?: string | null
+  places?: PostPlace[]; error?: string
+}
+export async function readPost(url: string): Promise<PostResult> {
+  // never spin forever: give up after 35 s (the server stops at ~8 s per site + ~10 s per Gemini model)
+  const timeout = new Promise<PostResult>((r) => setTimeout(() => r({ error: 'timeout' }), 35000))
+  const call = supabase.functions.invoke('read-post', { body: { url: url.trim() } })
+    .then(({ data, error }) => (error || !data ? { error: 'failed' } : data as PostResult), () => ({ error: 'failed' }))
   return Promise.race([call, timeout])
+}
+/** "✨ From TikTok (@navito_halal): …" — marks AI-written text so nobody mistakes it for a family member's words. */
+export const postDescription = (platform: PostResult['platform'], creator: string | null | undefined, text: string | null) =>
+  text ? `✨ From ${platform === 'tiktok' ? 'TikTok' : 'Instagram'}${creator ? ` (${creator})` : ''}: ${text}` : null
+/** The TikTok / Instagram post a place came from (kept in auto_sources), for the "Watch" button. */
+export function postLink(p: Pick<Place, 'auto_sources'>): { href: string; platform: 'tiktok' | 'instagram' } | null {
+  for (const u of (p.auto_sources ?? '').split(/\s+/)) {
+    const href = safeUrl(u)
+    if (href && isTikTokLink(href)) return { href, platform: 'tiktok' }
+    if (href && isInstagramLink(href)) return { href, platform: 'instagram' }
+  }
+  return null
+}
+
+// ── "Already added?" (read-only check before saving; never changes data) ──
+/** Lower-case letters/digits only, without "(Shibuya)"-style suffixes and filler words. */
+export function normName(s: string) {
+  return s.toLowerCase().replace(/\(.*?\)/g, ' ').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(the|halal|restaurant|tokyo|osaka|kyoto|japan|store|shop|branch)\b/g, ' ').replace(/[^a-z0-9\u3040-\u30ff\u4e00-\u9fff]+/g, '')
+}
+/**
+ * An existing place that is very likely the same one: same post link, or the same name (one contains the other, ≥5 letters and ≥ half as long)
+ * and — when both have pins — within 1.5 km. Branch cards ("ROUND1 (Tokyo)") count as the same place.
+ */
+export function findDuplicate(places: Place[], c: { name: string; lat?: number | null; lng?: number | null; source?: string | null }): Place | null {
+  const src = c.source?.replace(/[?#].*$/, '').replace(/\/$/, '')
+  if (src) {
+    const hit = places.find((p) => (p.auto_sources ?? '').split(/\s+/).some((u) => u.replace(/[?#].*$/, '').replace(/\/$/, '') === src))
+    if (hit) return hit
+  }
+  const n = normName(c.name)
+  if (n.length < 4) return null
+  return places.find((p) => {
+    const m = normName(p.name)
+    if (m.length < 4) return false
+    const [a, b] = m.length <= n.length ? [m, n] : [n, m]
+    // one name inside the other, and not just a generic word ("ramen" inside "wagyuramenshinjukutei")
+    const same = m === n || (a.length >= 5 && a.length >= b.length / 2 && b.includes(a))
+    if (!same) return false
+    if (c.lat == null || c.lng == null || p.lat == null || p.lng == null) return true
+    const pins = [{ lat: p.lat, lng: p.lng }, ...((p.branches ?? []) as PlaceBranch[])]
+    return pins.some((b) => km({ lat: c.lat!, lng: c.lng! }, b) <= 1.5)
+  }) ?? null
 }
 
 /** A Google Maps search for this name, centred on the pin: opens the real listing in most cases (free, no API). */

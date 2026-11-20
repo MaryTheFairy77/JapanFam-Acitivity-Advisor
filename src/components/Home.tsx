@@ -423,8 +423,8 @@ export default function Home({ me, data, onLogout }: {
           onDelete={canDelete(viewing) ? () => setDeleting(viewing) : undefined} />
       )}
       {quickAdd && (
-        <QuickAdd me={me} defaultKind={tab === 'activity' ? 'activity' : 'restaurant'} defaultCategory={cat}
-          onClose={() => setQuickAdd(false)}
+        <QuickAdd me={me} places={places} members={members} defaultKind={tab === 'activity' ? 'activity' : 'restaurant'} defaultCategory={cat}
+          onClose={() => setQuickAdd(false)} onOpenPlace={(id) => { setQuickAdd(false); setViewingId(id) }}
           onManual={() => { setQuickAdd(false); setEditing('new') }}
           onSaved={async (id) => { setQuickAdd(false); await refresh(); setViewingId(id) }} />
       )}

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Thumb from './Thumb'
-import { CATEGORIES, CATEGORY_IDS, catOf, type Category, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, mapsSearchLink, travelFromPin, getPlannerCode, normalizeUrl, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
+import { CATEGORIES, CATEGORY_IDS, catOf, type Category, HALAL_OPTIONS, HOTELS, HOTEL_IDS, LIMITS, mapsSearchLink, travelFromPin, getPlannerCode, normalizeUrl, postLink, safeUrl, setPlannerCode, uploadPhoto, displayName, lookupPlace, resolveMapsLink, nearestHotel, parseLatLng, type AutoField, type Lookup, parseMinutes, supabase, type HotelId, type Kind, type Member, type Place } from '../lib'
 
 export default function PlaceForm({ me, canDelete, onDelete, canEdit, creator, photoUrls, kind, place, defaultCategory = 'activity', onClose, onSaved }: {
   me: Member; canDelete: boolean; onDelete?: () => void; canEdit: boolean; creator?: Member; photoUrls: Record<string, string>
@@ -162,7 +162,8 @@ export default function PlaceForm({ me, canDelete, onDelete, canEdit, creator, p
       category: kind === 'activity' ? (fv.category || null) : null,
       full_day: kind === 'activity' && fv.category !== 'shopping' && fv.full_day,
       auto_fields: [...autoNow],
-      auto_sources: autoNow.size ? place?.auto_sources ?? null : null,
+      // keep the TikTok / Instagram post link (for "Watch on TikTok") even once every ✨ field is confirmed
+      auto_sources: autoNow.size ? place?.auto_sources ?? null : postLink({ auto_sources: place?.auto_sources ?? null })?.href ?? null,
     }
     if (needsPlannerCode) {
       const c = getPlannerCode() ?? code

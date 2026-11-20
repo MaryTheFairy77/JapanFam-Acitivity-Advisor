@@ -1,22 +1,26 @@
 import { useState } from 'react'
 import { Check, ChevronLeft, Loader2, X } from 'lucide-react'
 import {
-  HOTELS, autoFillPlace, isInstagramLink, lookupPlace, normalizeUrl, readInstagram, resolveMapsLink, searchBranches, supabase, travelFromPin,
-  type Branch, type Category, type PlaceBranch, type Kind, type Lookup, type Member, type Place,
+  HOTELS, autoFillPlace, displayName, findDuplicate, firstUrl, isMapsLinkText, isSocialLink, isTikTokLink, lookupPlace, normalizeUrl, postDescription,
+  readPost, resolveMapsLink, searchBranches, supabase, travelFromPin,
+  type Branch, type Category, type PlaceBranch, type Kind, type Lookup, type Member, type Place, type PostPlace, type PostResult,
 } from '../lib'
 
 /**
  * "Add a place", one big question at a time (Maryam picked mockup B, 14 Nov 2026).
- * 1. Paste a Google Maps / Instagram link, or type "name, area" → we find it (OpenStreetMap; Instagram via Gemini free tier)
+ * 1. Paste a Google Maps / Instagram / TikTok link, or type "name, area" → we find it (OpenStreetMap; posts via Gemini free tier)
+ *    A post that names several places → tick the ones to add (saved straight away, halal shown ✨ until confirmed).
+ *    "Already added?" check before anything is saved (same post link, or same name nearby). Added 20 Nov 2026 (Phase 1).
  * 2. Food or something to do?   3. Is it halal? (food)   4. Sweet or savoury? (food)   → saved.
  * Everything found automatically is ✨ (auto_fields) so a person can confirm or overwrite it later. Price is never guessed.
  */
 type Found = { name: string; lat: number | null; lng: number | null; exactPin: boolean; area: string | null
   mapsUrl: string | null; description: string | null; kind: Kind | 'shopping' | null; halal: string | null; source: string | null; website?: string
-  brand?: string; branches?: PlaceBranch[] }
+  brand?: string; branches?: PlaceBranch[]; image?: string | null }
 type Step = 'find' | 'kind' | 'halal' | 'taste'
 
-const isMapsLink = (s: string) => /^https?:\/\/([a-z.]*google\.[a-z.]+\/maps|maps\.google\.|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(s.trim())
+const isMapsLink = isMapsLinkText
+const KIND_ICON = { restaurant: '🍜', activity: '🎢', shopping: '🛍️' } as const
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /**
@@ -34,9 +38,9 @@ export function cardsFor<T extends { name: string; lat: number | null; lng: numb
   })
 }
 
-export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, onSaved, onManual }: {
-  me: Member; defaultKind: Kind; defaultCategory: Category
-  onClose: () => void; onSaved: (id: string) => void; onManual: () => void
+export default function QuickAdd({ me, places, members, defaultKind, defaultCategory, onClose, onSaved, onManual, onOpenPlace }: {
+  me: Member; places: Place[]; members: Member[]; defaultKind: Kind; defaultCategory: Category
+  onClose: () => void; onSaved: (id: string) => void; onManual: () => void; onOpenPlace: (id: string) => void
 }) {
   const [step, setStep] = useState<Step>('find')
   const [q, setQ] = useState('')
@@ -49,6 +53,13 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [picks, setPicks] = useState<Found[]>([])
+  // 📱 a TikTok / Instagram post that names several places: tick the ones to add
+  const [post, setPost] = useState<{ r: PostResult; items: (PostPlace & { dup: Place | null })[] } | null>(null)
+  const [ticked, setTicked] = useState<Set<number>>(new Set())
+  // "Already added?" — the person can say it's a different place
+  const [differentOk, setDifferentOk] = useState(false)
+  const dup = found && !differentOk && !picks.length ? findDuplicate(places, { name: found.name, lat: found.lat, lng: found.lng, source: found.source }) : null
+  const who = (p: Place) => { const m = members.find((x) => x.id === p.created_by); return m ? `${m.emoji} ${displayName(m)}` : 'someone' }
 
   const food = kind === 'restaurant'
   const total = food ? 4 : 2
@@ -62,32 +73,44 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
   }
 
   async function find() {
-    const text = q.trim()
-    if (!text) return
-    setMsg(null); setFound(null); setBranches(null); setChosen(new Set()); setPicks([])
+    const raw = q.trim()
+    if (!raw) return
+    // a link pasted with other words around it ("Check this out! https://vm.tiktok.com/…") → just the link
+    const link = firstUrl(raw)
+    const text = link && (isSocialLink(link) || isMapsLink(link)) ? link : raw
+    setMsg(null); setFound(null); setBranches(null); setChosen(new Set()); setPicks([]); setPost(null); setDifferentOk(false)
     try {
-      if (isInstagramLink(text)) {
-        setBusy('Opening the Instagram post…')
-        const slow = setTimeout(() => setBusy('Working out which place it is…'), 5000)
-        const r = await readInstagram(text).finally(() => clearTimeout(slow))
-        if (r.error || !r.name) {
+      if (isSocialLink(text)) {
+        const tk = isTikTokLink(text), label = tk ? 'TikTok' : 'Instagram'
+        setBusy(tk ? 'Opening the TikTok…' : 'Opening the Instagram post…')
+        const slow = setTimeout(() => setBusy('Working out which place it is…'), 4000)
+        const r = await readPost(text).finally(() => clearTimeout(slow))
+        if (r.error || !r.places?.length) {
           setMsg({
-            no_caption: 'Instagram didn’t let us read that post.',
-            no_place: 'That post doesn’t name a place we could find.',
-            no_key: 'Instagram reading isn’t switched on yet.',
-            busy: 'The free Instagram reader is busy right now.',
-            timeout: 'Instagram took too long to answer.',
-          }[r.error ?? ''] ?? 'Couldn’t read that post.')
+            no_caption: tk ? 'That TikTok is private or deleted, or TikTok didn’t let us read it.' : 'Instagram didn’t let us read that post.',
+            no_place: `That ${label} doesn’t name a place we could find (it may only be said in the video).`,
+            no_key: 'Reading posts isn’t switched on yet.',
+            busy: 'The free post reader is busy right now.',
+            timeout: `${label} took too long to answer.`,
+          }[r.error ?? ''] ?? `Couldn’t read that ${label}.`)
           setQ(''); setBusy(null)
           return
         }
+        if (r.places.length > 1) {
+          const items = r.places.map((p) => ({ ...p, dup: findDuplicate(places, { name: p.name }) }))
+          setPost({ r, items })
+          setTicked(new Set(items.map((x, i) => (x.dup ? -1 : i)).filter((i) => i >= 0)))
+          setBusy(null)
+          return
+        }
+        const p = r.places[0]
         setBusy('Finding it on the map…')
-        const pin = await pinFor(r.name, r.area ?? null)
-        setFound({ name: r.name, lat: pin?.lat ?? null, lng: pin?.lng ?? null, exactPin: !!pin?.exact, area: r.area ?? null,
-          mapsUrl: null, description: r.description ? `✨ From Instagram: ${r.description}` : null,
-          kind: (r.kind as Found['kind']) ?? null, halal: r.halal ?? null, source: r.source ?? text, website: pin?.website })
-        if (r.kind) setKind(r.kind as Kind | 'shopping')
-        if (r.halal) setHalal(r.halal)
+        const pin = await pinFor(p.name, p.area)
+        setFound({ name: p.name, lat: pin?.lat ?? null, lng: pin?.lng ?? null, exactPin: !!pin?.exact, area: p.area,
+          mapsUrl: null, description: postDescription(r.platform, r.creator, p.description),
+          kind: p.kind ?? null, halal: p.halal, source: r.source ?? text, website: pin?.website, image: r.image ?? null })
+        if (p.kind) setKind(p.kind)
+        if (p.halal) setHalal(p.halal)
       } else if (isMapsLink(text)) {
         setBusy('Opening the Google Maps link…')
         const r = await resolveMapsLink(text)
@@ -95,7 +118,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
         setFound({ name: r.name ?? '', lat: r.lat, lng: r.lng, exactPin: r.exact, area: null, mapsUrl: normalizeUrl(text) || null,
           description: null, kind: null, halal: null, source: null })
       } else if (/^https?:\/\//i.test(text)) {
-        setMsg('We can read Google Maps and Instagram links. For other sites, type the place’s name and area.')
+        setMsg('We can read Google Maps, Instagram and TikTok links.')
         setBusy(null); return
       } else {
         setBusy(text.includes(',') ? 'Looking it up…' : 'Searching Tokyo and Osaka/Kyoto…')
@@ -160,7 +183,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
         {step === 'find' && (
           <div className="mt-6 flex flex-col gap-3">
             <h1 className="font-display text-3xl leading-tight">What's the place?</h1>
-            <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a Google Maps or Instagram link, or type the name and area. For a chain (like “Round1”), type just its name to see every branch in Tokyo and Osaka/Kyoto.</label>
+            <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a link from Google Maps, Instagram or TikTok, or type the name and area. For a chain (like “Round1”), type just its name.</label>
             <input id="qa" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') find() }}
               placeholder="e.g. Ramen Ouka, Shinjuku" autoCapitalize="sentences" enterKeyHint="search"
               className="h-14 rounded-2xl border-2 border-iris bg-white px-4 text-base outline-none" />
@@ -168,11 +191,14 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
               className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-iris text-[17px] font-semibold text-white disabled:opacity-40">
               {busy ? <><Loader2 className="h-5 w-5 animate-spin" />{busy}</> : 'Find it'}
             </button>
-            {msg && <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{msg} Type the place’s name and area instead, e.g. “Halal ramen, Asakusa”.</p>}
+            {msg && !post && <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{msg} What’s the place called? Type its name and area, e.g. “Halal ramen, Asakusa”.</p>}
 
             {found && (
               <div className="mt-2 flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm">
-                <span className="w-fit rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">{found.lat != null ? '✨ Found it' : 'Not found on the map'}</span>
+                <div className="flex items-start gap-3">
+                  <span className="w-fit rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">{found.lat != null ? '✨ Found it' : 'Not found on the map'}</span>
+                  {found.image && <span className="ml-auto rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-600">📷 Photo from the post</span>}
+                </div>
                 <label className="text-xs text-stone-500" htmlFor="qa-name">Name</label>
                 <input id="qa-name" value={found.name} onChange={(e) => setFound({ ...found, name: e.target.value })} placeholder="Type the place's name"
                   className="-mt-2 h-12 rounded-xl border border-stone-300 px-3 text-lg font-semibold" />
@@ -181,10 +207,48 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
                     : 'We couldn’t pin it. You can still add it and fix the pin later.'}
                 </p>
                 {found.description && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{found.description}</p>}
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => { setFound(null); setQ('') }} className="h-12 rounded-xl border border-stone-300 bg-white font-medium">No, try again</button>
-                  <button onClick={() => setStep('kind')} disabled={!found.name.trim()} className="h-12 rounded-xl bg-torii font-semibold text-white disabled:opacity-40">Yes, that's it</button>
+                {dup ? (
+                  <div role="alert" className="flex flex-col gap-2 rounded-xl border-2 border-amber-300 bg-amber-50 p-3">
+                    <p className="text-[15px] font-semibold text-amber-950">Already in the app</p>
+                    <p className="-mt-1 text-sm text-amber-900"><b>{dup.name}</b> · added by {who(dup)}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => setDifferentOk(true)} className="h-12 rounded-xl border border-stone-300 bg-white text-sm font-medium">It's a different place</button>
+                      <button onClick={() => onOpenPlace(dup.id)} className="h-12 rounded-xl bg-iris font-semibold text-white">Open it</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => { setFound(null); setQ('') }} className="h-12 rounded-xl border border-stone-300 bg-white font-medium">No, try again</button>
+                    <button onClick={() => setStep('kind')} disabled={!found.name.trim()} className="h-12 rounded-xl bg-torii font-semibold text-white disabled:opacity-40">Yes, that's it</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {post && !found && (
+              <div className="mt-2 flex flex-col gap-2">
+                <p className="text-[15px] font-semibold">✨ This {post.r.platform === 'tiktok' ? 'TikTok' : 'post'} names {post.items.length} places. Tick the ones to add:</p>
+                {post.items.map((it, i) => {
+                  const on = ticked.has(i)
+                  return (
+                    <button key={i} onClick={() => { const n = new Set(ticked); if (on) n.delete(i); else n.add(i); setTicked(n) }} aria-pressed={on} disabled={!!busy}
+                      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 text-left ${on ? 'border-2 border-iris' : 'border-stone-300'}`}>
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 ${on ? 'border-iris bg-iris text-white' : 'border-stone-300'}`}>{on && <Check className="h-4 w-4" />}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{it.kind ? KIND_ICON[it.kind] + ' ' : ''}{it.name}</span>
+                        <span className="block truncate text-[13px] text-stone-500">{[it.area, it.halal].filter(Boolean).join(' · ') || ' '}</span>
+                        {it.dup && <span className="block truncate text-[13px] font-medium text-amber-800">Already in the app · added by {who(it.dup)}</span>}
+                      </span>
+                    </button>
+                  )
+                })}
+                <div className="sticky bottom-0 grid grid-cols-2 gap-2 bg-washi pt-2">
+                  <button onClick={() => { setPost(null); setQ('') }} disabled={!!busy} className="h-12 rounded-xl border border-stone-300 bg-white font-medium">Paste another</button>
+                  <button disabled={!ticked.size || !!busy} onClick={() => void addFromPost()} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-torii font-semibold text-white disabled:opacity-40">
+                    {busy ? <><Loader2 className="h-4 w-4 animate-spin" />{busy}</> : ticked.size ? `Add ${ticked.size} place${ticked.size === 1 ? '' : 's'}` : 'Tick some first'}
+                  </button>
                 </div>
+                {msg && <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{msg}</p>}
+                <p className="text-center text-[13px] text-stone-500">Halal and type are the post's guess (✨). Check them later on each place.</p>
               </div>
             )}
             {branches && !found && (
@@ -218,7 +282,7 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
                 </div>
               </div>
             )}
-            {!found && !branches && <button onClick={onManual} className="mt-4 text-sm text-stone-500 underline">Fill in everything myself</button>}
+            {!found && !branches && !post && <button onClick={onManual} className="mt-4 text-sm text-stone-500 underline">Fill in everything myself</button>}
           </div>
         )}
 
@@ -276,13 +340,36 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
     onSaved(first!)
   }
 
-  async function saveOne(f: Found, k: Kind | 'shopping', taste: Place['taste']): Promise<{ id: string } | { error: string }> {
+  /** Several places from one post: pin each (OpenStreetMap: ≤1 lookup a second), save each, open the first. */
+  async function addFromPost() {
+    if (!post) return
+    const items = post.items.filter((_, i) => ticked.has(i))
+    setMsg(null)
+    let first: string | null = null, n = 0
+    for (const it of items) {
+      setBusy(`Adding ${n + 1} of ${items.length}…`)
+      if (n) await pause(1000)
+      const pin = await pinFor(it.name, it.area)
+      const k = it.kind ?? (defaultKind === 'activity' ? defaultCategory : 'restaurant')
+      const f: Found = { name: it.name, lat: pin?.lat ?? null, lng: pin?.lng ?? null, exactPin: !!pin?.exact, area: it.area, mapsUrl: null,
+        description: postDescription(post.r.platform, post.r.creator, it.description), kind: k, halal: it.halal,
+        source: post.r.source ?? null, website: pin?.website, image: post.r.image ?? null }
+      const r = await saveOne(f, k, null, { halal: it.halal, autoHalal: true })
+      if ('error' in r) { setBusy(null); setMsg(n ? `${n} added. ${r.error}` : r.error); if (first) onSaved(first); return }
+      first ??= r.id; n++
+    }
+    setBusy(null)
+    onSaved(first!)
+  }
+
+  async function saveOne(f: Found, k: Kind | 'shopping', taste: Place['taste'], opt: { halal?: string | null; autoHalal?: boolean } = {}): Promise<{ id: string } | { error: string }> {
     const kk: Kind = k === 'restaurant' ? 'restaurant' : 'activity'
+    const h = opt.autoHalal ? opt.halal ?? null : null
     let row = {
       kind: kk, name: f.name.trim(), description: f.description, price_jpy: null,
-      halal: kk === 'restaurant' ? (picks.length > 1 ? f.halal ?? halal ?? 'Unknown' : halal ?? 'Unknown') : null, taste: kk === 'restaurant' ? taste : null,
+      halal: kk === 'restaurant' ? (opt.autoHalal ? h ?? 'Unknown' : picks.length > 1 ? f.halal ?? halal ?? 'Unknown' : halal ?? 'Unknown') : null, taste: kk === 'restaurant' ? taste : null,
       nearest_hotels: [], travel_text: null, travel_minutes: null, wait_text: null, wait_minutes: null, long_line: null,
-      maps_url: f.mapsUrl, website_url: null, lat: null, lng: null, visit_minutes: null, image_url: null,
+      maps_url: f.mapsUrl, website_url: null, lat: null, lng: null, visit_minutes: null, image_url: f.image ?? null,
       category: kk === 'activity' ? (k === 'shopping' ? 'shopping' : 'activity') : null, full_day: false,
       auto_fields: [], auto_sources: f.source, branches: f.branches ?? null,
     } as unknown as Place
@@ -290,6 +377,8 @@ export default function QuickAdd({ me, defaultKind, defaultCategory, onClose, on
       row = autoFillPlace(row, { lat: f.lat, lng: f.lng, label: f.area ?? '', website: f.website }).row
       if (f.exactPin && f.mapsUrl) row.auto_fields = row.auto_fields.filter((x) => x !== 'pin')
     }
+    // halal guessed from a post and not confirmed by a person → yellow ✨ until someone checks it (golden rule 2)
+    if (kk === 'restaurant' && h) row.auto_fields = [...new Set([...row.auto_fields, 'halal' as const])]
     const { id: _i, created_at: _c, visited: _v, visited_at: _va, created_by: _cb, co_owners: _co, ...insert } = row as Place
     const { data, error } = await supabase.from('places').insert({ ...insert, created_by: me.id }).select('id').single()
     if (error) return { error: /permission denied|row-level/i.test(error.message) ? 'Not allowed. Re-open the app and enter the family code.' : 'Couldn’t save. Check your internet and try again.' }
