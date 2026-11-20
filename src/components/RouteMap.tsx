@@ -6,7 +6,7 @@ import { HOTELS, isStoragePhoto, km, safeUrl, type HotelId, type Place } from '.
 import { STATIONS } from '../stations'
 import { MOSQUES } from '../mosques'
 import { directionsUrl, foodNear, type Timeline } from '../itinerary'
-import { pastelize } from './MapView'
+import { pastelize } from '../mapStyle'
 import { dayLabel } from './TripPlan'
 import { clock, legText } from './DayBuilder'
 

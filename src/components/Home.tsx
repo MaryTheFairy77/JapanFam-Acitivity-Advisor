@@ -10,12 +10,14 @@ import HotelSheet from './HotelSheet'
 import { tripToolsOn, useMyPosition } from '../geo'
 const MapView = lazy(() => import('./MapView'))
 const HomeScreen = lazy(() => import('./HomeScreen'))
+import ToolSheet, { prayerHint, type Tool } from './Tools'
+import { tripToday } from '../tools'
 const SuggestDay = lazy(() => import('./SuggestDay'))
 const TripPlan = lazy(() => import('./TripPlan'))
 import { ProfileSheet } from './Sheets'
 import { FujiScene, WaveBand } from './Art'
 import { getPrefs, onPrefs, setPrefs } from '../sound'
-import { ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Music2, Search, WifiOff, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Music2, Search, WifiOff, SlidersHorizontal, UserRound, VolumeX, X } from 'lucide-react'
 
 /**
  * Navigation (Phase 2, 20 Nov 2026, Maryam picked "H1"): 🏠 Home is the centre with 4 big doors.
@@ -24,9 +26,8 @@ import { ChevronRight, Download, EyeOff, LayoutGrid, List, LogOut, Music2, Searc
  */
 type Tab = Kind | 'home' | 'map' | 'plan'
 const BAR: { key: Tab; icon: string; label: string }[] = [
-  { key: 'home', icon: '🏠', label: 'Home' },
   { key: 'restaurant', icon: '🍜', label: 'Food' },
-  { key: 'activity', icon: '🎢', label: 'Do' },
+  { key: 'activity', icon: '⛩️', label: 'Activities' },
 ]
 type SortKey = 'votes' | 'near' | 'price' | 'travel' | 'wait' | 'newest'
 
@@ -45,6 +46,7 @@ export default function Home({ me, data, onLogout }: {
   const { members, places, votes, photoUrls, refresh, setPlaces, setVotes } = data
   const [tab, setTabRaw] = useState<Tab>('home')
   const [planDay, setPlanDay] = useState<string | null>(null)
+  const [tool, setTool] = useState<Tool | null>(null)
   const setTab = (k: Tab) => { setTabRaw(k); if (k !== 'plan') setPlanDay(null); window.scrollTo(0, 0) }
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
@@ -187,6 +189,12 @@ export default function Home({ me, data, onLogout }: {
       {/* Header */}
       <header className="sticky top-0 z-[600] bg-washi/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
+          {tab !== 'home' && (
+            <button onClick={() => setTab('home')} data-sound="tab" aria-label="Back to Home"
+              className="-ml-1 flex h-10 items-center gap-0.5 rounded-full border border-stone-300 bg-white pl-1.5 pr-3 text-sm font-semibold text-stone-700">
+              <ChevronLeft className="h-5 w-5" />Back
+            </button>
+          )}
           <h1 className="font-display text-2xl"><button onClick={() => setTab('home')} aria-label="JapanFam: go to Home">JapanFam <span className="text-torii">●</span></button></h1>
           <div className="flex items-center gap-2">
           {data.offlineSince && (
@@ -201,8 +209,8 @@ export default function Home({ me, data, onLogout }: {
             </button>
           )}
           <button onClick={() => setMenuOpen(true)} aria-label={`${displayName(me)}: profile and settings`} aria-expanded={menuOpen}
-            className="flex items-center gap-1.5 rounded-full border border-stone-300 bg-white py-1 pl-1 pr-3 text-sm">
-            <Avatar m={me} className="h-9 w-9 text-xl" /><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}
+            className={`flex items-center gap-1.5 rounded-full border border-stone-300 bg-white py-1 pl-1 text-sm ${tab === 'home' ? 'pr-3' : 'pr-1'}`}>
+            <Avatar m={me} className="h-9 w-9 text-xl" />{tab === 'home' && <><span className="max-w-[6rem] truncate">{displayName(me)}</span>{me.is_admin && <span title="Trip planner">⭐</span>}</>}
           </button>
           </div>
         </div>
@@ -212,7 +220,7 @@ export default function Home({ me, data, onLogout }: {
       {/* Food / Do only: Home · Food · Do (same tile layout, so flipping between them is easy) */}
       {(tab === 'restaurant' || tab === 'activity') && (
       <nav className="fixed inset-x-0 bottom-0 z-[700] border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto grid max-w-2xl grid-cols-3">
+        <div className="mx-auto grid max-w-2xl grid-cols-2">
           {BAR.map((t) => (
             <button key={t.key} data-sound="tab" onClick={() => setTab(t.key)} aria-current={tab === t.key ? 'page' : undefined}
               className={`flex min-h-[60px] flex-col items-center justify-center gap-0.5 text-[13px] font-medium ${tab === t.key ? 'text-torii' : 'text-stone-500'}`}>
@@ -226,19 +234,17 @@ export default function Home({ me, data, onLogout }: {
       {tab === 'home' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading…</div>}>
           {fujiBg}
-          <HomeScreen places={effPlaces} voteCount={voteCount} photoUrls={photoUrls}
-            onGo={(d) => setTab(d)} onOpen={(p) => setViewingId(p.id)} onOpenDay={(date) => { setTab('plan'); setPlanView('trip'); setPlanDay(date) }} />
+          <HomeScreen places={effPlaces} voteCount={voteCount} onGo={(d) => setTab(d)} />
         </Suspense>
       ) : tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-4.5rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} onHome={() => setTab('home')} />
+          <MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} />
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
           {fujiBg}
           <div className="relative z-10">
             <div className="mx-4 mt-4 flex items-center gap-2">
-            <button onClick={() => setTab('home')} className="flex h-11 shrink-0 items-center gap-1 rounded-full border border-stone-300 bg-white px-3 text-sm font-medium"><span className="text-lg">🏠</span>Home</button>
             <div className="flex flex-1 rounded-full border border-stone-300 bg-white p-0.5 text-sm">
               <button onClick={() => setPlanView('trip')} className={`flex-1 rounded-full py-1.5 ${planView === 'trip' ? 'bg-iris text-white' : 'text-stone-600'}`}>🗓 Trip plan</button>
               <button onClick={() => setPlanView('idea')} className={`flex-1 rounded-full py-1.5 ${planView === 'idea' ? 'bg-iris text-white' : 'text-stone-600'}`}>💡 Suggest a day</button>
@@ -390,6 +396,16 @@ export default function Home({ me, data, onLogout }: {
               <button onClick={() => { setMenuOpen(false); setProfileOpen(true) }} className="flex min-h-[60px] w-full items-center gap-3 border-b border-stone-100 px-4 text-left">
                 <UserRound className="h-5 w-5 text-iris" /><span className="flex-1 font-medium">Profile & settings<span className="block text-xs font-normal text-stone-500">Emoji, colour, nickname, export</span></span><ChevronRight className="h-4 w-4 text-stone-400" />
               </button>
+              <button onClick={() => { setMenuOpen(false); setTab('plan'); setPlanView('trip'); setPlanDay(tripToday().day.date) }} className="flex min-h-[60px] w-full items-center gap-3 border-b border-stone-100 px-4 text-left">
+                <span className="w-5 text-center text-xl">✨</span><span className="flex-1 font-medium">Suggested for {tripToday().phase === 'during' ? 'today' : 'day 1'}<span className="block text-xs font-normal text-stone-500">Opens it in the trip plan</span></span><ChevronRight className="h-4 w-4 text-stone-400" />
+              </button>
+              {([['prayer', '🕌', 'Salah times', prayerHint()], ['money', '💴', '¥ ↔ R converter', 'Works offline'], ['taxi', '🚕', 'Taxi card', "Tonight's hotel in Japanese"]] as const).map(([k, e, label, sub]) => (
+                <button key={k} onClick={() => { setMenuOpen(false); setTool(k) }} className="flex min-h-[60px] w-full items-center gap-3 border-b border-stone-100 px-4 text-left">
+                  <span className="w-5 text-center text-xl">{e}</span><span className="flex-1 font-medium">{label}<span className="block text-xs font-normal text-stone-500">{sub}</span></span><ChevronRight className="h-4 w-4 text-stone-400" />
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 overflow-hidden rounded-2xl bg-white">
               <button data-sound="none" onClick={() => setPrefs({ ambience: !music })} aria-pressed={music} className="flex min-h-[60px] w-full items-center gap-3 border-b border-stone-100 px-4 text-left">
                 {music ? <Music2 className="h-5 w-5 text-torii" /> : <VolumeX className="h-5 w-5 text-stone-500" />}<span className="flex-1 font-medium">Background music</span>
                 <span className={`relative h-7 w-12 rounded-full transition ${music ? 'bg-iris' : 'bg-stone-300'}`}><span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${music ? 'left-[22px]' : 'left-0.5'}`} /></span>
@@ -401,6 +417,7 @@ export default function Home({ me, data, onLogout }: {
           </nav>
         </div>
       )}
+      {tool && <ToolSheet tool={tool} onClose={() => setTool(null)} />}
       {profileOpen && (
         <ProfileSheet me={me} places={places} onClose={() => setProfileOpen(false)} onSaved={() => { setProfileOpen(false); refresh() }}
           onSwitch={() => { setProfileOpen(false); onLogout() }} />

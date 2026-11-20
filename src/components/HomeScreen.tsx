@@ -1,270 +1,100 @@
-import { useMemo, useState } from 'react'
-import { ChevronRight, Phone, X } from 'lucide-react'
+import { lazy, Suspense, useMemo } from 'react'
 import { HOTELS, catOf, regionOf, type Place, type Region } from '../lib'
-import { planTrip } from '../itinerary'
-import { usePlanData } from './TripPlan'
-import { useWeather } from '../extras'
-import { mosquesNear } from '../mosques'
-import { PRAYER_NAMES, hhmm, nextPrayer, prayerTimes } from '../prayer'
-import { TAXI, tripToday, useYenRate } from '../tools'
-import Thumb from './Thumb'
+import { tripToday } from '../tools'
+
+const MiniMap = lazy(() => import('./MiniMap'))
 
 /**
- * 🏠 Home (Phase 2, picked by Maryam 20 Nov 2026, mockup "H1"): the centre of the app.
- * Overview first (tonight's hotel, today's suggestion, family favourites), then big doors into Map · Food · Do · Plan.
- * Read-only: nothing here writes to the database. Compare's numbers now live in "🏆 Family favourites".
+ * 🏠 Home v3 (Maryam's sketch, 20 Nov 2026 evening): the real map front and centre (tap → full map),
+ * three big buttons (Activities · Food · Plan), and a Tokyo vs Osaka chart of 👍 votes per category.
+ * Tools (salah, ¥↔R, taxi card) and "suggested for today" live in the face menu. Read-only: nothing here writes data.
  */
 export type Door = 'map' | 'restaurant' | 'activity' | 'plan'
 
-const fmtDay = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-const sheetCls = 'fixed inset-0 z-[950] flex items-end justify-center bg-black/40'
-const panelCls = 'max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-washi p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl'
+const CATS = [
+  { key: 'activity', label: 'Activities', test: (p: Place) => p.kind === 'activity' && catOf(p) === 'activity' },
+  { key: 'shop', label: 'Shops', test: (p: Place) => p.kind === 'activity' && catOf(p) === 'shopping' },
+  { key: 'dessert', label: 'Dessert', test: (p: Place) => p.kind === 'restaurant' && (p.taste === 'sweet' || p.taste === 'both') },
+  { key: 'food', label: 'Food', test: (p: Place) => p.kind === 'restaurant' && p.taste !== 'sweet' },
+] as const
+// Tokyo darker purple, Osaka lighter blue: told apart by lightness too, not only by colour
+const CITY: { r: Region; label: string; color: string }[] = [
+  { r: 'kanto', label: 'Tokyo', color: '#6a4cae' },
+  { r: 'kansai', label: 'Osaka', color: '#7fb2f0' },
+]
 
-export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen, onOpenDay }: {
-  places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>
-  onGo: (d: Door) => void; onOpen: (p: Place) => void; onOpenDay: (date: string) => void
+export default function HomeScreen({ places, voteCount, onGo }: {
+  places: Place[]; voteCount: Record<string, number>
+  onGo: (d: Door) => void
 }) {
   const t = tripToday()
   const H = HOTELS[t.hotel]
-  const weather = useWeather(H.region) // today's forecast: only shown during the trip (before it, it isn't that day's weather)
-  const { plans } = usePlanData()
-  const today = useMemo(() => planTrip(places, voteCount, plans).find((d) => d.date === t.day.date) ?? null, [places, voteCount, plans, t.day.date])
-  const [tool, setTool] = useState<'prayer' | 'money' | 'taxi' | null>(null)
-  const [area, setArea] = useState<Region>(H.region)
-  const pray = prayerTimes(t.day.date, H.lat, H.lng)
-  const next = t.nowMin != null ? nextPrayer(pray, t.nowMin) : null
-  const rate = useYenRate()
 
-  // 🏆 favourites: places we haven't been to yet, in the chosen area, by votes
-  const fav = useMemo(() => {
-    const pool = places.filter((p) => !p.visited && (regionOf(p) ?? H.region) === area)
-      .map((p) => ({ p, v: voteCount[p.id] ?? 0 })).sort((a, b) => b.v - a.v || a.p.name.localeCompare(b.p.name))
-    const podium = pool.filter((x) => x.v > 0).slice(0, 3)
-    const onPodium = new Set(podium.map((x) => x.p.id))
-    const best = (f: (p: Place) => boolean) => pool.find((x) => f(x.p) && x.v > 0 && !onPodium.has(x.p.id)) ?? pool.find((x) => f(x.p) && x.v > 0) ?? null
-    return {
-      podium,
-      wins: [
-        { e: '🛍️', label: 'Top shop', x: best((p) => p.kind === 'activity' && catOf(p) === 'shopping') },
-        { e: '🎢', label: 'Top activity', x: best((p) => p.kind === 'activity' && catOf(p) === 'activity') },
-        { e: '🍡', label: 'Top sweet', x: best((p) => p.kind === 'restaurant' && (p.taste === 'sweet' || p.taste === 'both')) },
-        { e: '🍜', label: 'Top savoury', x: best((p) => p.kind === 'restaurant' && (p.taste === 'savory' || p.taste === 'both')) },
-      ],
-    }
-  }, [places, voteCount, area, H.region])
-
-  const stops = today?.timeline
-    ? today.timeline.steps.flatMap((s) => [...s.places.map((p) => ({ key: p.id, e: null as string | null, p, label: p.name, at: s.arrive })), ...s.prayers.map((pr, i) => ({ key: `${pr.name}-${i}`, e: '🕌', p: null as Place | null, label: pr.name, at: pr.at }))])
-      .sort((a, b) => a.at - b.at)
-    : (today?.acts ?? []).map((p) => ({ key: p.id, e: null as string | null, p, label: p.name, at: null as number | null }))
-
-  const podiumOrder = [1, 0, 2].map((i) => fav.podium[i]).filter(Boolean)
-  const heights = ['h-28', 'h-20', 'h-16']
+  const data = useMemo(() => CATS.map((c) => ({
+    ...c,
+    v: Object.fromEntries(CITY.map(({ r }) => [r, places.filter((p) => c.test(p) && regionOf(p) === r).reduce((s, p) => s + (voteCount[p.id] ?? 0), 0)])) as Record<Region, number>,
+  })), [places, voteCount])
+  const max = Math.max(1, ...data.flatMap((d) => CITY.map(({ r }) => d.v[r])))
+  const step = max <= 10 ? 2 : max <= 25 ? 5 : max <= 60 ? 10 : 20
+  const top = Math.ceil(max / step) * step
+  const ticks = Array.from({ length: top / step + 1 }, (_, i) => i * step)
+  const CH = 150 // chart height in px
 
   return (
-    <div className="relative z-10 space-y-4 px-4 pb-10 pt-3">
-      {/* Tonight's hotel */}
-      <button onClick={() => onGo('map')} className="flex w-full items-center gap-3 rounded-3xl bg-white p-4 text-left shadow-sm">
-        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#fde2e4] text-4xl">🏯</span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold uppercase tracking-wide text-torii">
-            {t.phase === 'before' ? `First night · ${fmtDay(t.day.date)} · in ${t.daysTo} day${t.daysTo === 1 ? '' : 's'}` : t.phase === 'after' ? 'Last stop' : `Tonight · ${fmtDay(t.day.date)}`}
-          </span>
-          <span className="block font-display text-lg leading-tight">{H.short}</span>
-          <span className="block text-sm text-stone-600">
-            {H.region === 'kanto' ? '🗼' : '🦌'} {H.city}{t.phase === 'during' && weather && <> · {weather.rain != null ? (weather.rain >= 50 ? '☔' : '☀️') : '🌤️'} {weather.max}° / {weather.min}°</>}
-          </span>
-        </span>
+    <div className="relative z-10 space-y-5 px-4 pb-10 pt-4">
+      {/* The map, front and centre */}
+      <button onClick={() => onGo('map')} aria-label={`Open the map (${H.city})`}
+        className="relative block aspect-square w-full overflow-hidden rounded-[28px] border-[3px] border-torii bg-[#fbf3e6] shadow-md active:scale-[.99]">
+        <Suspense fallback={<div className="h-full w-full animate-pulse bg-[#fbf3e6]" />}>
+          <MiniMap places={places} region={H.region} hotel={t.hotel} />
+        </Suspense>
+        <span className="absolute bottom-3 left-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-torii bg-white text-3xl shadow">🗾</span>
+        <span className="absolute bottom-4 right-3 rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold text-ink shadow-sm">Open map ›</span>
       </button>
 
-      {/* The four doors */}
-      <nav aria-label="Go to" className="grid grid-cols-2 gap-3">
-        {([['map', '🗾', 'Map', '#dbeafe'], ['restaurant', '🍜', 'Food', '#ffe5d0'], ['activity', '🎢', 'Do', '#e9d5ff'], ['plan', '🗓️', 'Plan', '#d8f3dc']] as const).map(([k, e, label, bg]) => (
-          <button key={k} data-sound="tab" onClick={() => onGo(k)} style={{ background: bg }}
-            className="flex h-28 flex-col items-center justify-center gap-1 rounded-3xl text-lg font-semibold text-ink shadow-sm active:scale-[.97]">
-            <span className="text-5xl">{e}</span>{label}
+      {/* Three big buttons */}
+      <nav aria-label="Go to" className="grid grid-cols-3 gap-3">
+        {([['activity', '⛩️', 'Activities', '#fde2e4'], ['restaurant', '🍜', 'Food', '#ffe5d0'], ['plan', '📋', 'Plan', '#e0e7ff']] as const).map(([k, e, label, bg]) => (
+          <button key={k} data-sound="tab" onClick={() => onGo(k)} className="flex flex-col items-center gap-1.5 active:scale-[.97]">
+            <span style={{ background: bg }} className="flex aspect-square w-full items-center justify-center rounded-[22px] border-[3px] border-torii text-5xl shadow-sm">{e}</span>
+            <span className="text-base font-semibold">{label}</span>
           </button>
         ))}
       </nav>
 
-      {/* Today's suggestion */}
-      <section className="rounded-3xl bg-white p-4 shadow-sm">
-        <button onClick={() => onOpenDay(t.day.date)} className="flex w-full items-center text-left">
-          <span className="flex-1 font-semibold">✨ Suggested for {t.phase === 'during' ? 'today' : fmtDay(t.day.date)}</span>
-          <span className="flex items-center text-sm font-medium text-iris">Open<ChevronRight className="h-4 w-4" /></span>
-        </button>
-        {stops.length ? (
-          <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
-            {stops.map((s) => (
-              <button key={s.key} onClick={() => (s.p ? onOpen(s.p) : onOpenDay(t.day.date))} className="flex w-20 shrink-0 flex-col items-center gap-1 text-center">
-                {s.p ? <Thumb place={s.p} photoUrls={photoUrls} className="h-16 w-16 rounded-2xl" />
-                  : <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-3xl">{s.e}</span>}
-                <span className="line-clamp-2 text-[12px] font-medium leading-tight">{s.label}</span>
-                {s.at != null && <span className="text-[11px] text-stone-500">{hhmm(s.at)}</span>}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-stone-500">{t.day.last ? '✈️ Flying home' : 'Vote for places and a suggested day appears here.'}</p>
-        )}
-      </section>
-
-      {/* Tools */}
-      <div className="grid grid-cols-3 gap-2">
-        <button onClick={() => setTool('prayer')} className="flex min-h-[84px] flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white p-2 text-center">
-          <span className="text-2xl">🕌</span>
-          <span className="text-sm font-semibold">{next ? `${next.label} ${hhmm(next.at)}` : 'Salah times'}</span>
-          <span className="text-[11px] text-stone-500">{next ? 'next' : fmtDay(t.day.date)}</span>
-        </button>
-        <button onClick={() => setTool('money')} className="flex min-h-[84px] flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white p-2 text-center">
-          <span className="text-2xl">💴</span><span className="text-sm font-semibold">¥ ↔ R</span>
-          <span className="text-[11px] text-stone-500">¥1,000 ≈ R{Math.round(1000 * rate.zarPerYen)}</span>
-        </button>
-        <button onClick={() => setTool('taxi')} className="flex min-h-[84px] flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white p-2 text-center">
-          <span className="text-2xl">🚕</span><span className="text-sm font-semibold">Taxi card</span>
-          <span className="text-[11px] text-stone-500">Show the driver</span>
-        </button>
-      </div>
-
-      {/* 🏆 Family favourites (replaces Compare) */}
-      <section className="rounded-3xl bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2">
-          <h2 className="flex-1 font-semibold">🏆 Favourites</h2>
-          <div className="flex rounded-full bg-stone-100 p-0.5 text-sm" role="tablist">
-            {([['kanto', '🗼 Tokyo'], ['kansai', '🦌 Osaka']] as const).map(([r, label]) => (
-              <button key={r} role="tab" aria-selected={area === r} onClick={() => setArea(r)}
-                className={`rounded-full px-3 py-1 ${area === r ? 'bg-iris text-white' : 'text-stone-600'}`}>{label}</button>
-            ))}
-          </div>
-        </div>
-        <p className="mt-1 text-xs text-stone-500">Most 👍 · only places we haven't been to yet</p>
-        {fav.podium.length ? (
-          <div className="mt-3 flex items-end gap-2">
-            {podiumOrder.map((x) => {
-              const rank = fav.podium.indexOf(x)
-              return (
-                <button key={x.p.id} onClick={() => onOpen(x.p)} className="flex flex-1 flex-col items-center gap-1">
-                  <Thumb place={x.p} photoUrls={photoUrls} className="h-14 w-14 rounded-full ring-2 ring-white" />
-                  <span className="line-clamp-2 text-center text-[12px] font-medium leading-tight">{x.p.name}</span>
-                  <span className={`flex w-full flex-col items-center justify-start rounded-t-2xl pt-2 ${heights[rank]} ${['bg-amber-100', 'bg-stone-100', 'bg-orange-100'][rank]}`}>
-                    <span className="text-2xl">{['🥇', '🥈', '🥉'][rank]}</span>
-                    <span className="text-sm font-bold">{x.v} 👍</span>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        ) : <p className="mt-3 text-sm text-stone-500">No votes here yet.</p>}
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {fav.wins.map((w) => (
-            <button key={w.label} disabled={!w.x} onClick={() => w.x && onOpen(w.x.p)} className="flex items-center gap-2 rounded-2xl bg-washi p-2 text-left disabled:opacity-50">
-              <span className="text-2xl">{w.e}</span>
-              <span className="min-w-0">
-                <span className="block text-[11px] text-stone-500">{w.label}</span>
-                <span className="block truncate text-sm font-semibold">{w.x ? w.x.p.name : '—'}</span>
-                {w.x && <span className="block text-[11px] text-torii">{w.x.v} 👍</span>}
-              </span>
-            </button>
+      {/* Tokyo vs Osaka: 👍 votes per category */}
+      <section className="rounded-3xl bg-white p-4 shadow-sm" aria-labelledby="chart-title">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <h2 id="chart-title" className="flex-1 font-semibold">👍 Votes by city</h2>
+          {CITY.map((c) => (
+            <span key={c.r} className="flex items-center gap-1.5 text-sm text-stone-600"><span className="h-3 w-3 rounded-full" style={{ background: c.color }} />{c.label}</span>
           ))}
         </div>
-      </section>
-
-      {tool && (
-        <div className={sheetCls} onClick={() => setTool(null)}>
-          <div className={panelCls} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <div className="mb-3 flex items-center">
-              <h2 className="flex-1 font-display text-xl">{tool === 'prayer' ? '🕌 Salah times' : tool === 'money' ? '💴 Yen ↔ Rand' : '🚕 Taxi card'}</h2>
-              <button onClick={() => setTool(null)} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full bg-white"><X className="h-5 w-5" /></button>
+        <div className="relative mt-5" style={{ height: CH + 28 }}>
+          {ticks.map((v) => (
+            <div key={v} className="absolute inset-x-0 flex items-center" style={{ bottom: 28 + (v / top) * CH - 6 }}>
+              <span className="w-6 text-right text-[10px] tabular-nums text-stone-400">{v}</span>
+              <span className="ml-1 h-px flex-1 bg-stone-100" />
             </div>
-            {tool === 'prayer' && <PrayerSheet date={t.day.date} hotel={t.hotel} times={pray} nextKey={next?.key ?? null} />}
-            {tool === 'money' && <Converter rate={rate} />}
-            {tool === 'taxi' && <TaxiCard hotel={t.hotel} />}
+          ))}
+          <div className="absolute bottom-0 left-8 right-0 grid grid-cols-4 gap-3" style={{ height: CH + 28 }}>
+            {data.map((d) => (
+              <div key={d.key} className="flex flex-col items-center justify-end">
+                <div className="flex w-full items-end justify-center gap-1" style={{ height: CH }}>
+                  {CITY.map((c) => (
+                    <div key={c.r} className="relative flex w-1/2 max-w-[22px] justify-center rounded-t-md" title={`${c.label} ${d.label}: ${d.v[c.r]} votes`}
+                      style={{ height: Math.max(2, (d.v[c.r] / top) * CH), background: c.color }}>
+                      <span className="absolute -top-4 text-[10px] font-semibold tabular-nums text-stone-600">{d.v[c.r]}</span>
+                    </div>
+                  ))}
+                </div>
+                <span className="mt-1.5 h-5 text-[12px] font-medium text-stone-600">{d.label}</span>
+              </div>
+            ))}
           </div>
         </div>
-      )}
-    </div>
-  )
-}
-
-function PrayerSheet({ date, hotel, times, nextKey }: { date: string; hotel: keyof typeof HOTELS; times: ReturnType<typeof prayerTimes>; nextKey: string | null }) {
-  const H = HOTELS[hotel]
-  const near = mosquesNear(H, 3)
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-stone-600">{fmtDay(date)} · near {H.short}</p>
-      <div className="overflow-hidden rounded-2xl bg-white">
-        {PRAYER_NAMES.map((p) => (
-          <div key={p.key} className={`flex items-center px-4 py-3 ${p.key === nextKey ? 'bg-emerald-50 font-semibold' : ''} ${p.prayer ? '' : 'text-stone-400'}`}>
-            <span className="flex-1">{p.label}{p.key === nextKey && ' · next'}</span><span className="tabular-nums">{hhmm(times[p.key])}</span>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-stone-500">Worked out on the phone (Muslim World League, Shafi'i Asr). Mosque timetables can differ by a few minutes.</p>
-      <h3 className="pt-1 font-semibold">Nearest to the hotel</h3>
-      {near.map((m) => (
-        <a key={m.name} href={`https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}&travelmode=walking`} target="_blank" rel="noreferrer"
-          className="flex items-center gap-3 rounded-2xl bg-white p-3">
-          <span className="text-2xl">{m.kind === 'mosque' ? '🕌' : '🧎'}</span>
-          <span className="min-w-0 flex-1"><span className="block truncate font-medium">{m.name}</span><span className="block text-xs text-stone-500">{m.d.toFixed(1)} km · tap for directions</span></span>
-          <ChevronRight className="h-4 w-4 text-stone-400" />
-        </a>
-      ))}
-    </div>
-  )
-}
-
-function Converter({ rate }: { rate: ReturnType<typeof useYenRate> }) {
-  const [yen, setYen] = useState('1000')
-  const [rand, setRand] = useState(String(Math.round(1000 * rate.zarPerYen)))
-  const num = (s: string) => Number(s.replace(/[^\d.]/g, '')) || 0
-  const fmt = (n: number, d = 0) => n.toLocaleString('en-ZA', { maximumFractionDigits: d })
-  return (
-    <div className="space-y-3">
-      <label className="block">
-        <span className="text-sm font-medium text-stone-600">Yen</span>
-        <span className="mt-1 flex items-center gap-2 rounded-2xl border border-stone-300 bg-white px-4">
-          <span className="text-2xl font-bold">¥</span>
-          <input inputMode="decimal" value={yen} onFocus={(e) => e.target.select()} aria-label="Yen"
-            onChange={(e) => { setYen(e.target.value); setRand(fmt(num(e.target.value) * rate.zarPerYen, 2)) }}
-            className="h-16 min-w-0 flex-1 bg-transparent text-3xl font-bold outline-none" />
-        </span>
-      </label>
-      <label className="block">
-        <span className="text-sm font-medium text-stone-600">Rand</span>
-        <span className="mt-1 flex items-center gap-2 rounded-2xl border border-stone-300 bg-[#d8f3dc] px-4">
-          <span className="text-2xl font-bold">R</span>
-          <input inputMode="decimal" value={rand} onFocus={(e) => e.target.select()} aria-label="Rand"
-            onChange={(e) => { setRand(e.target.value); setYen(fmt(num(e.target.value) / rate.zarPerYen)) }}
-            className="h-16 min-w-0 flex-1 bg-transparent text-3xl font-bold outline-none" />
-        </span>
-      </label>
-      <div className="flex flex-wrap gap-2">
-        {[500, 1000, 3000, 5000, 10000].map((n) => (
-          <button key={n} onClick={() => { setYen(String(n)); setRand(fmt(n * rate.zarPerYen, 2)) }} className="rounded-full border border-stone-300 bg-white px-3 py-2 text-sm">¥{fmt(n)}</button>
-        ))}
-      </div>
-      <p className="text-xs text-stone-500">
-        ¥1 = R{rate.zarPerYen.toFixed(4)} · {rate.live ? `central-bank rate of ${rate.date ?? 'the latest day'} (Frankfurter), saved for offline` : 'approximate, until the phone gets internet'}. Banks and cards add their own fees.
-      </p>
-    </div>
-  )
-}
-
-function TaxiCard({ hotel }: { hotel: keyof typeof TAXI }) {
-  const x = TAXI[hotel]
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2 rounded-3xl border-2 border-ink bg-white p-5" lang="ja">
-        <p className="text-sm text-stone-500" lang="en">Please take me to:</p>
-        <p className="text-sm font-medium">こちらまでお願いします。</p>
-        <p className="text-[28px] font-bold leading-snug">{x.ja}</p>
-        <p className="text-lg leading-snug">{x.building}</p>
-        <p className="text-xl font-semibold leading-snug">{x.address}</p>
-      </div>
-      <a href={`tel:${x.phone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-3 rounded-2xl bg-white p-3">
-        <Phone className="h-5 w-5 text-iris" /><span className="flex-1">Hotel phone (driver can call)</span><span className="font-semibold tabular-nums">{x.phone}</span>
-      </a>
-      <p className="text-xs text-stone-500">Turn the phone towards the driver. It switches to the right hotel on each date. Address from the hotel's own website (checked 20 Nov 2026).</p>
+        <p className="sr-only">{data.map((d) => `${d.label}: Tokyo ${d.v.kanto}, Osaka ${d.v.kansai}`).join('. ')}</p>
+      </section>
     </div>
   )
 }
