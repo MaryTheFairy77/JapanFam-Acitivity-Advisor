@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import coreEmoji from './src/emoji/core.json'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -31,11 +32,18 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,woff2}', 'apple-touch-icon.png', 'icon-192.png', 'emoji/*.webp'],
+        globPatterns: ['**/*.{js,css,html,svg,woff2}', 'apple-touch-icon.png', 'icon-192.png'],
+        // Fluent emoji: the ~120 the app shows are stored up front (fast updates); the other ~640 are saved on first use
+        additionalManifestEntries: (coreEmoji as string[]).map((k) => ({ url: `/emoji/${k}.webp`, revision: 'fluent-1' })),
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the map bundle is ~800 kB
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          { // Fluent emoji pictures not stored up front: keep each one once it has been shown (never changes)
+            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/emoji/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'emoji', expiration: { maxEntries: 800 }, cacheableResponse: { statuses: [200] } },
+          },
           { // map style, vector tiles, map fonts + icons: show what you've already looked at
             urlPattern: ({ url }) => url.hostname === 'tiles.openfreemap.org',
             handler: 'StaleWhileRevalidate',
