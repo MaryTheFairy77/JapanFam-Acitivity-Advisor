@@ -7,6 +7,7 @@ import { MOSQUES, mosqueLink, mosquesNear, type Mosque } from '../mosques'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { STYLE_URL, pastelize } from '../mapStyle'
+import { setEmoji } from '../emoji/emoji'
 import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, estimateTravel, fmtMin, fmtYen, km, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Member, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
@@ -25,7 +26,7 @@ function bubble(emoji: string, ring: string, size: number, badge?: number, faded
     boxShadow: '0 3px 8px rgba(0,0,0,.18)', position: 'relative', cursor: 'pointer',
     opacity: faded ? '0.55' : '1', filter: faded ? 'grayscale(.6)' : 'none',
   })
-  el.textContent = emoji
+  setEmoji(el, emoji)
   if (generated) {
     el.title = 'Location found automatically (✨ not yet confirmed)'
     const g = document.createElement('span')

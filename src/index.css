@@ -81,3 +81,6 @@ body {
 
 /* Japanese display text (banzuke, stamps): Mincho serif where the phone has one */
 .font-jp { font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", "MS Mincho", serif; }
+
+/* Fluent emoji pictures (src/emoji): sit in the text like a real emoji, scale with the font size */
+img.jf-emoji { display: inline-block; width: 1.2em; height: 1.2em; vertical-align: -0.22em; object-fit: contain; margin: 0 .02em; }

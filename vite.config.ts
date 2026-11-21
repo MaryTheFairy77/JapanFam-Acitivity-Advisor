@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -6,8 +7,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Offline: a service worker (sw.js, a plain static file Vercel serves like any other) keeps the app itself,
 // photos, map tiles and fonts on the phone. The family data (places, votes…) is saved by useData.ts.
 export default defineConfig({
+  resolve: {
+    alias: {
+      'jf-emoji/jsx-runtime': fileURLToPath(new URL('./src/emoji/jsx-runtime.ts', import.meta.url)),
+      'jf-emoji/jsx-dev-runtime': fileURLToPath(new URL('./src/emoji/jsx-dev-runtime.ts', import.meta.url)),
+    },
+  },
   plugins: [
-    react(),
+    // our JSX runtime swaps emoji for Microsoft Fluent pictures (src/emoji)
+    react({ jsxImportSource: 'jf-emoji' }),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate', // new deploys replace the old version quietly
@@ -23,7 +31,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,woff2}', 'apple-touch-icon.png', 'icon-192.png'],
+        globPatterns: ['**/*.{js,css,html,svg,woff2}', 'apple-touch-icon.png', 'icon-192.png', 'emoji/*.webp'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the map bundle is ~800 kB
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,

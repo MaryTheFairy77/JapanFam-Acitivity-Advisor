@@ -5,6 +5,11 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "jsxImportSource": "jf-emoji",
+    "paths": {
+      "jf-emoji/jsx-runtime": ["./src/emoji/jsx-runtime.ts"],
+      "jf-emoji/jsx-dev-runtime": ["./src/emoji/jsx-dev-runtime.ts"]
+    },
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
