@@ -52,11 +52,13 @@ export default function HomeScreen({ places, voteCount, onGo }: {
         <span className="absolute bottom-4 right-3 rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold text-ink shadow-sm">Open map ›</span>
       </button>
 
-      {/* Three big buttons */}
+      {/* Three big buttons, drawn as Japanese postage stamps (original art, public/stamps; made by scripts/make-stamps.py) */}
       <nav aria-label="Go to" className="grid grid-cols-3 gap-3">
-        {([['activity', '⛩️', 'Activities', '#fde2e4'], ['restaurant', '🍜', 'Food', '#ffe5d0'], ['plan', '📋', 'Plan', '#e0e7ff']] as const).map(([k, e, label, bg]) => (
-          <button key={k} data-sound="tab" onClick={() => onGo(k)} className="flex flex-col items-center gap-1.5 active:scale-[.97]">
-            <span style={{ background: bg }} className="flex aspect-square w-full items-center justify-center rounded-[22px] border-[3px] border-torii text-5xl shadow-sm">{e}</span>
+        {([['activity', 'activities', 'Activities'], ['restaurant', 'food', 'Food'], ['plan', 'plan', 'Plan']] as const).map(([k, img, label], i) => (
+          <button key={k} data-sound="tab" onClick={() => onGo(k)}
+            className={`group flex flex-col items-center gap-1.5 transition active:scale-[.96] ${['-rotate-2', 'rotate-1', '-rotate-1'][i]}`}>
+            <img src={`/stamps/stamp-${img}.svg`} alt="" width={120} height={148} draggable={false}
+              className="w-full drop-shadow-[0_4px_6px_rgba(60,40,30,.28)] transition group-hover:-translate-y-0.5" />
             <span className="text-base font-semibold">{label}</span>
           </button>
         ))}
