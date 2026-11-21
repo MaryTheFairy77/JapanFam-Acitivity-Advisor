@@ -23,14 +23,14 @@ export default function MiniMap({ places, region, hotel }: { places: Place[]; re
       })
       map.on('load', () => {
         const dots = places.filter((p) => p.lat != null && p.lng != null).map((p) => ({
-          type: 'Feature' as const, properties: { c: p.kind === 'restaurant' ? '#f59e0b' : '#6a4cae' },
+          type: 'Feature' as const, properties: { c: p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6' },
           geometry: { type: 'Point' as const, coordinates: [p.lng!, p.lat!] },
         }))
         const hotels = HOTEL_IDS.map((id) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'Point' as const, coordinates: [HOTELS[id].lng, HOTELS[id].lat] } }))
         map!.addSource('dots', { type: 'geojson', data: { type: 'FeatureCollection', features: dots } })
         map!.addLayer({ id: 'dots', type: 'circle', source: 'dots', paint: { 'circle-radius': 6, 'circle-color': ['get', 'c'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } })
         map!.addSource('hotels', { type: 'geojson', data: { type: 'FeatureCollection', features: hotels } })
-        map!.addLayer({ id: 'hotels', type: 'circle', source: 'hotels', paint: { 'circle-radius': 10, 'circle-color': '#c8102e', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } })
+        map!.addLayer({ id: 'hotels', type: 'circle', source: 'hotels', paint: { 'circle-radius': 10, 'circle-color': '#d65a6f', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } })
       })
     }).catch(() => setFailed(true))
     return () => { cancelled = true; map?.remove() }

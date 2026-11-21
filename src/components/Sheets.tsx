@@ -8,7 +8,7 @@ import { TRACKS, getPrefs, setPrefs, type Track } from '../sound'
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi p-5 sm:rounded-3xl">
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[88vh] w-full max-w-lg overflow-y-auto sheet rounded-t-3xl bg-washi p-5 sm:rounded-3xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-2xl">{title}</h2>
           <button onClick={onClose} className="text-2xl text-stone-400">×</button>
@@ -220,7 +220,7 @@ function FillGaps({ places, onDone, mode = 'gaps' }: { places: Place[]; onDone: 
   return (
     <div className="mt-3 space-y-2 rounded-2xl bg-[#fdf4c8]/60 p-3">
       <p className="text-sm font-medium">{mode === 'all' ? '↻ Re-run auto-fill on everything' : '✨ Fill missing info'} ({todo.length} place{todo.length === 1 ? '' : 's'})</p>
-      <p className="text-xs text-stone-600">Looks each one up on OpenStreetMap and fills the pin, nearest hotel and travel time (plus website or halal status if listed). Only blank or ✨ generated info is ever changed; anything a person typed is left alone.</p>
+      <p className="text-xs text-stone-600">Looks each place up and fills blank or ✨ info (pin, hotel, travel). Anything a person typed is never changed.</p>
       {!getPlannerCode() && <input className={input} type="password" placeholder="Trip-planner code" value={code} onChange={(e) => setCode(e.target.value)} />}
       <button onClick={run} disabled={busy || (!getPlannerCode() && !code)} className="w-full rounded-full bg-iris py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? `Looking up… (${log.length}/${todo.length})` : mode === 'all' ? 'Re-run on all places' : 'Fill missing info'}</button>
       {log.length > 0 && <ul className="space-y-0.5 text-xs text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul>}

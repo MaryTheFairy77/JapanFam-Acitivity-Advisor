@@ -183,7 +183,7 @@ export default function QuickAdd({ me, places, members, defaultKind, defaultCate
         {step === 'find' && (
           <div className="mt-6 flex flex-col gap-3">
             <h1 className="font-display text-3xl leading-tight">What's the place?</h1>
-            <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a link from Google Maps, Instagram or TikTok, or type the name and area. For a chain (like “Round1”), type just its name.</label>
+            <label htmlFor="qa" className="text-[15px] text-stone-600">Paste a Google Maps, Instagram or TikTok link, or type the name and area.</label>
             <input id="qa" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') find() }}
               placeholder="e.g. Ramen Ouka, Shinjuku" autoCapitalize="sentences" enterKeyHint="search"
               className="h-14 rounded-2xl border-2 border-iris bg-white px-4 text-base outline-none" />
@@ -248,13 +248,13 @@ export default function QuickAdd({ me, places, members, defaultKind, defaultCate
                   </button>
                 </div>
                 {msg && <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{msg}</p>}
-                <p className="text-center text-[13px] text-stone-500">Halal and type are the post's guess (✨). Check them later on each place.</p>
+                <p className="text-center text-[13px] text-stone-500">✨ = the post's guess. Check later.</p>
               </div>
             )}
             {branches && !found && (
               <div className="mt-2 flex flex-col gap-2">
                 <p className="text-[15px] font-semibold">✨ Found {branches.length} in Tokyo and Osaka/Kyoto. Tick the ones to add:</p>
-                <p className="-mt-1 text-[13px] text-stone-500">Closest to one of our hotels first.</p>
+                <p className="-mt-1 text-[13px] text-stone-500">Closest to our hotels first.</p>
                 {branches.map((b) => {
                   const on = chosen.has(b.id), t = travelFromPin({ lat: b.lat, lng: b.lng })
                   return (
@@ -320,7 +320,7 @@ export default function QuickAdd({ me, places, members, defaultKind, defaultCate
           </div>
         )}
 
-        {step !== 'find' && <p className="mt-auto pt-6 text-center text-[13px] text-stone-500">Price, wait and photos are optional. Add them later from the place.</p>}
+        {step !== 'find' && <p className="mt-auto pt-6 text-center text-[13px] text-stone-500">Price, wait and photo can be added later.</p>}
       </div>
     </div>
   )

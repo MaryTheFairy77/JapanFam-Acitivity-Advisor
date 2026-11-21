@@ -132,7 +132,7 @@ export default function RouteMap({ date, hotelId, tl, places, photoUrls, onClose
 
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col justify-end bg-ink/45" onClick={onClose}>
-      <div className="mx-auto flex h-[92vh] h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Route map">
+      <div className="mx-auto flex h-[92vh] h-[92dvh] w-full max-w-2xl flex-col overflow-hidden sheet rounded-t-3xl bg-white" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Route map">
         <div className="flex items-center gap-2 px-4 py-3">
           <h3 className="flex-1 font-display text-xl">{dayLabel(date, { weekday: 'short', day: 'numeric' })} · route</h3>
           <button onClick={onClose} aria-label="Close map" className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100"><X className="h-5 w-5" /></button>

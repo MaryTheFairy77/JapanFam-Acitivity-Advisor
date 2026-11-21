@@ -58,7 +58,7 @@ export default function HotelSheet({ id, places, photoUrls, onClose, onOpenPlace
   )
   return (
     <div className="fixed inset-0 z-[800] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi sm:rounded-3xl">
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-lg overflow-y-auto sheet rounded-t-3xl bg-washi sm:rounded-3xl">
         <div className="relative">
           {info.photo && !photoBroken
             ? <img src={info.photo} alt={h.name} referrerPolicy="no-referrer" onError={() => setPhotoBroken(true)} className="h-52 w-full rounded-t-3xl object-cover" />

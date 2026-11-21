@@ -38,7 +38,7 @@ export default function ConfirmDelete({ title, lines, keeps = [], loading = fals
   return createPortal(
     <div className="fixed inset-0 z-[980] flex items-end justify-center bg-ink/50 sm:items-center" onClick={() => !busy && onClose()}>
       <div onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-label={title}
-        className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-washi p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+        className="max-h-[88dvh] w-full max-w-md overflow-y-auto sheet rounded-t-3xl bg-washi p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-torii/10"><Trash2 className="h-6 w-6 text-torii" /></span>
           <h3 className="font-display text-xl leading-tight">{title}</h3>

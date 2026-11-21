@@ -5,10 +5,40 @@
   --font-display: "Fraunces", ui-serif, Georgia, serif;
   --color-washi: #fbf7f0;
   --color-ink: #1f1a17;
-  --color-torii: #c8102e;
-  --color-torii-dark: #9e0c24;
-  /* buttons + selected chips (Maryam 15 Nov: black felt jarring) — a softened #7049B3 that sits with washi cream + torii red */
-  --color-iris: #6a4cae;
+  /* 21 Nov shared style: the Home stamps' dusty rose + indigo everywhere; voting keeps the bright red (core feature) */
+  --color-torii: #d65a6f;
+  --color-torii-dark: #b8475b;
+  --color-vote: #c8102e;
+  --color-iris: #5b6ea6;
+  /* warm washi neutrals (borders, chips) to match the stamps */
+  --color-stone-50: #fdf8f5;
+  --color-stone-100: #f7eeea;
+  --color-stone-200: #efe0db;
+  --color-stone-300: #e3cfc9;
+}
+
+/* one card look everywhere: warm paper, soft rose shadow */
+@utility card {
+  background: #fffdfa;
+  box-shadow: 0 1px 2px rgba(122, 51, 70, .05), 0 4px 14px rgba(122, 51, 70, .06);
+}
+
+/* ── motion (quick, never in the way; all off with Reduce motion) ── */
+.sheet { animation: sheet-up .32s cubic-bezier(.2,.9,.25,1); }
+@keyframes sheet-up { from { transform: translateY(40%); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (min-width: 640px) { .sheet { animation-name: sheet-pop; } }
+@keyframes sheet-pop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.fixed:has(> .sheet) { animation: fade-in .22s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.tab-in { animation: tab-in .28s cubic-bezier(.2,.8,.3,1); }
+.tab-in-left { animation: tab-in-left .28s cubic-bezier(.2,.8,.3,1); }
+.tab-fade { animation: fade-in .25s ease-out; }
+@keyframes tab-in { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+@keyframes tab-in-left { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+.ptr-spin { animation: ptr-spin .9s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .fixed:has(> .sheet), .tab-in, .tab-in-left, .tab-fade, .ptr-spin { animation: none !important; }
 }
 
 html, body, #root { min-height: 100%; }

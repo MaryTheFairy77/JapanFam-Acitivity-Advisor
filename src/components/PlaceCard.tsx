@@ -1,5 +1,7 @@
 import { type LucideIcon, Check, ChevronUp, Clock, Globe, Hotel, Hourglass, MapPin, Pencil, PencilLine, Play, TrainFront, Trash2, Users, Wallet, X } from 'lucide-react'
+import { useState } from 'react'
 import Thumb from './Thumb'
+import { bounce, buzz, sakuraBurst } from '../motion'
 import Face, { Avatar } from './Face'
 import { mosqueLink, mosquesNear } from '../mosques'
 import { CATEGORIES, HOTELS, catOf, estimateTravel, displayName, fmtMin, fmtYen, fmtZar, halalTone, missingFields, postLink, safeUrl, tint, travelFromPin, YELLOW, type Estimates, type HotelId, type Member, type Place } from '../lib'
@@ -38,8 +40,8 @@ function Badges({ p, small }: { p: Place; small?: boolean }) {
 function VoteBtn({ mine, n, onVote, size = 'md' }: { mine: boolean; n: number; onVote: () => void; size?: 'sm' | 'md' }) {
   const s = size === 'sm' ? 'h-11 w-10 text-xs' : 'h-14 w-12 text-sm'
   return (
-    <button onClick={(e) => { e.stopPropagation(); onVote() }} aria-pressed={mine} aria-label={mine ? 'Remove my vote' : 'Upvote'} data-sound={mine ? 'unvote' : 'vote'}
-      className={`flex ${s} shrink-0 flex-col items-center justify-center rounded-xl border font-semibold transition active:scale-90 ${mine ? 'border-torii bg-torii text-white' : 'border-stone-300 bg-white/90 text-stone-700'}`}>
+    <button onClick={(e) => { e.stopPropagation(); bounce(e.currentTarget); if (!mine) buzz(); onVote() }} aria-pressed={mine} aria-label={mine ? 'Remove my vote' : 'Upvote'} data-sound={mine ? 'unvote' : 'vote'}
+      className={`flex ${s} shrink-0 flex-col items-center justify-center rounded-xl border font-semibold transition active:scale-90 ${mine ? 'border-vote bg-vote text-white' : 'border-stone-300 bg-white/90 text-stone-700'}`}>
       <ChevronUp className="h-5 w-5" strokeWidth={2.5} />{n}
     </button>
   )
@@ -70,7 +72,7 @@ export default function PlaceCard({ place: p, rank, votes, mine, ranks, est, pho
   const f = facts(p, est)
   return (
     <article onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}
-      className={`flex cursor-pointer items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-sm transition active:scale-[0.99] ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
+      className={`card flex cursor-pointer items-center gap-3 rounded-2xl border p-2.5 transition active:scale-[0.99] ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
       <div className="relative shrink-0">
         <Thumb place={p} photoUrls={photoUrls} className={`h-20 w-20 ${p.visited ? 'opacity-70' : ''}`} />
         {p.visited && <span className="absolute -right-1 -top-1 rounded-full bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">Been ✓</span>}
@@ -96,12 +98,12 @@ export function PlaceTile({ place: p, votes, mine, photoUrls, nearKm, onVote, on
 }) {
   return (
     <article onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}
-      className={`relative cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.98] ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
+      className={`card relative cursor-pointer overflow-hidden rounded-2xl border transition active:scale-[0.98] ${p.visited ? 'border-emerald-300' : 'border-stone-200'}`}>
       <Thumb place={p} photoUrls={photoUrls} className={`aspect-square w-full rounded-none ${p.visited ? 'opacity-70' : ''}`} />
       <div className="absolute right-1.5 top-1.5"><VoteBtn mine={mine} n={votes} onVote={onVote} size="sm" /></div>
       {p.visited && <span className="absolute left-1.5 top-1.5 rounded-full bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">Been ✓</span>}
       <div className="p-2">
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug">{p.name}</h3>
+        <h3 className="line-clamp-2 font-display text-[15px] leading-snug">{p.name}</h3>
         <div className="mt-1 flex flex-wrap gap-1"><NearBadge d={nearKm} /><Badges p={p} small /></div>
       </div>
     </article>
@@ -117,9 +119,11 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
   const post = postLink(p)
   const f = facts(p, est)
   const missing = canEdit ? missingFields(p) : []
+  const [more, setMore] = useState(false)
+  const longDesc = (p.description?.length ?? 0) > 160
   return (
     <div className="fixed inset-0 z-[800] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi sm:rounded-3xl">
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-lg overflow-y-auto sheet rounded-t-3xl bg-washi sm:rounded-3xl">
         <div className="relative">
           <Thumb place={p} photoUrls={photoUrls} className="h-52 w-full rounded-none rounded-t-3xl" />
           <button onClick={onClose} aria-label="Close" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow"><X className="h-5 w-5" /></button>
@@ -132,15 +136,18 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
             <Badges p={p} />
             {p.visit_minutes != null && <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-xs"><Clock className="h-3 w-3" />{fmtMin(p.visit_minutes)} there</span>}
           </div>
-          {p.description && <p className="mt-3 text-sm text-stone-700">{p.description}</p>}
+          {p.description && (
+            <p className={`mt-3 text-sm text-stone-700 ${longDesc && !more ? 'line-clamp-3' : ''}`}>{p.description}</p>
+          )}
+          {longDesc && <button onClick={() => setMore((v) => !v)} className="mt-0.5 text-sm font-medium text-iris">{more ? 'Less' : 'More'}</button>}
 
           {/* Key facts, tinted green (cheaper/quicker) → red (pricier/longer) compared with the others */}
           <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
             {f.price == null
-              ? <Unknown icon={Wallet} label="Price per person" sub={canEdit ? 'tap Edit to add' : 'not known yet'} onClick={canEdit ? onEdit : undefined} />
-              : <Fact icon={Wallet} label="Price per person" value={fmtYen(f.price)} sub={f.auto.has('price') ? 'found online' : f.price ? fmtZar(f.price) : 'entry'} r={ranks.price} guess={f.auto.has('price')} />}
-            <Fact icon={TrainFront} label="Travel from closest hotel" value={fmtMin(f.travel)} sub={f.travelGuess && f.pinTravel ? `from pin · ${f.pinTravel.km.toFixed(1)} km` : p.travel_text ?? ''} r={ranks.travel} guess={f.travelGuess} />
-            <Fact icon={Hourglass} label="Wait" value={fmtMin(f.wait)} sub={p.wait_minutes == null ? 'typical wait (avg)' : f.auto.has('wait') ? 'found online' : ''} r={ranks.wait} guess={f.waitGuess} />
+              ? <Unknown icon={Wallet} label="Price" sub={canEdit ? 'tap Edit' : 'not known'} onClick={canEdit ? onEdit : undefined} />
+              : <Fact icon={Wallet} label="Price" value={fmtYen(f.price)} sub={f.auto.has('price') ? 'online' : f.price ? fmtZar(f.price) : 'entry'} r={ranks.price} guess={f.auto.has('price')} />}
+            <Fact icon={TrainFront} label="Travel" value={fmtMin(f.travel)} sub={f.travelGuess && f.pinTravel ? `${f.pinTravel.km.toFixed(1)} km` : p.travel_text ?? ''} r={ranks.travel} guess={f.travelGuess} />
+            <Fact icon={Hourglass} label="Wait" value={fmtMin(f.wait)} sub={p.wait_minutes == null ? 'usual' : f.auto.has('wait') ? 'online' : ''} r={ranks.wait} guess={f.waitGuess} />
           </dl>
           {p.wait_text && <p className="mt-2 flex items-start gap-1.5 text-xs text-stone-600"><Hourglass className="mt-px h-3.5 w-3.5 shrink-0" />{p.wait_text}</p>}
           {p.long_line && <p className="mt-1 flex items-start gap-1.5 text-xs text-stone-600"><Users className="mt-px h-3.5 w-3.5 shrink-0" />{p.long_line}</p>}
@@ -162,14 +169,14 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
               <a href={mosqueLink(q)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                 <span className="text-base">{q.kind === 'prayer_room' ? '🤲' : '🕌'}</span>
                 <span className="min-w-0 flex-1"><span className="block truncate font-medium">{q.name}</span>
-                  <span className="block text-emerald-800/80">Nearest {q.kind === 'prayer_room' ? 'prayer room' : 'mosque'} · {fmtDist(q.d)} · {estimateTravel(q.d).text.replace(' (est.', ' (').replace(/\(.*\)/, '').trim()}</span></span>
+                  <span className="block text-emerald-800/80">{q.kind === 'prayer_room' ? 'Prayer room' : 'Mosque'} · {fmtDist(q.d)} · {estimateTravel(q.d).text.replace(' (est.', ' (').replace(/\(.*\)/, '').trim()}</span></span>
               </a>
             )
           })()}
 
           {(p.branches?.length ?? 0) > 1 && (
             <div className="mt-4 rounded-2xl bg-white p-3">
-              <p className="text-sm font-semibold">📍 {p.branches!.length} branches <span className="font-normal text-stone-500">· all on the map, one vote</span></p>
+              <p className="text-sm font-semibold">📍 {p.branches!.length} branches <span className="font-normal text-stone-500">· one vote</span></p>
               <ul className="mt-1.5 space-y-1">
                 {p.branches!.map((b, i) => {
                   const t = travelFromPin({ lat: b.lat, lng: b.lng })
@@ -198,7 +205,7 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
               ? (p.visited && <span className="text-sm text-emerald-700">Been ✓</span>)
               : (
                 <label className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-sm">
-                  <input type="checkbox" checked={p.visited} onChange={onVisited} data-sound={p.visited ? 'tap' : 'bell'} className="h-5 w-5 accent-emerald-600" />
+                  <input type="checkbox" checked={p.visited} onChange={(e) => { if (!p.visited) { sakuraBurst(e.currentTarget); buzz(20) } onVisited() }} data-sound={p.visited ? 'tap' : 'bell'} className="h-5 w-5 accent-emerald-600" />
                   <span className={p.visited ? 'text-emerald-700' : 'text-stone-600'}>{p.visited ? 'Been ✓' : 'Been here?'}</span>
                 </label>
               )}
@@ -217,7 +224,7 @@ export function PlaceDetail({ place: p, votes, mine, voters, owners, canEdit, ph
           {missing.length > 0 && <p className="mt-2 text-xs text-amber-700">Still missing: {missing.join(', ')}</p>}
           {!kidMode && (
             <button onClick={onEdit} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-stone-300 bg-white py-3 text-sm">
-              <Pencil className="h-4 w-4" />{canEdit ? 'Edit' : 'All details & sources'}
+              <Pencil className="h-4 w-4" />{canEdit ? 'Edit' : 'Details & sources'}
             </button>
           )}
           {onDelete && (
@@ -237,7 +244,7 @@ function Fact({ icon: Icon, label, value, sub, r, guess }: { icon: IconT; label:
   return (
     <div className="relative rounded-xl px-2 py-2 transition-colors" style={{ background: t.bg }} title={guess ? `${label} (estimate, not confirmed)` : label}>
       {guess && <span className="absolute right-1.5 top-1 text-[10px]">✨</span>}
-      <dt className="flex justify-center text-stone-500"><Icon className="h-4 w-4" strokeWidth={2} /><span className="sr-only">{label}</span></dt>
+      <dt className="flex items-center justify-center gap-1 text-[11px] text-stone-500"><Icon className="h-3.5 w-3.5" strokeWidth={2} />{label}</dt>
       <dd className="font-semibold" style={{ color: t.fg }}>{guess && value !== '—' && value !== 'Free' ? '~' : ''}{value}</dd>
       {sub && <dd className="truncate text-[11px] text-stone-500" title={sub}>{sub}</dd>}
     </div>
@@ -249,7 +256,7 @@ function Unknown({ icon: Icon, label, sub, onClick }: { icon: IconT; label: stri
   return (
     <button type="button" onClick={onClick} disabled={!onClick} title={`${label}: not known yet`}
       className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-2 py-2 text-center">
-      <span className="flex justify-center text-stone-400"><Icon className="h-4 w-4" strokeWidth={2} /><span className="sr-only">{label}</span></span>
+      <span className="flex items-center justify-center gap-1 text-[11px] text-stone-400"><Icon className="h-3.5 w-3.5" strokeWidth={2} />{label}</span>
       <span className="block font-semibold text-stone-500">❓</span>
       <span className="block truncate text-[11px] text-stone-500">{sub}</span>
     </button>

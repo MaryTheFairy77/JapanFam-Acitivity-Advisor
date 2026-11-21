@@ -8,6 +8,7 @@ import maplibregl, { type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { STYLE_URL, pastelize } from '../mapStyle'
 import { setEmoji } from '../emoji/emoji'
+import { dropIn } from '../motion'
 import { CATEGORIES, catOf, HOTELS, HOTEL_IDS, REGIONS, estimateTravel, fmtMin, fmtYen, km, nearestHotel, isStoragePhoto, regionOf, safeUrl, type HotelId, type Member, type Place, type Region } from '../lib'
 
 type View = Region | 'all'
@@ -143,6 +144,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
+  const drawn = useRef<Set<string>>(new Set())
   const openRef = useRef(onOpen)
   openRef.current = onOpen
   const hotelRef = useRef(onHotel)
@@ -208,10 +210,16 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
     if (!m || !ready) return
     markers.current.forEach((mk) => mk.remove())
     markers.current = []
+    // pins that weren't on the map a moment ago drop in gently (a vote doesn't re-drop everything)
+    const before = drawn.current, now = new Set<string>()
+    let n = 0
     const add = (el: HTMLElement, lat: number, lng: number, popup?: maplibregl.Popup) => {
       const mk = new maplibregl.Marker({ element: el }).setLngLat(ll(lat, lng))
       if (popup) mk.setPopup(popup)
       markers.current.push(mk.addTo(m))
+      const k = `${lat.toFixed(5)},${lng.toFixed(5)}`
+      now.add(k)
+      if (!before.has(k) && el.firstElementChild) dropIn(el.firstElementChild, Math.min(n++ * 18, 400))
     }
 
     if (pos) add(meDot(), pos.lat, pos.lng, new maplibregl.Popup({ offset: 12, closeButton: false }).setText(`You are here (±${pos.accuracy} m)`))
@@ -239,7 +247,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
       popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0,
         isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { popup.remove(); openRef.current(p) }))
-      add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 34,
+      add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6', 34,
         voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
         p.lat!, p.lng!, popup)
       // 📍 other branches of the same place: smaller pins, same card (one set of votes)
@@ -248,23 +256,24 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
         const bp = new maplibregl.Popup({ offset: 14, closeButton: false })
         bp.setDOMContent(popupFor({ ...p, name: `${p.name.replace(/\s*\([^)]*\)$/, '')} · ${b.area}` }, voteCount[p.id] ?? 0,
           isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { bp.remove(); openRef.current(p) }))
-        add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#6366f1', 26, undefined, p.visited), b.lat, b.lng, bp)
+        add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6', 26, undefined, p.visited), b.lat, b.lng, bp)
       }
     }
     for (const id of HOTEL_IDS) { // hotels are always shown
       const h = HOTELS[id]
       // tapping a hotel opens its overview sheet (photos link, how to get in, what's closest)
-      const pin = bubble('🏯', '#c8102e', 44)
+      const pin = bubble('🏯', '#d65a6f', 44)
       pin.style.cursor = 'pointer'; pin.title = h.name
       pin.addEventListener('click', (e) => { e.stopPropagation(); hotelRef.current(id) })
       add(pin, h.lat, h.lng)
     }
+    drawn.current = now
     const src = m.getSource('strings') as maplibregl.GeoJSONSource | undefined
     src?.setData({
       type: 'FeatureCollection',
       features: (mode === 'places' ? visible : []).flatMap((p) => {
         const h = nearestHotel(p)
-        return h ? [{ type: 'Feature' as const, properties: { color: p.kind === 'restaurant' ? '#c8102e' : '#4f46e5' },
+        return h ? [{ type: 'Feature' as const, properties: { color: p.kind === 'restaurant' ? '#d65a6f' : '#5b6ea6' },
           geometry: { type: 'LineString' as const, coordinates: [ll(p.lat!, p.lng!), ll(HOTELS[h.id].lat, HOTELS[h.id].lng)] } }] : []
       }),
     })
@@ -323,8 +332,8 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
         <div className="absolute inset-x-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+0.75rem))] z-10 flex justify-around rounded-2xl border border-stone-200 bg-white/95 px-1 py-1.5 shadow-lg" role="group" aria-label="Map legend: tap to show or hide">
           {([
             ['food', '🍜', 'Food', '#f59e0b'],
-            ['act', '🎢', 'Do', '#6366f1'],
-            ['shop', '🛍️', 'Shops', '#6366f1'],
+            ['act', '🎢', 'Do', '#5b6ea6'],
+            ['shop', '🛍️', 'Shops', '#5b6ea6'],
             ['mosque', '🕌', 'Mosques', '#059669'],
             ['station', '🚉', 'Stations', '#0f766e'],
           ] as const).map(([k, icon, label, ring]) => (
@@ -364,7 +373,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
             <p className="font-display text-lg">Near you</p>
             <button onClick={() => setNearOpen(false)} aria-label="Close" className="text-stone-400"><X className="h-5 w-5" /></button>
           </div>
-          {!inJapan(pos.lat, pos.lng) && <p className="text-xs text-amber-700">You’re not in Japan yet, so these are far away. This works best on the trip.</p>}
+          {!inJapan(pos.lat, pos.lng) && <p className="text-xs text-amber-700">Not in Japan yet, so these are far away.</p>}
           <div className="mt-1 space-y-1">
             {nearest.map(({ p, d }) => (
               <button key={p.id} onClick={() => onOpen(p)} className="flex w-full items-center gap-2 rounded-xl px-1 py-1.5 text-left hover:bg-stone-50">

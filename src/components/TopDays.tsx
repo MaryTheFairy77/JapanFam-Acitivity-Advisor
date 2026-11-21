@@ -123,7 +123,7 @@ export function Top3({ me, board, onAll, onPeek }: { me: Member; board: Board; o
             <button key={e.hotel + e.key} onClick={() => onPeek(e)} className="relative flex aspect-square flex-col items-center justify-center rounded-2xl p-1.5 text-center"
               style={{ backgroundColor: e.makers[0] ? avatarBg(e.makers[0]) : '#e7e5e4' }}>
               <span className="absolute left-1.5 top-1 text-base">{['🥇', '🥈', '🥉'][i]}</span>
-              <span className={`absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${mine ? 'bg-torii text-white' : 'bg-white text-torii'}`}>❤️ {e.hearts.length}</span>
+              <span className={`absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${mine ? 'bg-vote text-white' : 'bg-white text-torii'}`}>❤️ {e.hearts.length}</span>
               <span className="mt-2 text-4xl leading-none">{e.makers[0]?.emoji ?? (e.planner ? '⭐' : v?.emoji ?? '🤖')}</span>
               <span className="mt-1.5 line-clamp-2 font-display text-[11px] leading-tight">{entryTitle(e, v)}</span>
             </button>
@@ -189,7 +189,7 @@ export function TopDaysPage({ me, board, photoUrls, days, ideas, members, places
                     <p className="truncate text-xs text-stone-600">{v ? `${v.emoji} ${v.vibe}` : acts.map((p) => p.name).join(' · ')}</p>
                   </div>
                   <button onClick={() => board.heart(e.key)} aria-pressed={mine} aria-label={mine ? 'Remove heart' : 'Heart this day'}
-                    className={`h-11 min-w-[4rem] rounded-full px-3 text-[15px] font-bold ${mine ? 'bg-torii text-white' : 'border border-rose-200 bg-rose-50 text-torii'}`}>❤️ {e.hearts.length}</button>
+                    className={`h-11 min-w-[4rem] rounded-full px-3 text-[15px] font-bold ${mine ? 'bg-vote text-white' : 'border border-rose-200 bg-rose-50 text-torii'}`}>❤️ {e.hearts.length}</button>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-stone-500">
                   {e.hearts.map((id) => board.memberById.get(id)).filter((m): m is Member => !!m).map((m) => <Face key={m.id} m={m} className="h-6 w-6 text-xs" />)}
@@ -245,7 +245,7 @@ export function DayPeek({ me, board, e, photoUrls, onClose }: { me: Member; boar
   return createPortal(
     <div className="fixed inset-0 z-[760] flex items-end justify-center bg-ink/45 sm:items-center" onClick={onClose}>
       <div onClick={(ev) => ev.stopPropagation()} role="dialog" aria-modal="true" aria-label={entryTitle(live, v)}
-        className="max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+        className="max-h-[88dvh] w-full max-w-lg overflow-y-auto sheet rounded-t-3xl bg-washi p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
         <div className="flex items-start gap-3">
           <Cover e={live} v={v} className="h-14 w-14 text-3xl" />
           <div className="min-w-0 flex-1">
@@ -268,7 +268,7 @@ export function DayPeek({ me, board, e, photoUrls, onClose }: { me: Member; boar
             {live.hearts.map((id) => board.memberById.get(id)).filter((m): m is Member => !!m).map((m) => <Face key={m.id} m={m} className="h-7 w-7 text-sm" />)}
           </div>
           <button onClick={() => board.heart(live.key)} aria-pressed={mine}
-            className={`h-12 min-w-[5rem] rounded-full px-4 text-base font-bold ${mine ? 'bg-torii text-white' : 'border border-rose-200 bg-rose-50 text-torii'}`}>❤️ {live.hearts.length}</button>
+            className={`h-12 min-w-[5rem] rounded-full px-4 text-base font-bold ${mine ? 'bg-vote text-white' : 'border border-rose-200 bg-rose-50 text-torii'}`}>❤️ {live.hearts.length}</button>
         </div>
       </div>
     </div>, document.body)

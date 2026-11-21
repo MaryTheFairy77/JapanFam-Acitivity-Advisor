@@ -187,7 +187,7 @@ export default function PlaceForm({ me, canDelete, onDelete, canEdit, creator, p
   return (
     <div className="fixed inset-0 z-[800] flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
       <form onSubmit={save} onClick={(e) => e.stopPropagation()}
-        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-washi p-5 sm:rounded-3xl">
+        className="max-h-[92vh] w-full max-w-lg overflow-y-auto sheet rounded-t-3xl bg-washi p-5 sm:rounded-3xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-2xl">{readOnly ? '' : place ? 'Edit ' : 'Add '}{kind === 'restaurant' ? (readOnly ? 'Restaurant' : 'restaurant') : (readOnly ? 'Activity' : 'activity')}</h2>
           <button type="button" onClick={onClose} className="text-2xl text-stone-400">×</button>
@@ -210,7 +210,7 @@ export default function PlaceForm({ me, canDelete, onDelete, canEdit, creator, p
           )}
         </div>
         {!readOnly && !place && (
-          <p className="mb-3 rounded-xl bg-[#fdf4c8]/60 p-2.5 text-xs text-amber-800">✨ Just the name is enough. On save we look it up and fill the pin, nearest hotel and travel time (shown yellow until someone confirms).</p>
+          <p className="mb-3 rounded-xl bg-[#fdf4c8]/60 p-2.5 text-xs text-amber-800">✨ Just the name is enough. We fill in the pin, hotel and travel (yellow until someone confirms).</p>
         )}
         {place?.auto_sources && auto.size > 0 && (
           <div className="mb-3 rounded-xl bg-[#fdf4c8]/60 p-2.5 text-xs text-amber-900">
@@ -278,7 +278,7 @@ export default function PlaceForm({ me, canDelete, onDelete, canEdit, creator, p
               {f.category !== 'shopping' && (
                 <label className="mt-2 flex items-start gap-2 text-sm">
                   <input type="checkbox" disabled={readOnly} checked={f.full_day} onChange={(e) => set('full_day', e.target.checked)} className="mt-0.5 h-4 w-4 accent-torii" />
-                  <span>☀️ Full-day activity <span className="block text-xs text-stone-500">Theme park or day trip: the planner gives it the whole day, with supper after Maghrib.</span></span>
+                  <span>☀️ Full-day activity <span className="block text-xs text-stone-500">Theme park or day trip: takes the whole day.</span></span>
                 </label>
               )}
             </div>

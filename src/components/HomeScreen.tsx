@@ -115,7 +115,7 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
             </h2>
             <span className="h-px flex-1 bg-[#c8102e]/40" />
           </div>
-          <p className="mt-1 text-center text-[11px] text-stone-500">Most 👍 from the family · places we haven't been to yet</p>
+          <p className="mt-1 text-center text-[11px] text-stone-500">Most 👍 · not visited yet</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Side title="東" en="East · Tokyo" color="#c8102e" list={rank.east} />
             <Side title="西" en="West · Osaka" color="#1f3a6d" list={rank.west} />

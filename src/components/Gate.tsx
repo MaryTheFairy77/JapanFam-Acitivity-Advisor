@@ -29,7 +29,7 @@ export default function Gate({ onUnlocked }: { onUnlocked: () => void }) {
       <div className="mx-auto w-full max-w-sm flex-1 px-6 pt-16">
         <Torii className="h-14 w-14" />
         <h1 className="mt-4 font-display text-4xl">Family code</h1>
-        <p className="mt-2 text-stone-600">Enter the code from the family WhatsApp group. You only need to do this once per phone.</p>
+        <p className="mt-2 text-stone-600">Code from the family WhatsApp. Only once per phone.</p>
         <form onSubmit={submit} className="mt-6">
           <input autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="Family code" autoCapitalize="none" autoCorrect="off"
             className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3.5 text-lg outline-none focus:border-torii" />

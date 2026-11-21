@@ -26,7 +26,7 @@ export default function ToolSheet({ tool, onClose }: { tool: Tool; onClose: () =
   const rate = useYenRate()
   return (
     <div className="fixed inset-0 z-[950] flex items-end justify-center bg-black/40" onClick={onClose}>
-      <div className="max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-washi p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl"
+      <div className="max-h-[88dvh] w-full max-w-2xl overflow-y-auto sheet rounded-t-3xl bg-washi p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl"
         onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="mb-3 flex items-center">
           <h2 className="flex-1 font-display text-xl">{tool === 'prayer' ? '🕌 Salah times' : tool === 'money' ? '💴 Yen ↔ Rand' : '🚕 Taxi card'}</h2>
@@ -53,7 +53,7 @@ function PrayerSheet({ date, hotel, times, nextKey }: { date: string; hotel: key
           </div>
         ))}
       </div>
-      <p className="text-xs text-stone-500">Worked out on the phone (Muslim World League, Shafi'i Asr). Mosque timetables can differ by a few minutes.</p>
+      <p className="text-xs text-stone-500">Muslim World League · Shafi'i Asr. Mosques may differ by a few minutes.</p>
       <h3 className="pt-1 font-semibold">Nearest to the hotel</h3>
       {near.map((m) => (
         <a key={m.name} href={`https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}&travelmode=walking`} target="_blank" rel="noreferrer"
@@ -118,7 +118,7 @@ function TaxiCard({ hotel }: { hotel: keyof typeof TAXI }) {
       <a href={`tel:${x.phone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-3 rounded-2xl bg-white p-3">
         <Phone className="h-5 w-5 text-iris" /><span className="flex-1">Hotel phone (driver can call)</span><span className="font-semibold tabular-nums">{x.phone}</span>
       </a>
-      <p className="text-xs text-stone-500">Turn the phone towards the driver. It switches to the right hotel on each date. Address from the hotel's own website (checked 20 Nov 2026).</p>
+      <p className="text-xs text-stone-500">Show this to the driver. It picks the right hotel for each date.</p>
     </div>
   )
 }

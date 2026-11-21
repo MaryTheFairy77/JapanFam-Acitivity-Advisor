@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import PullRefresh from './PullRefresh'
 import { Avatar } from './Face'
 import { CATEGORIES, CATEGORY_IDS, catOf, regionOf, type Region, HOTELS, HOTEL_IDS, type Category, claimMember, displayName, downloadCsv, estimates, km, isKid, rankOf, supabase, withEstimates, type HotelId, type Kind, type Member, type Place } from '../lib'
 import type { useData } from '../useData'
@@ -47,7 +48,13 @@ export default function Home({ me, data, onLogout }: {
   const [tab, setTabRaw] = useState<Tab>('home')
   const [planDay, setPlanDay] = useState<string | null>(null)
   const [tool, setTool] = useState<Tool | null>(null)
-  const setTab = (k: Tab) => { setTabRaw(k); if (k !== 'plan') setPlanDay(null); window.scrollTo(0, 0) }
+  // screens slide in from the side you're heading to (Home fades)
+  const [slide, setSlide] = useState('tab-fade')
+  const setTab = (k: Tab) => {
+    const order: Tab[] = ['home', 'map', 'restaurant', 'activity', 'plan']
+    setSlide(k === 'home' || k === 'map' ? 'tab-fade' : order.indexOf(k) >= order.indexOf(tab) ? 'tab-in' : 'tab-in-left')
+    setTabRaw(k); if (k !== 'plan') setPlanDay(null); window.scrollTo(0, 0)
+  }
   const [sort, setSort] = useState<SortKey>('votes')
   const [hotel, setHotel] = useState<HotelId | 'all'>('all')
   const [halalOnly, setHalalOnly] = useState(false)
@@ -216,6 +223,7 @@ export default function Home({ me, data, onLogout }: {
         </div>
       </header>
       <WaveBand />
+      <PullRefresh onRefresh={refresh} enabled={tab !== 'map'} />
 
       {/* Food / Do only: Home · Food · Do (same tile layout, so flipping between them is easy) */}
       {(tab === 'restaurant' || tab === 'activity') && (
@@ -234,16 +242,16 @@ export default function Home({ me, data, onLogout }: {
       {tab === 'home' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading…</div>}>
           {fujiBg}
-          <HomeScreen places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} onGo={(d) => setTab(d)} onOpen={(p) => setViewingId(p.id)} />
+          <div key="home" className={slide}><HomeScreen places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} onGo={(d) => setTab(d)} onOpen={(p) => setViewingId(p.id)} /></div>
         </Suspense>
       ) : tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-4.5rem)] animate-pulse bg-[#fbf3e6]" />}>
-          <MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} />
+          <div key="map" className={slide}><MapView me={me} members={members} places={places} voteCount={voteCount} photoUrls={photoUrls} onOpen={(p) => setViewingId(p.id)} onHotel={setHotelOpen} /></div>
         </Suspense>
       ) : tab === 'plan' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading planner…</div>}>
           {fujiBg}
-          <div className="relative z-10">
+          <div key="plan" className={`relative z-10 ${slide}`}>
             <div className="mx-4 mt-4 flex items-center gap-2">
             <div className="flex flex-1 rounded-full border border-stone-300 bg-white p-0.5 text-sm">
               <button onClick={() => setPlanView('trip')} className={`flex-1 rounded-full py-1.5 ${planView === 'trip' ? 'bg-iris text-white' : 'text-stone-600'}`}>🗓 Trip plan</button>
@@ -336,7 +344,7 @@ export default function Home({ me, data, onLogout }: {
                 <div className="flex items-center gap-2 border-t border-stone-100 pt-2">
                   <p className="flex items-center gap-1.5 text-[11px] text-stone-500">
                     <span className="inline-block h-2.5 w-6 shrink-0 rounded-full" style={{ background: 'linear-gradient(90deg,#e2f4e9,#faf7f1,#fde4e6)' }} />
-                    green = cheaper / quicker, red = pricier / longer, yellow ✨ = estimate
+                    green cheaper · red pricier · ✨ estimate
                   </p>
                   <button onClick={exportCsv} disabled={!list.length} aria-label="Download CSV" title="Download CSV"
                     className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs text-stone-700 disabled:opacity-40"><Download className="h-3.5 w-3.5" />CSV</button>
@@ -348,10 +356,10 @@ export default function Home({ me, data, onLogout }: {
           </div>
 
           {/* List */}
-          <div className="relative z-10 mt-2 space-y-2 px-4">
+          <div key={`${tab}-${cat}-${foodCity}`} className={`relative z-10 mt-2 space-y-2 px-4 ${slide}`}>
             {list.length === 0 && (
               <div className="rounded-2xl border-2 border-dashed border-stone-300 p-8 text-center text-stone-500">
-                Nothing here yet. Tap <b>+ Add</b> to suggest a {tab === 'restaurant' ? 'restaurant' : CATEGORIES[cat].one}.
+                Nothing yet. Tap <b>+ Add</b>.
               </div>
             )}
             {view === 'grid' ? (
@@ -382,7 +390,7 @@ export default function Home({ me, data, onLogout }: {
       {menuOpen && (
         <div className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40" onClick={() => setMenuOpen(false)}>
           <nav onClick={(e) => e.stopPropagation()} aria-label="You and settings"
-            className="w-full max-w-2xl rounded-t-3xl bg-washi p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl">
+            className="w-full max-w-2xl sheet rounded-t-3xl bg-washi p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl">
             <span className="mx-auto mb-3 block h-1.5 w-10 rounded-full bg-stone-300" aria-hidden />
             <div className="flex items-center gap-3">
               <Avatar m={me} className="h-14 w-14 text-3xl" />
