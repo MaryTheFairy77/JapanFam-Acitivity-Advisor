@@ -1,5 +1,6 @@
 import math
-R='#c8102e'; K='#2b2420'; P='#fbf3e6'; RAY='#ead9c4'
+R='#c8102e'; INDIGO='#1f3a6d'  # Plan stamp is indigo (ai-iro), Maryam 21 Nov
+K='#2b2420'; P='#fbf3e6'; RAY='#ead9c4'
 W,H=120,148
 def paper_path():
     r=3.4; step=8.6
@@ -71,5 +72,5 @@ plan=f'''
 <rect x="36" y="36" width="46" height="66" rx="2" fill="#fff" stroke="{R}" stroke-width="1"/>
 <rect x="47" y="25" width="24" height="11" rx="3" fill="{K}"/><circle cx="59" cy="28.5" r="2" fill="{P}"/>
 ''' + ''.join(f'<rect x="41" y="{44+i*13}" width="8" height="8" rx="1.2" fill="#fff" stroke="{R}" stroke-width="1.6"/>' + (f'<path d="M42.5 {48+i*13} l2.4 2.6 l5 -6" fill="none" stroke="{R}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' if i<3 else '') + f'<line x1="53" y1="{48+i*13}" x2="{76 if i%2==0 else 70}" y2="{48+i*13}" stroke="{K}" stroke-width="2" stroke-linecap="round"/>' for i in range(4)) + blossom(94,88,1.0)+blossom(86,100,.8)+blossom(99,101,.65)
-files={'stamp-food.svg':frame('80','食 · 麺','Food',ramen,'f'),'stamp-activities.svg':frame('110','遊 · 鳥居','Activities',torii,'a'),'stamp-plan.svg':frame('140','旅 · 予定','Plan',plan,'p')}
+files={'stamp-food.svg':frame('80','食 · 麺','Food',ramen,'f'),'stamp-activities.svg':frame('110','遊 · 鳥居','Activities',torii,'a'),'stamp-plan.svg':frame('140','旅 · 予定','Plan',plan,'p').replace(R, INDIGO)}
 for k,v in files.items(): open(k,'w').write(v)
