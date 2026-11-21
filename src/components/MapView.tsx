@@ -319,7 +319,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
 
       {/* Bottom: legend strip = the key AND the on/off switches */}
       {mode === 'places' && !nearOpen && (
-        <div className="absolute inset-x-3 bottom-3 z-10 flex justify-around rounded-2xl border border-stone-200 bg-white/95 px-1 py-1.5 shadow-lg" role="group" aria-label="Map legend: tap to show or hide">
+        <div className="absolute inset-x-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+0.75rem))] z-10 flex justify-around rounded-2xl border border-stone-200 bg-white/95 px-1 py-1.5 shadow-lg" role="group" aria-label="Map legend: tap to show or hide">
           {([
             ['food', '🍜', 'Food', '#f59e0b'],
             ['act', '🎢', 'Do', '#6366f1'],
@@ -358,7 +358,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
 
       {/* Nearest places to me */}
       {mode === 'places' && nearOpen && pos && (
-        <div className="absolute inset-x-3 bottom-3 z-20 max-h-[45%] overflow-y-auto rounded-2xl bg-white/97 p-3 shadow-xl">
+        <div className="absolute inset-x-3 bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+0.75rem))] z-20 max-h-[45%] overflow-y-auto rounded-2xl bg-white/97 p-3 shadow-xl">
           <div className="flex items-center justify-between">
             <p className="font-display text-lg">Near you</p>
             <button onClick={() => setNearOpen(false)} aria-label="Close" className="text-stone-400"><X className="h-5 w-5" /></button>
@@ -384,7 +384,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
       )}
 
       {unpinned > 0 && mode === 'places' && !nearOpen && !noteHidden && (
-        <div className="absolute bottom-[5.25rem] left-3 right-3 z-10 flex items-center gap-2 rounded-xl bg-white/95 px-3 py-1.5 text-xs text-stone-600 shadow">
+        <div className="absolute bottom-[max(6.25rem,calc(env(safe-area-inset-bottom)+5.5rem))] left-3 right-3 z-10 flex items-center gap-2 rounded-xl bg-white/95 px-3 py-1.5 text-xs text-stone-600 shadow">
           <span className="flex-1">📌 {unpinned} place{unpinned === 1 ? '' : 's'} not on the map yet. Open one and tap <b>Find pin</b>.</span>
           <button onClick={() => { setNoteHidden(true); try { sessionStorage.setItem('jf-pin-note', '1') } catch { /* ignore */ } }} aria-label="Dismiss" className="text-stone-400"><X className="h-4 w-4" /></button>
         </div>
