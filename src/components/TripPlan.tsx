@@ -31,7 +31,7 @@ export function usePlanData() {
   const load = useCallback(async () => {
     const [a, b] = await Promise.all([
       supabase.from('day_plans').select('day, activity_ids, food_id, locked, idea_id, layout'),
-      supabase.from('day_ideas').select('id, member_id, hotel, half_day, activity_ids, created_at, layout'),
+      supabase.from('day_ideas').select('id, member_id, hotel, half_day, activity_ids, created_at, layout, slot'),
     ])
     if (a.error || b.error) { setErr(true); return }
     setErr(false); setPlans(a.data as DayPlanRow[]); setIdeas(b.data as IdeaRow[])

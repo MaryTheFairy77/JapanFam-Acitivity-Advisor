@@ -352,7 +352,10 @@ export default function Home({ me, data, onLogout }: {
               </div>
             )}
             {sort === 'near' && posErr && <p className="text-xs text-torii">{posErr}</p>}
-            <p className="text-xs text-stone-500">{list.length} {list.length === 1 ? 'place' : 'places'}{activeFilters > 0 && <> · <button className="underline" onClick={() => { setHotel('all'); setHalalOnly(false); setTaste('all'); setHideVisited(false) }}>clear filters</button></>}</p>
+            <p className="flex items-center gap-2 text-xs text-stone-500">
+              <span className="font-jp inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-[#d65a6f] px-1 text-[13px] font-bold leading-none text-white shadow-sm">{tab === 'restaurant' ? '食' : cat === 'shopping' ? '買' : '遊'}</span>
+              <span className="font-display text-base text-ink">{tab === 'restaurant' ? 'Food' : CATEGORIES[cat].label}</span>
+              <span>· {list.length} {list.length === 1 ? 'place' : 'places'}</span>{activeFilters > 0 && <> · <button className="underline" onClick={() => { setHotel('all'); setHalalOnly(false); setTaste('all'); setHideVisited(false) }}>clear filters</button></>}</p>
           </div>
 
           {/* List */}

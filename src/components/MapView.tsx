@@ -17,7 +17,7 @@ const ll = (lat: number, lng: number): [number, number] => [lng, lat]
 
 /** Round emoji bubble used for pins (DOM element, no innerHTML with user data).
  *  The OUTER element is handed to MapLibre, which positions it absolutely — so never style its `position`. */
-function bubble(emoji: string, ring: string, size: number, badge?: number, faded?: boolean, generated?: boolean) {
+function bubble(emoji: string, ring: string, size: number, badge?: number, faded?: boolean, generated?: boolean, photo?: string) {
   const outer = document.createElement('div')
   const el = document.createElement('div')
   outer.appendChild(el)
@@ -28,6 +28,16 @@ function bubble(emoji: string, ring: string, size: number, badge?: number, faded
     opacity: faded ? '0.55' : '1', filter: faded ? 'grayscale(.6)' : 'none',
   })
   setEmoji(el, emoji)
+  // the place's own photo inside the coloured ring (light tint of the ring colour on top); the emoji stays if the photo can't load
+  if (photo) {
+    const emojiNodes = [...el.childNodes]
+    const img = new Image()
+    img.onload = () => {
+      emojiNodes.forEach((n) => n.remove())
+      el.style.background = `linear-gradient(${ring}29, ${ring}29), url(${JSON.stringify(photo)}) center / cover no-repeat, #fff`
+    }
+    img.src = photo
+  }
   if (generated) {
     el.title = 'Location found automatically (✨ not yet confirmed)'
     const g = document.createElement('span')
@@ -247,8 +257,9 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
       const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
       popup.setDOMContent(popupFor(p, voteCount[p.id] ?? 0,
         isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { popup.remove(); openRef.current(p) }))
-      add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6', 34,
-        voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin')),
+      const pic = isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url) ?? undefined
+      add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6', pic ? 42 : 34,
+        voteCount[p.id], p.visited, (p.auto_fields ?? []).includes('pin'), pic),
         p.lat!, p.lng!, popup)
       // 📍 other branches of the same place: smaller pins, same card (one set of votes)
       for (const b of p.branches ?? []) {
@@ -256,7 +267,7 @@ export default function MapView({ places, voteCount, photoUrls, onOpen, onHotel,
         const bp = new maplibregl.Popup({ offset: 14, closeButton: false })
         bp.setDOMContent(popupFor({ ...p, name: `${p.name.replace(/\s*\([^)]*\)$/, '')} · ${b.area}` }, voteCount[p.id] ?? 0,
           isStoragePhoto(p.image_url) ? photoUrls[p.image_url.slice(8)] : safeUrl(p.image_url), () => { bp.remove(); openRef.current(p) }))
-        add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6', 26, undefined, p.visited), b.lat, b.lng, bp)
+        add(bubble(p.kind === 'restaurant' ? '🍜' : CATEGORIES[catOf(p)].emoji, p.kind === 'restaurant' ? '#f59e0b' : '#5b6ea6', pic ? 32 : 26, undefined, p.visited, false, pic), b.lat, b.lng, bp)
       }
     }
     for (const id of HOTEL_IDS) { // hotels are always shown

@@ -106,27 +106,33 @@ function Cover({ e, v, className = '' }: { e: Entry; v?: Vibe; className?: strin
     : <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full bg-stone-200 leading-none ${className}`}>{e.planner ? '⭐' : v?.emoji ?? '🤖'}</span>
 }
 
-/** 🏆 Top 3 box at the top of the trip plan: square covers (avatar emoji on its pastel, title, ❤️). */
+/** 🏆 Top 3 box at the top of the trip plan: three ema (wish plaques) hanging from a wooden rack. */
 export function Top3({ me, board, onAll, onPeek }: { me: Member; board: Board; onAll: () => void; onPeek: (e: Entry) => void }) {
   const top = board.entries.slice(0, 3)
   if (!top.length) return null
   return (
-    <section className="rounded-3xl border border-stone-200 bg-white p-3" aria-label="Top days">
-      <div className="mb-2 flex items-center">
-        <h3 className="flex-1 text-[15px] font-semibold">🏆 Top days</h3>
+    <section className="card rounded-3xl border border-stone-200 px-3 pb-3 pt-2.5" aria-label="Top days">
+      <div className="flex items-center gap-2">
+        <span className="font-jp text-lg font-bold leading-none text-[#d65a6f]">絵馬</span>
+        <h3 className="flex-1 text-[11px] font-semibold uppercase tracking-[.18em] text-stone-500">Top days</h3>
         <button onClick={onAll} className="h-9 rounded-full px-2 text-sm font-semibold text-torii">See all {board.entries.length} ›</button>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      {/* the wooden rack the plaques hang from */}
+      <div className="mx-1 mt-1 h-2.5 rounded-full bg-gradient-to-b from-[#b07a4c] to-[#8a5a35] shadow-sm" aria-hidden="true" />
+      <div className="-mt-1 grid grid-cols-3 gap-2.5 px-1">
         {top.map((e, i) => {
           const v = board.vibes[e.key], mine = e.hearts.includes(me.id)
           return (
-            <button key={e.hotel + e.key} onClick={() => onPeek(e)} className="relative flex aspect-square flex-col items-center justify-center rounded-2xl p-1.5 text-center"
-              style={{ backgroundColor: e.makers[0] ? avatarBg(e.makers[0]) : '#e7e5e4' }}>
-              <span className="absolute left-1.5 top-1 text-base">{['🥇', '🥈', '🥉'][i]}</span>
-              <span className={`absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${mine ? 'bg-vote text-white' : 'bg-white text-torii'}`}>❤️ {e.hearts.length}</span>
-              <span className="mt-2 text-4xl leading-none">{e.makers[0]?.emoji ?? (e.planner ? '⭐' : v?.emoji ?? '🤖')}</span>
-              <span className="mt-1.5 line-clamp-2 font-display text-[11px] leading-tight">{entryTitle(e, v)}</span>
-            </button>
+            <div key={e.hotel + e.key} className="ema-wrap" style={{ transform: `rotate(${[-2.5, 1.5, -1][i]}deg)`, transformOrigin: 'top center' }}>
+              <button onClick={() => onPeek(e)} className="ema flex w-full flex-col items-center px-1.5 pb-2 text-center" style={{ ['--roof' as string]: '18px' }}>
+                <span className="absolute left-1.5 top-4 text-sm">{['🥇', '🥈', '🥉'][i]}</span>
+                <span className="flex h-12 w-12 items-center justify-center rounded-full text-3xl leading-none" style={{ backgroundColor: e.makers[0] ? avatarBg(e.makers[0]) : '#e7e5e4' }}>
+                  {e.makers[0]?.emoji ?? (e.planner ? '⭐' : v?.emoji ?? '🤖')}
+                </span>
+                <span className="mt-1 line-clamp-2 min-h-[2lh] font-display text-[11px] leading-tight text-[#4a2c17]">{entryTitle(e, v)}</span>
+                <span className={`mt-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${mine ? 'bg-vote text-white' : 'bg-white/80 text-torii'}`}>❤️ {e.hearts.length}</span>
+              </button>
+            </div>
           )
         })}
       </div>

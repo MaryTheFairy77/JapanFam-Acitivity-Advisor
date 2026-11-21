@@ -9,11 +9,11 @@ import { maghribAt } from './sun'
  * - Free order: activities and food in any order. Start no earlier than 8 am. Evenings allowed.
  * - Maghrib (real sunset per date + city): be at the hotel, or within ~400 m of a mosque / prayer room.
  * - A day's identity = the unordered SET of its activities; no two days may share it. Food/shops are filler.
- * - Planners set/lock days (day_plans). Everyone suggests one 💡 idea per hotel (day_ideas). Other days = faded draft.
+ * - Planners set/lock days (day_plans). Everyone suggests up to 3 💡 ideas per hotel (day_ideas). Other days = faded draft.
  */
 export type Layout = { start: number; steps: string[][] }
 export type DayPlanRow = { day: string; activity_ids: string[]; food_id: string | null; locked: boolean; idea_id: string | null; layout?: Layout | null }
-export type IdeaRow = { id: string; member_id: string; hotel: HotelId; half_day: boolean; activity_ids: string[]; created_at: string; layout?: Layout | null }
+export type IdeaRow = { id: string; member_id: string; hotel: HotelId; half_day: boolean; activity_ids: string[]; created_at: string; layout?: Layout | null; slot?: number }
 
 export type Leg = { minutes: number; walk: boolean; car?: boolean }
 export type Pray = { name: PrayerName | 'Maghrib'; at: number; room: (Mosque & { d: number }) | null }
