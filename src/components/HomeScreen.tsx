@@ -14,7 +14,7 @@ export type Door = 'map' | 'restaurant' | 'activity' | 'plan'
 
 /** Sumo ranks, top to bottom (横綱 grand champion … 前頭 senior division). */
 const RANKS = [['横綱', 'Yokozuna'], ['大関', 'Ōzeki'], ['関脇', 'Sekiwake'], ['小結', 'Komusubi'], ['前頭', 'Maegashira']] as const
-// dusty rose / dusty indigo: the washed-out pastel look Maryam picked (21 Nov), same as the stamps
+// banzuke stays vibrant (torii red / indigo); the stamps are the muted pastel ones (Maryam, 21 Nov)
 /** 三賞: sumo's three special prizes, one per kind of place */
 const PRIZES = [
   { e: '🍜', label: 'Food', test: (p: Place) => p.kind === 'restaurant' },
@@ -97,23 +97,23 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
       </nav>
 
       {/* 番付 Banzuke: a sumo ranking sheet. East = Tokyo (red), West = Osaka (indigo). */}
-      <section aria-labelledby="banzuke-title" className="relative rounded-[22px] border-[3px] border-[#d65a6f] bg-[#fff4f1] p-1.5 shadow-md">
-        <div className="rounded-[16px] border border-[#d65a6f]/60 px-3 pb-3 pt-2">
+      <section aria-labelledby="banzuke-title" className="relative rounded-[22px] border-[3px] border-[#c8102e] bg-[#fbf3e6] p-1.5 shadow-md">
+        <div className="rounded-[16px] border border-[#c8102e]/60 px-3 pb-3 pt-2">
           <div className="flex items-center justify-center gap-2">
-            <span className="h-px flex-1 bg-[#d65a6f]/40" />
+            <span className="h-px flex-1 bg-[#c8102e]/40" />
             <h2 id="banzuke-title" className="text-center">
-              <span className="block font-jp text-2xl font-bold leading-none text-[#d65a6f]">番付</span>
+              <span className="block font-jp text-2xl font-bold leading-none text-[#c8102e]">番付</span>
               <span className="block text-[11px] font-semibold uppercase tracking-[.2em] text-stone-500">Banzuke · top places</span>
             </h2>
-            <span className="h-px flex-1 bg-[#d65a6f]/40" />
+            <span className="h-px flex-1 bg-[#c8102e]/40" />
           </div>
           <p className="mt-1 text-center text-[11px] text-stone-500">Most 👍 from the family · places we haven't been to yet</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Side title="東" en="East · Tokyo" color="#d65a6f" list={rank.east} />
-            <Side title="西" en="West · Osaka" color="#5b6ea6" list={rank.west} />
+            <Side title="東" en="East · Tokyo" color="#c8102e" list={rank.east} />
+            <Side title="西" en="West · Osaka" color="#1f3a6d" list={rank.west} />
           </div>
-          <div className="mt-3 border-t border-dashed border-[#d65a6f]/40 pt-2">
-            <p className="text-center text-[11px] font-semibold text-stone-500"><span className="font-jp text-sm text-[#d65a6f]">三賞</span> Special prizes</p>
+          <div className="mt-3 border-t border-dashed border-[#c8102e]/40 pt-2">
+            <p className="text-center text-[11px] font-semibold text-stone-500"><span className="font-jp text-sm text-[#c8102e]">三賞</span> Special prizes</p>
             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
               {rank.prizes.map((z) => (
                 <button key={z.label} disabled={!z.p} onClick={() => z.p && onOpen(z.p)}
