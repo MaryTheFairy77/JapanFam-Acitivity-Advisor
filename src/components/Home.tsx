@@ -195,7 +195,7 @@ export default function Home({ me, data, onLogout }: {
               <ChevronLeft className="h-8 w-8" strokeWidth={2.75} />
             </button>
           )}
-          <h1 className="font-display text-2xl"><button onClick={() => setTab('home')} aria-label="JapanFam: go to Home">JapanFam <span className="text-torii">●</span></button></h1>
+          {tab === 'home' && <h1 className="font-display text-2xl"><button onClick={() => setTab('home')} aria-label="JapanFam: go to Home">JapanFam <span className="text-torii">●</span></button></h1>}
           <div className="flex items-center gap-2">
           {data.offlineSince && (
             <button onClick={() => setOfflineTip((v) => !v)} aria-label="Offline: showing saved data"
