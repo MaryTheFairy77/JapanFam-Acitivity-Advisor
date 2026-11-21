@@ -48,8 +48,9 @@ export default function HomeScreen({ places, voteCount, onGo }: {
         <Suspense fallback={<div className="h-full w-full animate-pulse bg-[#fbf3e6]" />}>
           <MiniMap places={places} region={H.region} hotel={t.hotel} />
         </Suspense>
-        <span className="absolute bottom-3 left-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-torii bg-white text-3xl shadow">🗾</span>
-        <span className="absolute bottom-4 right-3 rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold text-ink shadow-sm">Open map ›</span>
+        <span className="absolute bottom-3 left-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-torii bg-white shadow">
+          <img src="/stamps/japan.svg" alt="" width={36} height={36} className="h-9 w-9" />
+        </span>
       </button>
 
       {/* Three big buttons, drawn as Japanese postage stamps (original art, public/stamps; made by scripts/make-stamps.py) */}
