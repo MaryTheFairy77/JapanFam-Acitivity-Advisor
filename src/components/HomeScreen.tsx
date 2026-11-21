@@ -59,7 +59,7 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 p-1.5">
                   <Thumb place={p} photoUrls={photoUrls} className={`shrink-0 rounded-full ${i === 0 ? 'h-11 w-11' : 'h-8 w-8'}`} />
                   <span className="min-w-0 flex-1">
-                    <span className={`line-clamp-2 font-semibold leading-tight text-ink ${i === 0 ? 'text-[13px]' : 'text-[12px]'}`}>{p.name}</span>
+                    <span className={`line-clamp-2 font-semibold leading-tight text-ink [overflow-wrap:anywhere] ${i === 0 ? 'text-[13px]' : 'text-[12px]'}`}>{p.name}</span>
                     <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{voteCount[p.id] ?? 0} 👍</span>
                   </span>
                 </span>
