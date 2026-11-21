@@ -106,6 +106,15 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places])
   const membersById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members])
   const planner = !!me.is_admin
+  // a 🤖 draft day that matches someone's 💡 idea is credited to them (first to suggest it)
+  const ideaOwner = useMemo(() => {
+    const m = new Map<string, Member>()
+    for (const i of [...ideas].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+      const k = i.hotel + '|' + comboKey(i.activity_ids), who = membersById.get(i.member_id)
+      if (who && !m.has(k)) m.set(k, who)
+    }
+    return m
+  }, [ideas, membersById])
 
   const stays = useMemo(() => {
     const out: { hotel: HotelId; days: PlannedDay[] }[] = []
@@ -228,7 +237,12 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                           {actSteps.length > 3 && <span className="text-xs text-stone-500">+{actSteps.length - 3}</span>}
                           {food && <Thumb place={food} photoUrls={photoUrls} className="h-12 w-12 shrink-0 rounded-full border-2 border-white shadow" />}
                           <span className="ml-auto flex flex-col items-end gap-1 self-start">
-                            {d.source === 'draft' && <span className="rounded-full bg-stone-100 px-1.5 text-[10px] text-stone-500">draft</span>}
+                            {d.source === 'draft' && (() => {
+                              const who = d.hotel ? ideaOwner.get(d.hotel + '|' + comboKey(d.acts.map((p) => p.id))) : undefined
+                              return who
+                                ? <span className="flex items-center gap-1 rounded-full bg-amber-50 py-0.5 pl-0.5 pr-1.5 text-[10px] text-amber-900">💡<Face m={who} inButton className="h-5 w-5 text-xs" /></span>
+                                : <span className="rounded-full bg-stone-100 px-1.5 text-[10px] text-stone-500">draft</span>
+                            })()}
                             {d.timeline && !d.timeline.maghrib.ok && <span className="text-xs" title="Out at Maghrib">⚠️</span>}
                           </span>
                         </div>

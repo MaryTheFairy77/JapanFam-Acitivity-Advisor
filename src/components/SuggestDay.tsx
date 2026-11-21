@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { HOTELS, HOTEL_IDS, safeUrl, supabase, type HotelId, type Member, type Place } from '../lib'
+import { HOTELS, HOTEL_IDS, displayName, safeUrl, supabase, type HotelId, type Member, type Place } from '../lib'
 import { comboKey, openDates, planTrip, type IdeaRow } from '../itinerary'
 import ConfirmDelete, { deleteIdea, ideaImpact } from './ConfirmDelete'
 import { ChevronLeft, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -117,6 +117,15 @@ export default function SuggestDay({ me, members, places, voteCount, photoUrls }
         saveLabel={idea ? '💡 Update idea' : '💡 Send idea'} onBack={() => (list.length ? setEditing(null) : setHotel(null))}
         onSave={async (layout, ids) => {
           if (!ids.length) return 'Add at least one activity (food alone isn’t a day).'
+          // no exact copies of someone's idea or a planned day (same hotel + same activities). Matching a 🤖 draft is fine: it becomes yours.
+          const k = comboKey(ids)
+          const twin = ideas.find((i) => i.hotel === hotel && i.id !== idea?.id && comboKey(i.activity_ids) === k)
+          if (twin) {
+            const who = twin.member_id === me.id ? 'your other idea' : `${displayName(members.find((m) => m.id === twin.member_id) ?? { name: 'someone', nickname: null })}'s idea`
+            return `Same as ${who}. Give it a ❤️ in Top days instead.`
+          }
+          const planned = days.find((d) => d.source === 'plan' && d.hotel === hotel && d.acts.length && comboKey(d.acts.map((p) => p.id)) === k)
+          if (planned) return `That's already planned for ${dayLabel(planned.date, { weekday: 'short', day: 'numeric' })}.`
           const row = { half_day: layout.start >= 13 * 60, activity_ids: ids, layout }
           let error
           if (idea) ({ error } = await supabase.from('day_ideas').update(row).eq('id', idea.id))
