@@ -79,7 +79,15 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
         <Suspense fallback={<div className="h-full w-full animate-pulse bg-[#fbf3e6]" />}>
           <MiniMap places={places} region={H.region} hotel={t.hotel} />
         </Suspense>
-        <span className="absolute bottom-3 left-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-[#d65a6f] bg-white shadow">
+        {/* vertical 地図 / MAP tag, like a Japanese shop sign */}
+        <span aria-hidden className="absolute left-3 top-3 flex flex-col items-center rounded-lg bg-[#d65a6f] p-[3px] shadow">
+          <span className="flex flex-col items-center rounded-[5px] border-[1.5px] border-white/90 px-1.5 pb-1 pt-1.5 text-white">
+            <span className="font-jp text-[26px] font-bold leading-[1.05]">地</span>
+            <span className="font-jp text-[26px] font-bold leading-[1.05]">図</span>
+            <span className="mt-1 text-[10px] font-extrabold tracking-[.12em]">MAP</span>
+          </span>
+        </span>
+        <span className="absolute bottom-3 right-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-[#d65a6f] bg-white shadow">
           <img src="/stamps/japan.svg" alt="" width={36} height={36} className="h-9 w-9" />
         </span>
       </button>
