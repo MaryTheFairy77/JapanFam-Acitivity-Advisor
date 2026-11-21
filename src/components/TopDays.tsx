@@ -169,14 +169,15 @@ export function TopDaysPage({ me, board, photoUrls, days, ideas, members, places
           ))}
         </div>
         {msg && <p className="mb-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{msg}</p>}
-        <div className="space-y-3">
+        <div className="space-y-5">
           {list.map((e, i) => {
             const v = board.vibes[e.key], mine = e.hearts.includes(me.id)
             const acts = e.steps.flat().filter(isActivity)
             const food = e.steps.flat().find((p) => p.kind === 'restaurant')
             const open = openDates(days, e.hotel).filter((d) => d.date !== e.onDate)
             return (
-              <article key={e.hotel + e.key} className="rounded-3xl bg-white p-2 shadow-sm">
+              <div key={e.hotel + e.key} className="ema-wrap">
+              <article className="ema px-3 pb-3">
                 <button onClick={() => setPeek(e)} aria-label={`Open ${entryTitle(e, v)}`} className="relative flex h-24 w-full gap-1 text-left">
                   {acts.slice(0, 3).map((p, k) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className={`h-full ${k === 0 ? 'flex-[2]' : 'flex-1'} min-w-0 rounded-2xl`} />)}
                   {food && acts.length < 3 && <Thumb place={food} photoUrls={photoUrls} className="h-full min-w-0 flex-1 rounded-2xl" />}
@@ -185,13 +186,13 @@ export function TopDaysPage({ me, board, photoUrls, days, ideas, members, places
                 <div className="mt-2 flex items-center gap-2">
                   <Cover e={e} v={v} className="h-11 w-11 text-2xl" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-display text-base leading-tight">{entryTitle(e, v)}</p>
-                    <p className="truncate text-xs text-stone-600">{v ? `${v.emoji} ${v.vibe}` : acts.map((p) => p.name).join(' · ')}</p>
+                    <p className="font-display text-base leading-tight text-[#4a2c17]">{entryTitle(e, v)}</p>
+                    <p className="truncate text-xs text-[#6b4a30]">{v ? `${v.emoji} ${v.vibe}` : acts.map((p) => p.name).join(' · ')}</p>
                   </div>
                   <button onClick={() => board.heart(e.key)} aria-pressed={mine} aria-label={mine ? 'Remove heart' : 'Heart this day'}
                     className={`h-11 min-w-[4rem] rounded-full px-3 text-[15px] font-bold ${mine ? 'bg-vote text-white' : 'border border-rose-200 bg-rose-50 text-torii'}`}>❤️ {e.hearts.length}</button>
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-stone-500">
+                <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-[#6b4a30]">
                   {e.hearts.map((id) => board.memberById.get(id)).filter((m): m is Member => !!m).map((m) => <Face key={m.id} m={m} className="h-6 w-6 text-xs" />)}
                   <span className="ml-1">🚪 {clock(e.tl.start)} → 🏯 {clock(e.tl.end)}</span>
                   {e.makers.length > 1 && <span>· also {e.makers.slice(1).map(displayName).join(', ')}</span>}
@@ -212,6 +213,7 @@ export function TopDaysPage({ me, board, photoUrls, days, ideas, members, places
                   </select>
                 )}
               </article>
+              </div>
             )
           })}
           {!list.length && <p className="rounded-2xl border-2 border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">No days yet. 💡 Suggest one!</p>}

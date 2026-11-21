@@ -114,3 +114,32 @@ body {
 
 /* Fluent emoji pictures (src/emoji): sit in the text like a real emoji, scale with the font size */
 img.jf-emoji { display: inline-block; width: 1.2em; height: 1.2em; vertical-align: -0.22em; object-fit: contain; margin: 0 .02em; }
+
+/* ── Trip plan: train-ticket days ── */
+.ticket { position: relative; display: flex; width: 100%; border-radius: 14px; background: #fffdfa; text-align: left;
+  box-shadow: 0 1px 2px rgba(122,51,70,.06), 0 4px 14px rgba(122,51,70,.07); }
+.ticket-stub { position: relative; flex-shrink: 0; width: 3.6rem; border-radius: 14px 0 0 14px; padding: .45rem 0; text-align: center; line-height: 1.1;
+  border-right: 2px dashed rgba(214,90,111,.45); }
+/* the two half-circle notches where a ticket tears */
+.ticket-stub::before, .ticket-stub::after { content: ''; position: absolute; right: -8px; width: 14px; height: 14px; border-radius: 9999px; background: var(--color-washi); }
+.ticket-stub::before { top: -7px; } .ticket-stub::after { bottom: -7px; }
+/* used days get a hole punched through the stub */
+.ticket-punch { position: absolute; left: 50%; bottom: 7px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 9999px;
+  background: var(--color-washi); box-shadow: inset 0 1px 2px rgba(0,0,0,.18); }
+
+/* ── Suggest a day: ema (wooden wish plaques) ── */
+.ema-wrap { position: relative; padding-top: 14px; filter: drop-shadow(0 3px 6px rgba(92,58,30,.18)); }
+.ema-wrap::before { /* red cord */
+  content: ''; position: absolute; left: 50%; top: 0; width: 22px; height: 22px; margin-left: -11px; z-index: 1;
+  border: 2px solid #d65a6f; border-bottom: none; border-radius: 9999px 9999px 0 0; }
+.ema { position: relative; background:
+    repeating-linear-gradient(92deg, rgba(120,72,34,.05) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #f6e3c8, #ecd0a8);
+  clip-path: polygon(0 var(--roof, 30px), 50% 0, 100% var(--roof, 30px), 100% 100%, 0 100%);
+  padding-top: calc(var(--roof, 30px) + 6px); border-radius: 0 0 18px 18px; }
+.ema::after { /* the hole the cord goes through */
+  content: ''; position: absolute; left: 50%; top: 9px; width: 8px; height: 8px; margin-left: -4px; border-radius: 9999px; background: #8a5a35; }
+
+/* ── Postage-stamp buttons (scalloped edge) ── */
+.stamp { padding: 6px; background: radial-gradient(circle, transparent 0 4px, #fffdfa 4.5px) -6px -6px / 12px 12px;
+  filter: drop-shadow(0 2px 4px rgba(122,51,70,.16)); }

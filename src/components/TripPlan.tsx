@@ -18,6 +18,9 @@ const RouteMap = lazy(() => import('./RouteMap'))
  */
 export { clock, legText }
 export const dayLabel = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', ...o })
+/** Vertical kanji tag for each stay (like Home's 地図 tag) */
+export const STAY_KANJI: Record<HotelId, string> = { toranomon: '虎ノ門', osaka: '大阪', jw_tokyo: '高輪' }
+const TODAY = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) // Japan date
 export const STAY_TINT: Record<HotelId, string> = { toranomon: 'bg-rose-100 text-rose-900', osaka: 'bg-sky-100 text-sky-900', jw_tokyo: 'bg-violet-100 text-violet-900' }
 
 /** day_plans + day_ideas, refreshed every 20 s while visible. */
@@ -152,11 +155,14 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
         const hotelIdeas = ideas.filter((i) => i.hotel === s.hotel).sort((a, b) => ideaScore(b, voteCount) - ideaScore(a, voteCount))
         return (
           <section key={s.hotel + s.days[0].date} className="space-y-2">
-            <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${STAY_TINT[s.hotel]}`}>
-              🏯 {HOTELS[s.hotel].short}
-              <span className="font-normal opacity-80">· {dayLabel(s.days[0].date, { day: 'numeric', month: 'short' })} – {dayLabel(s.days[s.days.length - 1].date, { day: 'numeric', month: 'short' })}</span>
+            <div className="flex items-center gap-3 pt-2">
+              <span className="font-jp flex min-h-[3.6rem] w-8 shrink-0 items-center justify-center rounded-md bg-[#d65a6f] py-1.5 text-[15px] font-bold leading-none tracking-[.12em] text-white shadow-sm [writing-mode:vertical-rl]">{STAY_KANJI[s.hotel]}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-lg leading-tight">{HOTELS[s.hotel].short}</span>
+                <span className="block text-xs text-stone-500">{dayLabel(s.days[0].date, { day: 'numeric', month: 'short' })} – {dayLabel(s.days[s.days.length - 1].date, { day: 'numeric', month: 'short' })}</span>
+              </span>
               {hotelIdeas.length > 0 && (
-                <button onClick={() => setOpenIdeas(openIdeas === s.hotel ? null : s.hotel)} className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs">💡 {hotelIdeas.length} {hotelIdeas.length === 1 ? 'idea' : 'ideas'}</button>
+                <button onClick={() => setOpenIdeas(openIdeas === s.hotel ? null : s.hotel)} className="ml-auto rounded-full border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium">💡 {hotelIdeas.length} {hotelIdeas.length === 1 ? 'idea' : 'ideas'}</button>
               )}
             </div>
 
@@ -168,10 +174,10 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                   const dup = sameComboDay(days, i.activity_ids)
                   const canDel = planner || i.member_id === me.id
                   return (
-                    <div key={i.id} className="relative shrink-0">
-                    <button draggable={planner} onDragStart={(e) => { e.dataTransfer.setData('text/plain', i.id); setHolding(i) }}
+                    <div key={i.id} className="ema-wrap relative shrink-0">
+                    <button style={{ ['--roof' as string]: '16px' }} draggable={planner} onDragStart={(e) => { e.dataTransfer.setData('text/plain', i.id); setHolding(i) }}
                       onClick={() => planner && setHolding(holding?.id === i.id ? null : i)}
-                      className={`relative w-36 shrink-0 rounded-2xl bg-white p-1.5 text-left shadow-sm ${holding?.id === i.id ? 'ring-4 ring-torii' : ''} ${dup ? 'opacity-50' : ''}`}>
+                      className={`ema relative block w-36 shrink-0 px-1.5 pb-1.5 text-left ${holding?.id === i.id ? 'outline outline-4 outline-torii' : ''} ${dup ? 'opacity-50' : ''}`}>
                       <div className="flex h-16 gap-1">{acts.slice(0, 3).map((p) => <Thumb key={p.id} place={p} photoUrls={photoUrls} className="h-full flex-1 rounded-xl" />)}</div>
                       <div className="mt-1 flex items-center gap-1 text-xs">
                         {who && <Face m={who} inButton className="h-6 w-6 rounded-full bg-stone-100 text-sm" />}
@@ -181,7 +187,7 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                       {dup && <span className="absolute left-2 top-2 rounded-full bg-white px-1.5 text-[10px]">✓ {dayLabel(dup.date, { weekday: 'short' })}</span>}
                     </button>
                     {canDel && <button onClick={() => setDelIdea(i)} aria-label={`Delete ${who ? who.name + '’s' : 'this'} idea`}
-                      className="absolute right-0.5 top-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-torii shadow"><Trash2 className="h-3.5 w-3.5" /></button>}
+                      className="absolute right-0.5 top-5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-torii shadow"><Trash2 className="h-3.5 w-3.5" /></button>}
                     </div>
                   )
                 })}
@@ -196,16 +202,20 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                 <div key={d.date}
                   onDragOver={(e) => { if (planner && !d.locked) e.preventDefault() }}
                   onDrop={(e) => { const i = ideas.find((x) => x.id === e.dataTransfer.getData('text/plain')); if (i) place(i, d) }}>
-                  {d.kind === 'moving' && <p className="mb-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800">🚄 {d.from ? HOTELS[d.from].short : ''} → {HOTELS[d.hotel!].short}</p>}
                   <button onClick={() => target ? place(holding!, d) : d.kind !== 'flight' && setOpen(d.date)}
-                    className={`flex w-full items-center gap-2 rounded-2xl p-2 text-left transition ${d.source === 'none' ? 'border-2 border-dashed border-stone-300' : 'bg-white shadow-sm'} ${target ? 'ring-4 ring-torii/60' : ''}`}>
-                    <div className="w-10 shrink-0 text-center leading-tight">
-                      <div className="text-[11px] text-stone-500">{dayLabel(d.date, { weekday: 'short' })}</div>
-                      <div className="text-xl font-semibold">{dayLabel(d.date, { day: 'numeric' })}</div>
+                    className={`ticket overflow-hidden transition active:scale-[.99] ${d.source === 'none' ? 'opacity-80' : ''} ${target ? 'ring-4 ring-torii/60' : ''}`}>
+                    <div className={`ticket-stub ${d.kind === 'moving' ? 'bg-[#5b6ea6] text-white' : d.kind === 'flight' ? 'bg-stone-200 text-stone-700' : 'bg-[#fbe3e7] text-[#7a3346]'}`}>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{dayLabel(d.date, { weekday: 'short' })}</div>
+                      <div className="font-display text-2xl leading-none">{dayLabel(d.date, { day: 'numeric' })}</div>
+                      <div className="font-jp text-[10px] opacity-80">{Number(d.date.slice(5, 7))}月</div>
                       {d.locked && <div className="text-xs">🔒</div>}
+                      {d.date < TODAY && <span className="ticket-punch" aria-label="Done" />}
                     </div>
-                    {d.kind === 'flight' ? <span className="flex-1 py-3 text-sm text-stone-500">✈️ Fly home</span>
-                      : d.source === 'none' ? <span className="flex-1 py-3 text-center text-sm text-stone-400">{target ? '👆 Place idea here' : 'Open · 💡 ideas welcome'}</span>
+                    <div className="min-w-0 flex-1 p-2">
+                    {d.kind === 'moving' && <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-[#5b6ea6]"><span className="font-jp">新幹線</span> 🚄 {d.from ? HOTELS[d.from].short : ''} → {HOTELS[d.hotel!].short}</p>}
+                    <div className="flex items-center gap-2">
+                    {d.kind === 'flight' ? <span className="flex-1 py-3 text-sm text-stone-600"><span className="font-jp">帰国</span> ✈️ Fly home</span>
+                      : d.source === 'none' ? <span className="flex-1 py-3 text-center text-sm text-stone-400">{target ? '👆 Place idea here' : 'Free day · 💡 ideas welcome'}</span>
                       : (
                         <div className={`flex min-w-0 flex-1 items-center gap-1.5 ${d.source === 'draft' ? 'opacity-55' : ''}`}>
                           {actSteps.slice(0, 3).map((g, k) => (
@@ -223,6 +233,8 @@ export default function TripPlan({ me, members, places, votes, voteCount, photoU
                           </span>
                         </div>
                       )}
+                    </div>
+                    </div>
                   </button>
                 </div>
               )

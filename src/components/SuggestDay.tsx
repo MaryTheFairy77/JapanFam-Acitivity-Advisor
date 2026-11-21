@@ -5,7 +5,7 @@ import ConfirmDelete, { deleteIdea, ideaImpact } from './ConfirmDelete'
 import { Trash2 } from 'lucide-react'
 import { HOTEL_INFO } from './HotelSheet'
 import { DayBuilder } from './DayBuilder'
-import { dayLabel, usePlanData } from './TripPlan'
+import { STAY_KANJI, dayLabel, usePlanData } from './TripPlan'
 
 /**
  * B (mix) · 💡 Suggest a day (Maryam, 15 Nov 2026). First: "Which hotel are you suggesting a day from?" with photos.
@@ -29,21 +29,27 @@ export default function SuggestDay({ me, members, places, voteCount, photoUrls }
 
   if (!hotel) return (
     <div className="space-y-3 px-4 pb-6 pt-3">
-      <h2 className="font-display text-2xl">Which hotel are you suggesting a day from?</h2>
-      {[...HOTEL_IDS].sort((a, b) => (stay(a)[0]?.date ?? '').localeCompare(stay(b)[0]?.date ?? '')).map((h) => {
+      <h2 className="font-display text-2xl">Pick a hotel</h2>
+      <p className="-mt-2 text-sm text-stone-500">Your day starts and ends there.</p>
+      <div className="grid grid-cols-3 gap-3 pt-1">
+      {[...HOTEL_IDS].sort((a, b) => (stay(a)[0]?.date ?? '').localeCompare(stay(b)[0]?.date ?? '')).map((h, n) => {
         const s = stay(h), idea = mine(h), shut = locked(h)
         return (
-          <button key={h} disabled={shut} onClick={() => setHotel(h)}
-            className={`relative block h-40 w-full overflow-hidden rounded-3xl text-left shadow-md ${shut ? 'opacity-50' : ''}`}>
-            <img src={safeUrl(HOTEL_INFO[h].photo) ?? ''} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover" />
-            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent px-4 pb-3 pt-8 text-white">
-              <span className="block font-display text-xl">{HOTELS[h].short}</span>
-              <span className="text-sm opacity-90">{s.length ? `${dayLabel(s[0].date, { day: 'numeric', month: 'short' })} – ${dayLabel(s[s.length - 1].date, { day: 'numeric', month: 'short' })}` : ''}</span>
+          <button key={h} disabled={shut} onClick={() => setHotel(h)} aria-label={`${HOTELS[h].short}${shut ? ', all locked' : idea ? ', idea sent' : ''}`}
+            className={`stamp relative block text-left transition active:scale-95 ${shut ? 'opacity-50' : ''}`} style={{ transform: `rotate(${[-2, 1.5, -1][n % 3]}deg)` }}>
+            <span className="block border-2 border-[#d65a6f] bg-[#fff4f1] p-1">
+              <span className="relative block aspect-[3/4] overflow-hidden">
+                <img src={safeUrl(HOTEL_INFO[h].photo) ?? ''} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover saturate-[.85]" />
+                <span className="font-jp absolute left-1 top-1 rounded-sm bg-[#d65a6f] px-1 py-1 text-[13px] font-bold leading-none tracking-[.1em] text-white [writing-mode:vertical-rl]">{STAY_KANJI[h]}</span>
+                {(idea || shut) && <span className="absolute bottom-1 right-1 rounded-full bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold">{shut ? '🔒' : '✓ sent'}</span>}
+              </span>
+              <span className="block pt-1 text-center font-display text-[13px] leading-tight text-[#7a3346]">{HOTELS[h].short}</span>
+              <span className="block text-center text-[10px] text-stone-500">{s.length ? `${dayLabel(s[0].date, { day: 'numeric', month: 'short' })} – ${dayLabel(s[s.length - 1].date, { day: 'numeric', month: 'short' })}` : ''}</span>
             </span>
-            {(idea || shut) && <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold">{shut ? '🔒 all locked' : '✓ idea sent'}</span>}
           </button>
         )
       })}
+      </div>
     </div>
   )
 
