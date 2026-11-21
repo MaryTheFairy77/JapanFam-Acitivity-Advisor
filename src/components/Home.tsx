@@ -191,8 +191,8 @@ export default function Home({ me, data, onLogout }: {
         <div className="flex items-center justify-between">
           {tab !== 'home' && (
             <button onClick={() => setTab('home')} data-sound="tab" aria-label="Back to Home"
-              className="-ml-1 flex h-10 items-center gap-0.5 rounded-full border border-stone-300 bg-white pl-1.5 pr-3 text-sm font-semibold text-stone-700">
-              <ChevronLeft className="h-5 w-5" />Back
+              className="-ml-3 flex h-11 w-9 items-center justify-center text-[#d65a6f] active:opacity-60">
+              <ChevronLeft className="h-8 w-8" strokeWidth={2.75} />
             </button>
           )}
           <h1 className="font-display text-2xl"><button onClick={() => setTab('home')} aria-label="JapanFam: go to Home">JapanFam <span className="text-torii">●</span></button></h1>
