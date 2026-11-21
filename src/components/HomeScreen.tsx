@@ -14,6 +14,7 @@ export type Door = 'map' | 'restaurant' | 'activity' | 'plan'
 
 /** Sumo ranks, top to bottom (横綱 grand champion … 前頭 senior division). */
 const RANKS = [['横綱', 'Yokozuna'], ['大関', 'Ōzeki'], ['関脇', 'Sekiwake'], ['小結', 'Komusubi'], ['前頭', 'Maegashira']] as const
+// dusty rose / dusty indigo: the washed-out pastel look Maryam picked (21 Nov), same as the stamps
 /** 三賞: sumo's three special prizes, one per kind of place */
 const PRIZES = [
   { e: '🍜', label: 'Food', test: (p: Place) => p.kind === 'restaurant' },
@@ -41,7 +42,7 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
   }, [places, voteCount, H])
 
   const Side = ({ title, en, color, list }: { title: string; en: string; color: string; list: Place[] }) => (
-    <div>
+    <div className="min-w-0">
       <div className="mb-1.5 flex items-center justify-center gap-1.5 rounded-lg py-1 text-white" style={{ background: color }}>
         <span className="font-jp text-lg font-bold leading-none">{title}</span><span className="text-[11px] font-semibold">{en}</span>
       </div>
@@ -49,17 +50,19 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
         <ol className="space-y-1.5">
           {list.map((p, i) => (
             <li key={p.id}>
-              <button onClick={() => onOpen(p)} style={{ borderColor: i === 0 ? color : undefined }}
-                className={`flex w-full items-center gap-2 rounded-xl bg-white text-left ${i === 0 ? 'border-2 p-2' : 'border border-stone-200 px-1.5 py-1'}`}>
-                <Thumb place={p} photoUrls={photoUrls} className={`shrink-0 rounded-full ${i === 0 ? 'h-12 w-12' : i < 3 ? 'h-9 w-9' : 'h-7 w-7'}`} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-1" style={{ color }}>
-                    <span className={`font-jp font-bold leading-none ${i === 0 ? 'text-base' : 'text-[13px]'}`}>{RANKS[i][0]}</span>
-                    <span className="truncate text-[9px] font-semibold uppercase tracking-wide opacity-80">{RANKS[i][1]}</span>
+              <button onClick={() => onOpen(p)} aria-label={`${RANKS[i][1]}: ${p.name}, ${voteCount[p.id] ?? 0} votes`}
+                className={`flex w-full items-stretch overflow-hidden rounded-xl bg-white text-left ${i === 0 ? 'border-2' : 'border border-stone-200'}`}
+                style={{ borderColor: i === 0 ? color : undefined }}>
+                {/* rank written top-to-bottom, like a real banzuke */}
+                <span className="font-jp flex w-6 shrink-0 items-center justify-center py-1 text-[13px] font-bold leading-[1.05] text-white [writing-mode:vertical-rl]"
+                  style={{ background: color, opacity: 1 - i * 0.12 }}>{RANKS[i][0]}</span>
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 p-1.5">
+                  <Thumb place={p} photoUrls={photoUrls} className={`shrink-0 rounded-full ${i === 0 ? 'h-11 w-11' : 'h-8 w-8'}`} />
+                  <span className="min-w-0 flex-1">
+                    <span className={`line-clamp-2 font-semibold leading-tight text-ink ${i === 0 ? 'text-[13px]' : 'text-[12px]'}`}>{p.name}</span>
+                    <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{voteCount[p.id] ?? 0} 👍</span>
                   </span>
-                  <span className={`line-clamp-2 font-semibold leading-tight text-ink ${i === 0 ? 'text-[13px]' : 'text-[12px]'}`}>{p.name}</span>
                 </span>
-                <span className="shrink-0 text-[12px] font-bold tabular-nums" style={{ color }}>{voteCount[p.id] ?? 0}👍</span>
               </button>
             </li>
           ))}
@@ -72,11 +75,11 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
     <div className="relative z-10 space-y-5 px-4 pb-10 pt-4">
       {/* The map, front and centre */}
       <button onClick={() => onGo('map')} aria-label={`Open the map (${H.city})`}
-        className="relative block aspect-square w-full overflow-hidden rounded-[28px] border-[3px] border-torii bg-[#fbf3e6] shadow-md active:scale-[.99]">
+        className="relative block aspect-square w-full overflow-hidden rounded-[28px] border-[3px] border-[#d65a6f] bg-[#fbf3e6] shadow-md active:scale-[.99]">
         <Suspense fallback={<div className="h-full w-full animate-pulse bg-[#fbf3e6]" />}>
           <MiniMap places={places} region={H.region} hotel={t.hotel} />
         </Suspense>
-        <span className="absolute bottom-3 left-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-torii bg-white shadow">
+        <span className="absolute bottom-3 left-3 flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-[#d65a6f] bg-white shadow">
           <img src="/stamps/japan.svg" alt="" width={36} height={36} className="h-9 w-9" />
         </span>
       </button>
@@ -94,23 +97,23 @@ export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen 
       </nav>
 
       {/* 番付 Banzuke: a sumo ranking sheet. East = Tokyo (red), West = Osaka (indigo). */}
-      <section aria-labelledby="banzuke-title" className="relative rounded-[22px] border-[3px] border-torii bg-[#fbf3e6] p-1.5 shadow-md">
-        <div className="rounded-[16px] border border-torii/60 px-3 pb-3 pt-2">
+      <section aria-labelledby="banzuke-title" className="relative rounded-[22px] border-[3px] border-[#d65a6f] bg-[#fff4f1] p-1.5 shadow-md">
+        <div className="rounded-[16px] border border-[#d65a6f]/60 px-3 pb-3 pt-2">
           <div className="flex items-center justify-center gap-2">
-            <span className="h-px flex-1 bg-torii/40" />
+            <span className="h-px flex-1 bg-[#d65a6f]/40" />
             <h2 id="banzuke-title" className="text-center">
-              <span className="block font-jp text-2xl font-bold leading-none text-torii">番付</span>
+              <span className="block font-jp text-2xl font-bold leading-none text-[#d65a6f]">番付</span>
               <span className="block text-[11px] font-semibold uppercase tracking-[.2em] text-stone-500">Banzuke · top places</span>
             </h2>
-            <span className="h-px flex-1 bg-torii/40" />
+            <span className="h-px flex-1 bg-[#d65a6f]/40" />
           </div>
           <p className="mt-1 text-center text-[11px] text-stone-500">Most 👍 from the family · places we haven't been to yet</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Side title="東" en="East · Tokyo" color="#c8102e" list={rank.east} />
-            <Side title="西" en="West · Osaka" color="#1f3a6d" list={rank.west} />
+            <Side title="東" en="East · Tokyo" color="#d65a6f" list={rank.east} />
+            <Side title="西" en="West · Osaka" color="#5b6ea6" list={rank.west} />
           </div>
-          <div className="mt-3 border-t border-dashed border-torii/40 pt-2">
-            <p className="text-center text-[11px] font-semibold text-stone-500"><span className="font-jp text-sm text-torii">三賞</span> Special prizes</p>
+          <div className="mt-3 border-t border-dashed border-[#d65a6f]/40 pt-2">
+            <p className="text-center text-[11px] font-semibold text-stone-500"><span className="font-jp text-sm text-[#d65a6f]">三賞</span> Special prizes</p>
             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
               {rank.prizes.map((z) => (
                 <button key={z.label} disabled={!z.p} onClick={() => z.p && onOpen(z.p)}

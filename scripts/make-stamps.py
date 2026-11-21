@@ -1,6 +1,8 @@
 import math
-R='#c8102e'; INDIGO='#1f3a6d'  # Plan stamp is indigo (ai-iro), Maryam 21 Nov
-K='#2b2420'; P='#fbf3e6'; RAY='#ead9c4'
+# washed-out pastel palette (Maryam 21 Nov: dusty rose like the app, not bright red)
+R='#d65a6f'; K='#7a3346'; P='#fff4f1'; RAY='#f6dadd'
+# Plan stamp: soft dusty indigo version of the same
+INDIGO='#5b6ea6'; INK_BLUE='#36426b'; RAY_BLUE='#e2e6f3'
 W,H=120,148
 def paper_path():
     r=3.4; step=8.6
@@ -24,7 +26,7 @@ def frame(value, ja, en, art, uid):
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" role="img" aria-label="{en}">
 <defs>
 <clipPath id="art-{uid}"><rect x="14" y="14" width="92" height="98"/></clipPath></defs>
-<g><path d="{paper_path()}" fill="{P}" stroke="#e2d3c0" stroke-width=".6"/>
+<g><path d="{paper_path()}" fill="{P}" stroke="#efd3d3" stroke-width=".6"/>
 <rect x="9" y="9" width="{W-18}" height="{H-18}" fill="none" stroke="{R}" stroke-width="2.4"/>
 <rect x="12.5" y="12.5" width="{W-25}" height="{H-25}" fill="none" stroke="{R}" stroke-width=".8"/>
 <g clip-path="url(#art-{uid})">{rays(60,66)}{art}</g>
@@ -51,7 +53,7 @@ ramen=f'''
 <path d="M50 74 l4 -9 l4 9" fill="none" stroke="{R}" stroke-width="1.6" stroke-linejoin="round"/>
 '''
 torii=f'''
-<circle cx="60" cy="56" r="24" fill="#f6c9cf"/>
+<circle cx="60" cy="56" r="24" fill="#f9d3d8"/>
 <path d="M10 112 L46 78 Q60 66 74 78 L110 112 Z" fill="#fff" stroke="{R}" stroke-width="2"/>
 <path d="M41 84 L48 81 L54 86 L60 80 L66 86 L72 81 L79 84" fill="none" stroke="{R}" stroke-width="1.6" stroke-linejoin="round"/>
 <path d="M18 38 Q60 46 102 38 L99 46 Q60 52 21 46 Z" fill="{R}"/>
@@ -72,5 +74,5 @@ plan=f'''
 <rect x="36" y="36" width="46" height="66" rx="2" fill="#fff" stroke="{R}" stroke-width="1"/>
 <rect x="47" y="25" width="24" height="11" rx="3" fill="{K}"/><circle cx="59" cy="28.5" r="2" fill="{P}"/>
 ''' + ''.join(f'<rect x="41" y="{44+i*13}" width="8" height="8" rx="1.2" fill="#fff" stroke="{R}" stroke-width="1.6"/>' + (f'<path d="M42.5 {48+i*13} l2.4 2.6 l5 -6" fill="none" stroke="{R}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' if i<3 else '') + f'<line x1="53" y1="{48+i*13}" x2="{76 if i%2==0 else 70}" y2="{48+i*13}" stroke="{K}" stroke-width="2" stroke-linecap="round"/>' for i in range(4)) + blossom(94,88,1.0)+blossom(86,100,.8)+blossom(99,101,.65)
-files={'stamp-food.svg':frame('80','食 · 麺','Food',ramen,'f'),'stamp-activities.svg':frame('110','遊 · 鳥居','Activities',torii,'a'),'stamp-plan.svg':frame('140','旅 · 予定','Plan',plan,'p').replace(R, INDIGO)}
+files={'stamp-food.svg':frame('80','食 · 麺','Food',ramen,'f'),'stamp-activities.svg':frame('110','遊 · 鳥居','Activities',torii,'a'),'stamp-plan.svg':frame('140','旅 · 予定','Plan',plan,'p').replace(R, INDIGO).replace(K, INK_BLUE).replace(RAY, RAY_BLUE)}
 for k,v in files.items(): open(k,'w').write(v)
