@@ -1,5 +1,6 @@
 import { lazy, Suspense, useMemo } from 'react'
-import { HOTELS, catOf, regionOf, type Place, type Region } from '../lib'
+import { HOTELS, catOf, km, regionOf, type Place } from '../lib'
+import Thumb from './Thumb'
 import { tripToday } from '../tools'
 
 const MiniMap = lazy(() => import('./MiniMap'))
@@ -11,34 +12,61 @@ const MiniMap = lazy(() => import('./MiniMap'))
  */
 export type Door = 'map' | 'restaurant' | 'activity' | 'plan'
 
-const CATS = [
-  { key: 'activity', label: 'Activities', test: (p: Place) => p.kind === 'activity' && catOf(p) === 'activity' },
-  { key: 'shop', label: 'Shops', test: (p: Place) => p.kind === 'activity' && catOf(p) === 'shopping' },
-  { key: 'dessert', label: 'Dessert', test: (p: Place) => p.kind === 'restaurant' && (p.taste === 'sweet' || p.taste === 'both') },
-  { key: 'food', label: 'Food', test: (p: Place) => p.kind === 'restaurant' && p.taste !== 'sweet' },
-] as const
-// Tokyo darker purple, Osaka lighter blue: told apart by lightness too, not only by colour
-const CITY: { r: Region; label: string; color: string }[] = [
-  { r: 'kanto', label: 'Tokyo', color: '#6a4cae' },
-  { r: 'kansai', label: 'Osaka', color: '#7fb2f0' },
+/** Sumo ranks, top to bottom (横綱 grand champion … 前頭 senior division). */
+const RANKS = [['横綱', 'Yokozuna'], ['大関', 'Ōzeki'], ['関脇', 'Sekiwake'], ['小結', 'Komusubi'], ['前頭', 'Maegashira']] as const
+/** 三賞: sumo's three special prizes, one per kind of place */
+const PRIZES = [
+  { e: '🍜', label: 'Food', test: (p: Place) => p.kind === 'restaurant' },
+  { e: '⛩️', label: 'Activity', test: (p: Place) => p.kind === 'activity' && catOf(p) === 'activity' },
+  { e: '🛍️', label: 'Shop', test: (p: Place) => p.kind === 'activity' && catOf(p) === 'shopping' },
 ]
 
-export default function HomeScreen({ places, voteCount, onGo }: {
-  places: Place[]; voteCount: Record<string, number>
-  onGo: (d: Door) => void
+export default function HomeScreen({ places, voteCount, photoUrls, onGo, onOpen }: {
+  places: Place[]; voteCount: Record<string, number>; photoUrls: Record<string, string>
+  onGo: (d: Door) => void; onOpen: (p: Place) => void
 }) {
   const t = tripToday()
   const H = HOTELS[t.hotel]
 
-  const data = useMemo(() => CATS.map((c) => ({
-    ...c,
-    v: Object.fromEntries(CITY.map(({ r }) => [r, places.filter((p) => c.test(p) && regionOf(p) === r).reduce((s, p) => s + (voteCount[p.id] ?? 0), 0)])) as Record<Region, number>,
-  })), [places, voteCount])
-  const max = Math.max(1, ...data.flatMap((d) => CITY.map(({ r }) => d.v[r])))
-  const step = max <= 10 ? 2 : max <= 25 ? 5 : max <= 60 ? 10 : 20
-  const top = Math.ceil(max / step) * step
-  const ticks = Array.from({ length: top / step + 1 }, (_, i) => i * step)
-  const CH = 150 // chart height in px
+  // 番付: places nobody has ticked "been", most 👍 first; ties → closest to tonight's hotel
+  const rank = useMemo(() => {
+    const dist = (p: Place) => (p.lat != null && p.lng != null ? km({ lat: p.lat, lng: p.lng }, H) : 999)
+    const pool = places.filter((p) => !p.visited && (voteCount[p.id] ?? 0) > 0)
+      .sort((a, b) => (voteCount[b.id] ?? 0) - (voteCount[a.id] ?? 0) || dist(a) - dist(b))
+    return {
+      east: pool.filter((p) => regionOf(p) === 'kanto').slice(0, 5),
+      west: pool.filter((p) => regionOf(p) === 'kansai').slice(0, 5),
+      prizes: PRIZES.map((z) => ({ ...z, p: pool.find(z.test) ?? null })),
+    }
+  }, [places, voteCount, H])
+
+  const Side = ({ title, en, color, list }: { title: string; en: string; color: string; list: Place[] }) => (
+    <div>
+      <div className="mb-1.5 flex items-center justify-center gap-1.5 rounded-lg py-1 text-white" style={{ background: color }}>
+        <span className="font-jp text-lg font-bold leading-none">{title}</span><span className="text-[11px] font-semibold">{en}</span>
+      </div>
+      {list.length ? (
+        <ol className="space-y-1.5">
+          {list.map((p, i) => (
+            <li key={p.id}>
+              <button onClick={() => onOpen(p)} style={{ borderColor: i === 0 ? color : undefined }}
+                className={`flex w-full items-center gap-2 rounded-xl bg-white text-left ${i === 0 ? 'border-2 p-2' : 'border border-stone-200 px-1.5 py-1'}`}>
+                <Thumb place={p} photoUrls={photoUrls} className={`shrink-0 rounded-full ${i === 0 ? 'h-12 w-12' : i < 3 ? 'h-9 w-9' : 'h-7 w-7'}`} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-1" style={{ color }}>
+                    <span className={`font-jp font-bold leading-none ${i === 0 ? 'text-base' : 'text-[13px]'}`}>{RANKS[i][0]}</span>
+                    <span className="truncate text-[9px] font-semibold uppercase tracking-wide opacity-80">{RANKS[i][1]}</span>
+                  </span>
+                  <span className={`line-clamp-2 font-semibold leading-tight text-ink ${i === 0 ? 'text-[13px]' : 'text-[12px]'}`}>{p.name}</span>
+                </span>
+                <span className="shrink-0 text-[12px] font-bold tabular-nums" style={{ color }}>{voteCount[p.id] ?? 0}👍</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="py-4 text-center text-xs text-stone-500">No votes yet</p>}
+    </div>
+  )
 
   return (
     <div className="relative z-10 space-y-5 px-4 pb-10 pt-4">
@@ -65,38 +93,36 @@ export default function HomeScreen({ places, voteCount, onGo }: {
         ))}
       </nav>
 
-      {/* Tokyo vs Osaka: 👍 votes per category */}
-      <section className="rounded-3xl bg-white p-4 shadow-sm" aria-labelledby="chart-title">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <h2 id="chart-title" className="flex-1 font-semibold">👍 Votes by city</h2>
-          {CITY.map((c) => (
-            <span key={c.r} className="flex items-center gap-1.5 text-sm text-stone-600"><span className="h-3 w-3 rounded-full" style={{ background: c.color }} />{c.label}</span>
-          ))}
-        </div>
-        <div className="relative mt-5" style={{ height: CH + 28 }}>
-          {ticks.map((v) => (
-            <div key={v} className="absolute inset-x-0 flex items-center" style={{ bottom: 28 + (v / top) * CH - 6 }}>
-              <span className="w-6 text-right text-[10px] tabular-nums text-stone-400">{v}</span>
-              <span className="ml-1 h-px flex-1 bg-stone-100" />
+      {/* 番付 Banzuke: a sumo ranking sheet. East = Tokyo (red), West = Osaka (indigo). */}
+      <section aria-labelledby="banzuke-title" className="relative rounded-[22px] border-[3px] border-torii bg-[#fbf3e6] p-1.5 shadow-md">
+        <div className="rounded-[16px] border border-torii/60 px-3 pb-3 pt-2">
+          <div className="flex items-center justify-center gap-2">
+            <span className="h-px flex-1 bg-torii/40" />
+            <h2 id="banzuke-title" className="text-center">
+              <span className="block font-jp text-2xl font-bold leading-none text-torii">番付</span>
+              <span className="block text-[11px] font-semibold uppercase tracking-[.2em] text-stone-500">Banzuke · top places</span>
+            </h2>
+            <span className="h-px flex-1 bg-torii/40" />
+          </div>
+          <p className="mt-1 text-center text-[11px] text-stone-500">Most 👍 from the family · places we haven't been to yet</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Side title="東" en="East · Tokyo" color="#c8102e" list={rank.east} />
+            <Side title="西" en="West · Osaka" color="#1f3a6d" list={rank.west} />
+          </div>
+          <div className="mt-3 border-t border-dashed border-torii/40 pt-2">
+            <p className="text-center text-[11px] font-semibold text-stone-500"><span className="font-jp text-sm text-torii">三賞</span> Special prizes</p>
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              {rank.prizes.map((z) => (
+                <button key={z.label} disabled={!z.p} onClick={() => z.p && onOpen(z.p)}
+                  className="flex flex-col items-center gap-0.5 rounded-xl bg-white/80 px-1 py-2 text-center disabled:opacity-50">
+                  <span className="text-xl">{z.e}</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-stone-500">{z.label}</span>
+                  <span className="line-clamp-2 text-[12px] font-semibold leading-tight">{z.p?.name ?? '—'}</span>
+                </button>
+              ))}
             </div>
-          ))}
-          <div className="absolute bottom-0 left-8 right-0 grid grid-cols-4 gap-3" style={{ height: CH + 28 }}>
-            {data.map((d) => (
-              <div key={d.key} className="flex flex-col items-center justify-end">
-                <div className="flex w-full items-end justify-center gap-1" style={{ height: CH }}>
-                  {CITY.map((c) => (
-                    <div key={c.r} className="relative flex w-1/2 max-w-[22px] justify-center rounded-t-md" title={`${c.label} ${d.label}: ${d.v[c.r]} votes`}
-                      style={{ height: Math.max(2, (d.v[c.r] / top) * CH), background: c.color }}>
-                      <span className="absolute -top-4 text-[10px] font-semibold tabular-nums text-stone-600">{d.v[c.r]}</span>
-                    </div>
-                  ))}
-                </div>
-                <span className="mt-1.5 h-5 text-[12px] font-medium text-stone-600">{d.label}</span>
-              </div>
-            ))}
           </div>
         </div>
-        <p className="sr-only">{data.map((d) => `${d.label}: Tokyo ${d.v.kanto}, Osaka ${d.v.kansai}`).join('. ')}</p>
       </section>
     </div>
   )

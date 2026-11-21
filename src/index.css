@@ -78,3 +78,6 @@ body {
 @layer base {
   input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea { font-size: max(16px, 1em) !important; }
 }
+
+/* Japanese display text (banzuke, stamps): Mincho serif where the phone has one */
+.font-jp { font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", "MS Mincho", serif; }

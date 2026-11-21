@@ -234,7 +234,7 @@ export default function Home({ me, data, onLogout }: {
       {tab === 'home' ? (
         <Suspense fallback={<div className="p-10 text-center text-stone-400">Loading…</div>}>
           {fujiBg}
-          <HomeScreen places={effPlaces} voteCount={voteCount} onGo={(d) => setTab(d)} />
+          <HomeScreen places={effPlaces} voteCount={voteCount} photoUrls={photoUrls} onGo={(d) => setTab(d)} onOpen={(p) => setViewingId(p.id)} />
         </Suspense>
       ) : tab === 'map' ? (
         <Suspense fallback={<div className="h-[calc(100dvh-4.5rem)] animate-pulse bg-[#fbf3e6]" />}>
