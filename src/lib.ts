@@ -103,13 +103,13 @@ export const HOTELS: Record<HotelId, { name: string; short: string; city: string
 export const HOTEL_IDS = Object.keys(HOTELS) as HotelId[]
 
 /**
- * Where we sleep each night (checked with Maryam 14 Nov 2026). Dates are Japan dates, 'YYYY-MM-DD'.
- * Tokyo (Toranomon) 26–28 Dec · Osaka 29 Dec – 2 Jan · Tokyo (JW) 3–7 Jan · fly home 8 Jan.
+ * Where we sleep each night (checked with Maryam 14 Nov 2026; Osaka check-out moved to 4 Jan on 22 Nov). Dates are Japan dates, 'YYYY-MM-DD'.
+ * Tokyo (Toranomon) 26–28 Dec · Osaka 29 Dec – 3 Jan · Tokyo (JW) 4–7 Jan · fly home 8 Jan.
  */
 export const STAYS: { hotel: HotelId; checkIn: string; checkOut: string }[] = [
   { hotel: 'toranomon', checkIn: '2026-12-26', checkOut: '2026-12-29' },
-  { hotel: 'osaka', checkIn: '2026-12-29', checkOut: '2027-01-03' },
-  { hotel: 'jw_tokyo', checkIn: '2027-01-03', checkOut: '2027-01-08' },
+  { hotel: 'osaka', checkIn: '2026-12-29', checkOut: '2027-01-04' },
+  { hotel: 'jw_tokyo', checkIn: '2027-01-04', checkOut: '2027-01-08' },
 ]
 /** One entry per trip day, 26 Dec → 8 Jan. Moving days have `from` (morning hotel) + `hotel` (night hotel); the last day has no night. */
 export type TripDay = { date: string; hotel: HotelId | null; from: HotelId | null; moving: boolean; last: boolean }
